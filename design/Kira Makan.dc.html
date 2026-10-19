@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9E6DF;font-family:'Bricolage Grotesque',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}a:hover{color:#2F7A4F}
+.km{--bg:#FAF4EA;--card:#fff;--card2:#F5ECDD;--text:#2B1D12;--muted:#7A6656;--accent:#2F7A4F;--on-accent:#fff;--accent-soft:#E7F2EA;--accent-text:#1F5C3A;--amber:#D9951E;--amber-soft:#FBEBD0;--amber-text:#7A4A0C;--bar:#E6DCCB;--dash:#CDBFA8;--line:#EDE3D3;--nav:#2B1D12;--nav-text:#BFAE9C;--nav-active:#FAF4EA;--protein:#2F6DB3;--carbs:#D9951E;--fat:#B5649A;--thumb1:#EADBC4;--thumb2:#F5ECDD;--chip:#F5ECDD;--sheet:rgba(43,29,18,.45);--shadow:0 1px 2px rgba(43,29,18,.06)}
+.km.dark{--bg:#171310;--card:#241E18;--card2:#352C24;--text:#F4ECDF;--muted:#A89683;--accent:#5FBF8A;--on-accent:#0E2A1C;--accent-soft:#17352A;--accent-text:#5FBF8A;--amber:#F2B24C;--amber-soft:#3D2E12;--amber-text:#F2B24C;--bar:#3A3129;--dash:#4A3F35;--line:#352C24;--nav:#F4ECDF;--nav-text:#7A6656;--nav-active:#2B1D12;--protein:#6FA8FF;--carbs:#F2B24C;--fat:#E59ACB;--thumb1:#3A2F25;--thumb2:#2E251D;--chip:#352C24;--sheet:rgba(0,0,0,.6);--shadow:none}
+.km ::-webkit-scrollbar{display:none}
+@keyframes km-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes km-up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+
+<div class="km {{ themeClass }}" style="min-height:100vh;display:flex;gap:40px;align-items:flex-start;justify-content:center;padding:40px 24px;box-sizing:border-box;font-variant-numeric:tabular-nums">
+
+<!-- Screen index -->
+<div style="width:220px;flex:none;position:sticky;top:40px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4A4038">
+<div style="font-weight:700;font-size:15px;color:#1a1a1a;margin-bottom:6px">Kira Makan</div>
+<div style="font-size:12px;color:#8A8078;margin-bottom:10px;line-height:1.4">Clickable prototype. Tap through the phone, or jump to a screen. Toggle dark mode in Tweaks.</div>
+<sc-for list="{{ index }}" as="it" hint-placeholder-count="12">
+<div onClick="{{ it.go }}" style="padding:7px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;background:{{ it.bg }};color:{{ it.color }}"><span>{{ it.label }}</span><span style="font-size:11px;opacity:.6">{{ it.id }}</span></div>
+</sc-for>
+</div>
+
+<!-- Phone -->
+<div style="width:390px;height:844px;flex:none;border-radius:46px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 10px #161513,0 24px 60px rgba(0,0,0,.3)">
+<div style="height:47px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-weight:600;font-size:15px;flex:none"><span>7:10</span><span style="font-size:12px">5G ▮▮▮</span></div>
+
+<!-- ========== S08 TODAY ========== -->
+<sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:120px">
+<div style="padding:4px 20px 0;display:flex;justify-content:space-between;align-items:center">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:26px;font-weight:700;letter-spacing:-.02em">Today</span><span style="font-size:14px;color:var(--muted)">Fri 16 Oct</span></div>
+<div onClick="{{ goMore }}" style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:600;cursor:pointer">{{ goalPill }}</div>
+</div>
+<sc-if value="{{ showCheckinBanner }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ goCheckin }}" style="margin:12px 16px 0;background:var(--amber-soft);color:var(--amber-text);border-radius:16px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px;cursor:pointer"><span><b>Yesterday looks incomplete.</b> 2 meals, 1,240 kcal.</span><span style="font-weight:700">Check ›</span></div>
+</sc-if>
+<div onClick="{{ goBudget }}" style="margin:14px 16px 0;background:var(--card);border-radius:28px;padding:18px 20px 16px;box-shadow:var(--shadow);cursor:pointer">
+<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
+<div><div style="font-size:13px;color:var(--muted)">{{ heroLabel }}</div><div style="font-size:84px;font-weight:800;letter-spacing:-.05em;line-height:.95;color:{{ heroColor }}">{{ heroNumber }}</div><div style="font-size:13px;color:var(--amber-text);margin-top:4px">{{ heroNote }}</div></div>
+<div style="display:flex;flex-direction:column;gap:10px;text-align:right;padding-bottom:6px">
+<div><div style="font-size:12px;color:var(--muted)">Saved this week</div><div style="font-size:22px;font-weight:700;color:var(--accent-text)">+650</div></div>
+<div><div style="font-size:12px;color:var(--muted)">Left this week</div><div style="font-size:22px;font-weight:700">{{ leftWeek }}</div></div></div></div>
+<div style="position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:64px;margin-top:14px">
+<div style="position:absolute;left:0;right:0;top:12px;border-top:1.5px dashed var(--dash)"></div>
+<div style="height:36px;background:var(--bar);border-radius:8px"></div><div style="height:38px;background:var(--bar);border-radius:8px"></div><div style="height:34px;background:var(--bar);border-radius:8px"></div><div style="height:37px;background:var(--bar);border-radius:8px"></div>
+<div style="height:40px;border:2px solid var(--accent);border-radius:8px;position:relative;overflow:hidden;box-sizing:border-box"><div style="position:absolute;left:0;right:0;bottom:0;height:{{ todayFillPct }};background:var(--accent)"></div></div>
+<div style="height:54px;border:2px dashed var(--amber);border-radius:8px;box-sizing:border-box"></div>
+<div style="height:40px;border:2px dashed var(--dash);border-radius:8px;box-sizing:border-box"></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:12px;font-weight:600;color:var(--muted);text-align:center;margin-top:6px"><span>M</span><span>T</span><span>W</span><span>T</span><span style="color:var(--text)">F</span><span style="color:var(--amber-text)">S ★</span><span>S</span></div>
+<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:8px"><span>{{ eatenToday }} eaten · window closes 10:40pm</span><span>{{ satRoom }}</span></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 16px 0">
+<div style="background:var(--card);border-radius:16px;padding:10px"><div style="font-size:12px;color:var(--muted)">{{ proteinLabel }}</div><div style="font-size:15px;font-weight:700">{{ protein }}<span style="font-weight:500;color:var(--muted)">/110g</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:6px"><div style="width:{{ proteinPct }};height:100%;border-radius:3px;background:var(--protein)"></div></div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px"><div style="font-size:12px;color:var(--muted)">Carbs</div><div style="font-size:15px;font-weight:700">{{ carbs }}<span style="font-weight:500;color:var(--muted)">/180g</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:6px"><div style="width:{{ carbsPct }};height:100%;border-radius:3px;background:var(--carbs)"></div></div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px"><div style="font-size:12px;color:var(--muted)">Fat</div><div style="font-size:15px;font-weight:700">{{ fat }}<span style="font-weight:500;color:var(--muted)">/60g</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:6px"><div style="width:{{ fatPct }};height:100%;border-radius:3px;background:var(--fat)"></div></div></div>
+</div>
+<sc-if value="{{ hasFocus }}" hint-placeholder-val="{{ false }}">
+<div style="margin:8px 16px 0;background:var(--accent-soft);color:var(--accent-text);border-radius:16px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between"><span><b>This week's focus:</b> {{ focus }}</span><span style="font-weight:700">0 of 5</span></div>
+</sc-if>
+<div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ meals }}" as="m" hint-placeholder-count="2">
+<div onClick="{{ m.open }}" style="background:var(--card);border-radius:20px;padding:10px;display:flex;gap:12px;align-items:center;cursor:pointer;animation:km-up .3s ease both">
+<div style="width:52px;height:52px;border-radius:16px;background:repeating-linear-gradient(45deg,var(--thumb1) 0 6px,var(--thumb2) 6px 12px);flex:none"></div>
+<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--muted)">{{ m.slot }} · {{ m.time }} · {{ m.place }}</div><div style="font-size:16px;font-weight:600">{{ m.name }}</div><div style="display:inline-flex;margin-top:3px;background:{{ m.tagBg }};color:{{ m.tagColor }};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">{{ m.tag }}</div></div>
+<div style="font-size:17px;font-weight:700">~{{ m.kcal }}</div></div>
+</sc-for>
+<sc-if value="{{ dinnerEmpty }}" hint-placeholder-val="{{ true }}">
+<div style="border:2px dashed var(--dash);border-radius:20px;padding:10px 10px 10px 14px;display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-size:12px;color:var(--muted)">Dinner</div><div style="font-size:16px;font-weight:600">Not logged yet</div></div>
+<div onClick="{{ goIdeas }}" style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer">Meal ideas</div></div>
+</sc-if>
+</div>
+<div style="padding:14px 24px 0;font-size:13px;color:var(--muted);text-align:center;line-height:1.45">{{ nudge }}</div>
+</div>
+</sc-if>
+
+<!-- ========== S12 DIARY DAY ========== -->
+<sc-if value="{{ isDiary }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:120px">
+<div style="padding:4px 20px 0;display:flex;justify-content:space-between;align-items:center">
+<span style="font-size:26px;font-weight:700;letter-spacing:-.02em">Diary</span>
+<div style="display:flex;background:var(--card);border-radius:999px;padding:3px;font-size:13px;font-weight:600"><span style="padding:6px 14px;border-radius:999px;background:var(--nav);color:var(--nav-active)">Day</span><span onClick="{{ goDiaryWeek }}" style="padding:6px 14px;cursor:pointer;color:var(--muted)">Week</span></div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px 0;font-size:15px;font-weight:600"><span style="color:var(--muted)">‹ Thu</span><span>Fri 16 Oct · Today</span><span style="color:var(--muted)">Sat ›</span></div>
+<div style="margin:12px 16px 0;background:var(--card);border-radius:20px;padding:12px 16px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="display:inline-flex;gap:6px;align-items:center;background:var(--accent-soft);color:var(--accent-text);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600">● In progress</span><span style="font-size:15px;font-weight:700">{{ eatenToday }} <span style="color:var(--muted);font-weight:500">of 1,800 kcal</span></span></div>
+<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:12px"><span>Window opened 10:40am</span><span>closes 10:40pm</span></div>
+<div style="position:relative;height:16px;margin-top:8px;border-radius:8px;background:var(--card2)">
+<div style="position:absolute;left:14.8%;width:66.7%;top:0;bottom:0;border-radius:8px;background:var(--accent-soft)"></div>
+<div style="position:absolute;left:14.8%;top:3px;width:10px;height:10px;border-radius:50%;background:var(--amber);margin-left:-5px"></div>
+<div style="position:absolute;left:34.7%;top:2px;width:12px;height:12px;border-radius:50%;background:var(--accent);margin-left:-6px"></div>
+<sc-if value="{{ dinnerLogged }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:62%;top:1px;width:14px;height:14px;border-radius:50%;background:var(--accent);margin-left:-7px"></div></sc-if>
+<div style="position:absolute;left:62%;top:-3px;bottom:-3px;width:2px;background:var(--text)"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px"><span>5am</span><span>now</span><span>5am</span></div>
+</div>
+<div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ meals }}" as="m" hint-placeholder-count="2">
+<div onClick="{{ m.open }}" style="background:var(--card);border-radius:20px;padding:10px;display:flex;gap:12px;align-items:center;cursor:pointer">
+<div style="width:52px;height:52px;border-radius:16px;background:repeating-linear-gradient(45deg,var(--thumb1) 0 6px,var(--thumb2) 6px 12px);flex:none"></div>
+<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--muted)">{{ m.slot }} · {{ m.time }} · {{ m.place }} · {{ m.price }}</div><div style="font-size:16px;font-weight:600">{{ m.name }}</div><div style="display:inline-flex;margin-top:3px;background:{{ m.tagBg }};color:{{ m.tagColor }};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">{{ m.tag }}</div></div>
+<div style="font-size:17px;font-weight:700">~{{ m.kcal }}</div></div>
+</sc-for>
+<div style="background:var(--card);border-radius:20px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;color:var(--muted)">Weight · 8:05am</div><div style="font-size:16px;font-weight:600">77.8 kg</div></div><span style="font-size:13px;color:var(--accent-text);font-weight:600">Trend 77.9</span></div>
+<div style="border:2px dashed var(--dash);border-radius:20px;padding:12px 14px;font-size:13px;color:var(--muted)">No workout today</div>
+</div>
+</div>
+</sc-if>
+
+<!-- ========== S13 DIARY WEEK ========== -->
+<sc-if value="{{ isDiaryWeek }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:120px">
+<div style="padding:4px 20px 0;display:flex;justify-content:space-between;align-items:center">
+<span style="font-size:26px;font-weight:700;letter-spacing:-.02em">Diary</span>
+<div style="display:flex;background:var(--card);border-radius:999px;padding:3px;font-size:13px;font-weight:600"><span onClick="{{ goDiary }}" style="padding:6px 14px;cursor:pointer;color:var(--muted)">Day</span><span style="padding:6px 14px;border-radius:999px;background:var(--nav);color:var(--nav-active)">Week</span></div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px 0;font-size:15px;font-weight:600"><span style="color:var(--muted)">‹ Last week</span><span>13–19 Oct · This week</span><span style="color:var(--dash)">›</span></div>
+<div style="margin:12px 16px 0;background:var(--card);border-radius:24px;padding:16px 18px">
+<div style="position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:96px">
+<div style="position:absolute;left:0;right:0;top:20px;border-top:1.5px dashed var(--dash)"></div>
+<div style="height:68px;background:var(--bar);border-radius:8px"></div><div style="height:72px;background:var(--bar);border-radius:8px"></div><div style="height:65px;background:var(--bar);border-radius:8px"></div><div style="height:71px;background:var(--bar);border-radius:8px"></div>
+<div style="height:76px;border:2px solid var(--accent);border-radius:8px;position:relative;overflow:hidden;box-sizing:border-box"><div style="position:absolute;left:0;right:0;bottom:0;height:{{ todayFillPct }};background:var(--accent)"></div></div>
+<div style="height:96px;border:2px dashed var(--amber);border-radius:8px;box-sizing:border-box"></div>
+<div style="height:76px;border:2px dashed var(--dash);border-radius:8px;box-sizing:border-box"></div></div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:12px;font-weight:600;color:var(--muted);text-align:center;margin-top:6px"><span>M</span><span>T</span><span>W</span><span>T</span><span style="color:var(--text)">F</span><span style="color:var(--amber-text)">S ★</span><span>S</span></div>
+<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:10px"><span>Target 1,800 a day</span><span>Saved so far <b style="color:var(--accent-text)">+650</b></span></div>
+</div>
+<div style="margin:8px 16px 0;background:var(--card);border-radius:20px;padding:4px 14px">
+<sc-for list="{{ weekRows }}" as="d" hint-placeholder-count="7">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)"><div style="display:flex;gap:10px;align-items:center"><span style="width:36px;font-weight:600">{{ d.day }}</span><span style="background:{{ d.bg }};color:{{ d.color }};border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">{{ d.status }}</span></div><span style="font-weight:700;color:{{ d.numColor }}">{{ d.kcal }}</span></div>
+</sc-for>
+</div>
+<div style="margin:8px 16px 0;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);padding:0 4px"><span>View under</span><div style="display:flex;background:var(--card);border-radius:999px;padding:3px;font-size:12px;font-weight:600"><span style="padding:5px 10px;border-radius:999px;background:var(--card2);color:var(--text)">Goal at the time</span><span style="padding:5px 10px">Current goal</span></div></div>
+</div>
+</sc-if>
+
+<!-- ========== S31 INSIGHTS ========== -->
+<sc-if value="{{ isInsights }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:120px">
+<div style="padding:4px 20px 0;display:flex;justify-content:space-between;align-items:center"><span style="font-size:26px;font-weight:700;letter-spacing:-.02em">Insights</span><span style="font-size:13px;color:var(--muted)">Week 3 · day 19</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 16px 0">
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">Last week</div><div style="font-size:20px;font-weight:700;color:var(--amber-text)">+350</div><div style="font-size:11px;color:var(--muted)">over plan</div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">Trend</div><div style="font-size:20px;font-weight:700;color:var(--accent-text)">−0.4 kg</div><div style="font-size:11px;color:var(--muted)">77.9 kg now</div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">Complete</div><div style="font-size:20px;font-weight:700">6 of 7</div><div style="font-size:11px;color:var(--muted)">days logged</div></div>
+</div>
+<div onClick="{{ goWeekly }}" style="margin:8px 16px 0;background:var(--nav);color:var(--nav-active);border-radius:20px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer"><div><div style="font-size:12px;opacity:.7">Sunday night</div><div style="font-size:15px;font-weight:700">Your weekly review is ready</div></div><span style="font-size:20px">›</span></div>
+<div style="padding:18px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">TOP 3 THIS WEEK</div>
+<div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ insights }}" as="i" hint-placeholder-count="3">
+<div style="background:var(--card);border-radius:20px;padding:14px 16px">
+<div style="font-size:16px;font-weight:700;line-height:1.3">{{ i.head }}</div>
+<div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4">{{ i.evidence }} <span style="color:var(--accent-text);font-weight:600">{{ i.link }}</span></div>
+<div style="margin-top:8px;background:var(--accent-soft);color:var(--accent-text);border-radius:12px;padding:8px 10px;font-size:13px;line-height:1.4"><b>Try:</b> {{ i.try }}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-size:11px;color:var(--muted)">{{ i.meta }}</span><div style="display:flex;gap:6px;font-size:12px;font-weight:600"><span style="background:var(--card2);border-radius:999px;padding:5px 10px">Useful</span><span style="color:var(--muted);padding:5px 6px">Not for me</span></div></div>
+</div>
+</sc-for>
+</div>
+<div style="padding:18px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">WHERE IT CAME FROM</div>
+<div style="margin:0 16px;background:var(--card);border-radius:20px;padding:6px 16px">
+<sc-for list="{{ categories }}" as="c" hint-placeholder-count="5">
+<div style="padding:9px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span style="font-weight:{{ c.weight }}">{{ c.name }}</span><span style="font-weight:600">{{ c.pct }}%</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:5px"><div style="width:{{ c.pct }}%;height:100%;border-radius:3px;background:{{ c.color }}"></div></div></div>
+</sc-for>
+</div>
+<div style="padding:18px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">RECURRING CALORIES</div>
+<div style="margin:0 16px;background:var(--card);border-radius:20px;padding:4px 16px">
+<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>Teh tarik <span style="color:var(--muted)">· ~8 a week</span></span><b>≈ 1,450</b></div>
+<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>Roti canai <span style="color:var(--muted)">· ~3 a week</span></span><b>≈ 900</b></div>
+<div style="display:flex;justify-content:space-between;padding:10px 0"><span>Evening biscuits <span style="color:var(--muted)">· ~5 a week</span></span><b>≈ 750</b></div>
+</div>
+<div style="padding:18px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">WHEN YOU ATE</div>
+<div style="margin:0 16px;background:var(--card);border-radius:20px;padding:14px 16px">
+<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>Average window 10.4 h</span><span>Early read · 9 days</span></div>
+<div style="display:grid;grid-template-columns:28px 1fr;gap:6px 10px;margin-top:10px;font-size:11px;color:var(--muted);font-weight:600">
+<sc-for list="{{ timingRows }}" as="r" hint-placeholder-count="7">
+<span style="align-self:center">{{ r.day }}</span>
+<div style="position:relative;height:14px"><div style="position:absolute;top:5px;left:{{ r.start }};width:{{ r.len }};height:4px;border-radius:2px;background:var(--accent-soft)"></div>
+<sc-for list="{{ r.dots }}" as="dt" hint-placeholder-count="3"><div style="position:absolute;top:50%;left:{{ dt.x }};width:{{ dt.s }};height:{{ dt.s }};margin:calc({{ dt.s }} / -2) 0 0 calc({{ dt.s }} / -2);border-radius:50%;background:{{ dt.c }}"></div></sc-for></div>
+</sc-for>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px;padding-left:38px"><span>5am</span><span>noon</span><span>6pm</span><span>midnight</span></div>
+</div>
+<div style="padding:18px 20px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">UNLOCKS AS YOU LOG</div>
+<div style="margin:0 16px;background:var(--card);border-radius:20px;padding:12px 16px;display:flex;flex-direction:column;gap:12px">
+<div><div style="display:flex;justify-content:space-between;font-size:13px"><span>Timing patterns</span><span style="color:var(--muted)">9 of 14 days</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:6px"><div style="width:64%;height:100%;border-radius:3px;background:var(--accent)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:13px"><span>Your real maintenance</span><span style="color:var(--muted)">9 of 21 days</span></div><div style="height:6px;border-radius:3px;background:var(--line);margin-top:6px"><div style="width:43%;height:100%;border-radius:3px;background:var(--accent)"></div></div></div>
+</div>
+</div>
+</sc-if>
+
+<!-- ========== S48 MORE ========== -->
+<sc-if value="{{ isMore }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:120px">
+<div style="padding:4px 20px 0;font-size:26px;font-weight:700;letter-spacing:-.02em">More</div>
+<div style="margin:14px 16px 0;background:var(--card);border-radius:24px;padding:16px 18px">
+<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;color:var(--muted)">Active goal · week 3</div><div style="font-size:20px;font-weight:700">Cut · 1,800 a day</div><div style="font-size:13px;color:var(--muted);margin-top:2px">−0.5 kg a week · protein 110g · min 1,400</div></div><span style="background:var(--accent-soft);color:var(--accent-text);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700">Active</span></div>
+<div style="display:flex;gap:6px;margin-top:12px;font-size:12px;font-weight:600"><span style="background:var(--card2);border-radius:999px;padding:6px 12px">Festive maintain · Saved</span><span style="background:var(--card2);border-radius:999px;padding:6px 12px">Lean bulk · Draft</span></div>
+</div>
+<div style="margin:8px 16px 0;background:var(--card);border-radius:20px;padding:4px 16px">
+<sc-for list="{{ moreRows }}" as="r" hint-placeholder-count="7">
+<div onClick="{{ r.go }}" style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer"><div><div style="font-size:16px;font-weight:600">{{ r.label }}</div><div style="font-size:12px;color:var(--muted)">{{ r.sub }}</div></div><span style="color:var(--muted);font-size:18px">›</span></div>
+</sc-for>
+</div>
+<div style="padding:16px 24px 0;font-size:12px;color:var(--muted);text-align:center">Estimates are approximate. This app isn't medical advice.</div>
+</div>
+</sc-if>
+
+<!-- ========== S16 WEIGHT ========== -->
+<sc-if value="{{ isWeight }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:40px">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ goMore }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">Weight</span></div>
+<div style="margin:14px 16px 0;background:var(--card);border-radius:24px;padding:18px 20px;text-align:center">
+<div style="font-size:12px;color:var(--muted)">This morning</div>
+<div style="font-size:64px;font-weight:800;letter-spacing:-.04em;line-height:1">{{ weightInput }}<span style="font-size:20px;color:var(--muted);font-weight:500"> kg</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:14px">
+<sc-for list="{{ numpad }}" as="k" hint-placeholder-count="12"><div onClick="{{ k.press }}" style="height:44px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;cursor:pointer">{{ k.label }}</div></sc-for>
+</div>
+<div onClick="{{ saveWeight }}" style="margin-top:12px;background:var(--accent);color:var(--on-accent);border-radius:999px;height:48px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;cursor:pointer">{{ weightSaveLabel }}</div>
+</div>
+<div style="margin:8px 16px 0;background:var(--card);border-radius:20px;padding:14px 16px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">Trend</span><div style="display:flex;background:var(--card2);border-radius:999px;padding:2px;font-size:11px;font-weight:600"><span style="padding:4px 9px;border-radius:999px;background:var(--card)">14d</span><span style="padding:4px 9px;color:var(--muted)">30d</span><span style="padding:4px 9px;color:var(--muted)">90d</span></div></div>
+<svg viewBox="0 0 320 110" width="100%" height="110" style="margin-top:8px;overflow:visible">
+<line x1="0" y1="27" x2="320" y2="27" stroke="var(--line)" stroke-width="1"></line><line x1="0" y1="55" x2="320" y2="55" stroke="var(--line)" stroke-width="1"></line><line x1="0" y1="83" x2="320" y2="83" stroke="var(--line)" stroke-width="1"></line>
+<sc-for list="{{ weightDots }}" as="w" hint-placeholder-count="14"><circle cx="{{ w.x }}" cy="{{ w.y }}" r="3.5" fill="var(--dash)"></circle></sc-for>
+<path d="{{ trendPath }}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"></path>
+<circle cx="148" cy="12" r="5" fill="none" stroke="var(--amber)" stroke-width="2"></circle>
+<text x="158" y="10" font-size="10" fill="var(--amber-text)" font-family="Bricolage Grotesque">Monday jump: salt and water</text>
+</svg>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>3 Oct</span><span>today</span></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 16px 0">
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">Trend</div><div style="font-size:20px;font-weight:700">77.9 kg</div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">This week</div><div style="font-size:20px;font-weight:700;color:var(--accent-text)">−0.4 kg</div></div>
+<div style="background:var(--card);border-radius:16px;padding:10px 12px"><div style="font-size:12px;color:var(--muted)">Plan</div><div style="font-size:20px;font-weight:700">−0.5</div><div style="font-size:11px;color:var(--muted)">kg a week</div></div>
+</div>
+</div>
+</sc-if>
+
+<!-- ========== S36 MEAL IDEAS ========== -->
+<sc-if value="{{ isIdeas }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:40px">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ goToday }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">Meal ideas</span></div>
+<div style="padding:12px 20px 0;font-size:15px;line-height:1.45;color:var(--muted)"><b style="color:var(--text)">{{ heroNumber }} kcal</b> and ~{{ proteinLeft }}g protein left · window closes 10:40pm</div>
+<div style="padding:14px 16px 0;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ ideas }}" as="s" hint-placeholder-count="3">
+<div style="background:var(--card);border-radius:24px;padding:14px 16px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.02em">{{ s.role }}</span><span style="background:{{ s.fitBg }};color:{{ s.fitColor }};border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700">{{ s.fit }}</span></div>
+<div style="font-size:19px;font-weight:700;margin-top:6px;line-height:1.25">{{ s.name }}</div>
+<div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4">{{ s.reason }}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><div style="font-size:14px"><b>~{{ s.kcal }} kcal</b> <span style="color:var(--muted)">· {{ s.protein }}g protein · {{ s.place }}</span></div><div onClick="{{ s.log }}" style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;flex:none">Log this</div></div>
+</div>
+</sc-for>
+<div style="border:2px dashed var(--dash);border-radius:24px;padding:14px;text-align:center;font-size:15px;font-weight:600;color:var(--muted)">Surprise me</div>
+</div>
+</div>
+</sc-if>
+
+<!-- ========== S24 PLATE BUILDER ========== -->
+<sc-if value="{{ isPlate }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:150px">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ goToday }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">Build your plate</span></div>
+<div style="display:flex;gap:6px;padding:12px 16px 0;flex-wrap:wrap"><span style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600">⌖ Kedai near home · Nearby</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">Now</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">Dinner</span></div>
+<div style="margin:12px 16px 0;background:var(--card);border-radius:20px;padding:12px 14px"><div style="display:flex;justify-content:space-between;font-size:15px"><b>Rice</b><b>~{{ riceKcal }}</b></div>
+<div style="display:flex;gap:6px;margin-top:8px"><sc-for list="{{ riceChips }}" as="c" hint-placeholder-count="3"><span onClick="{{ c.pick }}" style="background:{{ c.bg }};color:{{ c.color }};border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer">{{ c.label }}</span></sc-for></div></div>
+<div style="padding:14px 20px 4px;font-size:12px;color:var(--muted)">Tap a dish to add it, tap again for 2</div>
+<sc-for list="{{ dishGroups }}" as="g" hint-placeholder-count="3">
+<div style="padding:8px 20px 6px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.02em">{{ g.name }}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px">
+<sc-for list="{{ g.dishes }}" as="d" hint-placeholder-count="4">
+<div onClick="{{ d.tap }}" style="position:relative;background:var(--card);border-radius:16px;padding:12px 12px;cursor:pointer;box-shadow:{{ d.ring }}"><div style="font-size:14px;font-weight:600;line-height:1.25">{{ d.name }}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">~{{ d.kcal }} {{ d.unit }}</div>
+<sc-if value="{{ d.count }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:8px;right:8px;background:var(--accent);color:var(--on-accent);border-radius:999px;min-width:22px;height:22px;padding:0 6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">×{{ d.count }}</div></sc-if>
+<sc-if value="{{ d.often }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--accent-text);font-weight:600;margin-top:4px">Picked often</div></sc-if></div>
+</sc-for>
+</div>
+</sc-for>
+<div style="margin:12px 16px 0;background:var(--card);border-radius:20px;padding:12px 14px"><div style="display:flex;justify-content:space-between;font-size:15px"><b>Kuah on rice</b><b>~{{ kuahKcal }}</b></div>
+<div style="display:flex;gap:6px;margin-top:8px"><sc-for list="{{ kuahChips }}" as="c" hint-placeholder-count="3"><span onClick="{{ c.pick }}" style="background:{{ c.bg }};color:{{ c.color }};border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer">{{ c.label }}</span></sc-for></div></div>
+<div style="margin:8px 16px 0;display:flex;gap:8px"><div style="flex:1;background:var(--card);border-radius:16px;padding:10px 14px;font-size:13px"><span style="color:var(--muted)">Oil here</span> <b>Medium</b> <span style="color:var(--muted)">· remembered</span></div><div style="flex:none;background:var(--card);border-radius:16px;padding:10px 14px;font-size:13px"><span style="color:var(--muted)">RM</span> <b>9.50</b></div></div>
+</div>
+<div style="position:absolute;left:10px;right:10px;bottom:22px;background:var(--nav);color:var(--nav-active);border-radius:30px;padding:14px 16px 14px 20px;display:flex;align-items:center;justify-content:space-between">
+<div><div style="font-size:12px;opacity:.7">Best guess</div><div style="font-size:26px;font-weight:800;line-height:1.1">{{ plateTotal }} kcal</div><div style="font-size:12px;opacity:.7">likely {{ plateRange }}</div></div>
+<div onClick="{{ plateReview }}" style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:16px 20px;font-size:15px;font-weight:700;cursor:pointer">Review</div></div>
+</sc-if>
+
+<!-- ========== S10 ESTIMATING ========== -->
+<sc-if value="{{ isEstimating }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ goToday }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">Reading your meal</span></div>
+<div style="margin:16px 16px 0;background:var(--card);border-radius:20px;padding:14px 16px;font-size:17px;line-height:1.4">“{{ logText }}”</div>
+<div style="padding:14px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ skeletons }}" as="s" hint-placeholder-count="4">
+<div style="background:var(--card);border-radius:20px;padding:14px;display:flex;justify-content:space-between;align-items:center;animation:km-pulse 1.4s ease-in-out infinite;animation-delay:{{ s.delay }}"><div style="display:flex;flex-direction:column;gap:8px"><div style="width:{{ s.w }};height:14px;border-radius:7px;background:var(--card2)"></div><div style="display:flex;gap:6px"><div style="width:52px;height:26px;border-radius:999px;background:var(--card2)"></div><div style="width:60px;height:26px;border-radius:999px;background:var(--card2)"></div></div></div><div style="width:40px;height:16px;border-radius:8px;background:var(--card2)"></div></div>
+</sc-for>
+</div>
+<div style="padding:20px;text-align:center;font-size:14px;color:var(--muted)">Estimating… matching to your library and MyFCD</div>
+<div style="display:flex;justify-content:center"><span onClick="{{ goToday }}" style="font-size:14px;font-weight:600;color:var(--muted);padding:10px 16px;cursor:pointer">Cancel</span></div>
+</div>
+</sc-if>
+
+<!-- ========== S11 REVIEW ========== -->
+<sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:170px">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ reviewBack }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">{{ reviewTitle }}</span></div>
+<div style="display:flex;gap:6px;padding:12px 16px 0;flex-wrap:wrap"><span style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600">⌖ {{ reviewPlace }}</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">{{ reviewTime }}</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">Dinner</span></div>
+<sc-if value="{{ reviewText }}" hint-placeholder-val="{{ false }}"><div style="margin:12px 20px 0;font-size:13px;line-height:1.45;color:var(--muted)">“{{ reviewText }}”</div></sc-if>
+<div style="padding:10px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ reviewItems }}" as="it" hint-placeholder-count="5">
+<div style="background:var(--card);border-radius:20px;padding:12px 14px;box-shadow:{{ it.ring }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:600">{{ it.name }} <span style="font-size:11px;font-weight:600;color:{{ it.srcColor }};border:1px {{ it.srcBorder }};border-radius:999px;padding:0 7px;margin-left:4px;vertical-align:2px">{{ it.source }}</span></span><span style="font-size:16px;font-weight:700">~{{ it.kcal }}</span></div>
+<sc-if value="{{ it.question }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted);margin-top:4px">{{ it.question }}</div></sc-if>
+<sc-if value="{{ it.hasChips }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><sc-for list="{{ it.chips }}" as="c" hint-placeholder-count="3"><span onClick="{{ c.pick }}" style="background:{{ c.bg }};color:{{ c.color }};border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer">{{ c.label }}</span></sc-for></div>
+</sc-if>
+</div>
+</sc-for>
+<div style="display:flex;justify-content:space-between;padding:6px 8px;font-size:14px;font-weight:600;color:var(--accent-text)"><span>+ Add item</span><span style="color:var(--muted);font-weight:500">Finished it all? ▾</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:16px;padding:10px 14px;font-size:14px"><span style="color:var(--muted)">Also save as a Usual</span><span style="width:40px;height:24px;border-radius:12px;background:var(--card2);position:relative"><span style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--card)"></span></span></div>
+</div>
+</div>
+<div style="position:absolute;left:10px;right:10px;bottom:22px;background:var(--nav);color:var(--nav-active);border-radius:30px;padding:14px 16px 14px 20px">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<div><div style="font-size:12px;opacity:.7">Best guess</div><div style="font-size:26px;font-weight:800;line-height:1.1">{{ reviewTotal }} kcal</div><div style="font-size:12px;opacity:.7">likely {{ reviewRange }}</div></div>
+<div onClick="{{ saveReview }}" style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:16px 22px;font-size:16px;font-weight:700;cursor:pointer">Save</div></div>
+<div style="display:flex;gap:3px;margin-top:12px;height:6px"><span style="flex:{{ eatenNum }};background:var(--accent);border-radius:3px;opacity:.45"></span><span style="flex:{{ afterFit }};background:var(--accent);border-radius:3px"></span><span style="flex:{{ afterOver }};background:var(--amber);border-radius:3px"></span></div>
+<div style="font-size:12px;opacity:.8;margin-top:6px">{{ afterLine }}</div>
+</div>
+</sc-if>
+
+<!-- ========== S33 WEEKLY REVIEW ========== -->
+<sc-if value="{{ isWeekly }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:47px 0 0;overflow-y:auto;padding-bottom:40px">
+<div style="padding:4px 16px 0;display:flex;align-items:center;gap:12px"><span onClick="{{ goInsights }}" style="width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer">‹</span><span style="font-size:24px;font-weight:700">Your week</span><span style="margin-left:auto;font-size:13px;color:var(--muted)">{{ weeklyStepLabel }}</span></div>
+<div style="display:flex;gap:4px;padding:12px 16px 0"><span style="flex:1;height:4px;border-radius:2px;background:var(--accent)"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ step2Bg }}"></span><span style="flex:1;height:4px;border-radius:2px;background:{{ step3Bg }}"></span></div>
+<sc-if value="{{ weeklyStep1 }}" hint-placeholder-val="{{ true }}">
+<div style="margin:16px 16px 0;background:var(--card);border-radius:24px;padding:18px 20px">
+<div style="font-size:13px;color:var(--muted)">6–12 Oct</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px">
+<div><div style="font-size:12px;color:var(--muted)">Budget</div><div style="font-size:30px;font-weight:800;color:var(--amber-text);letter-spacing:-.02em">+350</div><div style="font-size:12px;color:var(--muted)">12,950 of 12,600</div></div>
+<div><div style="font-size:12px;color:var(--muted)">Trend</div><div style="font-size:30px;font-weight:800;color:var(--accent-text);letter-spacing:-.02em">−0.4 kg</div><div style="font-size:12px;color:var(--muted)">on plan</div></div>
+</div>
+<div style="position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:72px;margin-top:16px">
+<div style="position:absolute;left:0;right:0;top:18px;border-top:1.5px dashed var(--dash)"></div>
+<div style="height:50px;background:var(--bar);border-radius:8px"></div><div style="height:58px;background:var(--bar);border-radius:8px"></div><div style="height:48px;background:var(--bar);border-radius:8px"></div><div style="height:54px;background:var(--bar);border-radius:8px"></div><div style="height:52px;background:var(--bar);border-radius:8px"></div><div style="height:72px;background:var(--amber);border-radius:8px"></div><div style="height:44px;background:repeating-linear-gradient(135deg,var(--bar) 0 4px,transparent 4px 8px);border:1.5px solid var(--dash);border-radius:8px;box-sizing:border-box"></div></div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:12px;font-weight:600;color:var(--muted);text-align:center;margin-top:6px"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span style="color:var(--amber-text)">S</span><span>S</span></div>
+<div style="font-size:13px;color:var(--muted);margin-top:12px;line-height:1.45">6 of 7 days complete. Sunday wasn't counted. Last focus, kurang manis for drinks: <b style="color:var(--text)">5 of 8</b>.</div>
+</div>
+<div onClick="{{ weeklyNext }}" style="margin:12px 16px 0;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer">Next · top 3</div>
+</sc-if>
+<sc-if value="{{ weeklyStep2 }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ insights }}" as="i" hint-placeholder-count="3">
+<div style="background:var(--card);border-radius:20px;padding:14px 16px"><div style="font-size:16px;font-weight:700;line-height:1.3">{{ i.head }}</div><div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4">{{ i.evidence }}</div><div style="margin-top:8px;background:var(--accent-soft);color:var(--accent-text);border-radius:12px;padding:8px 10px;font-size:13px;line-height:1.4"><b>Try:</b> {{ i.try }}</div></div>
+</sc-for>
+</div>
+<div onClick="{{ weeklyNext }}" style="margin:12px 16px 0;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer">Next · pick one thing</div>
+</sc-if>
+<sc-if value="{{ weeklyStep3 }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px 20px 0;font-size:22px;font-weight:700;line-height:1.25">Pick one thing to try next week</div>
+<div style="padding:14px 16px 0;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ focusOptions }}" as="f" hint-placeholder-count="3">
+<div onClick="{{ f.pick }}" style="background:var(--card);border-radius:20px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:{{ f.ring }}"><div><div style="font-size:16px;font-weight:600">{{ f.label }}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">{{ f.sub }}</div></div><span style="width:22px;height:22px;border-radius:50%;border:2px solid {{ f.dot }};background:{{ f.dotFill }};box-sizing:border-box;flex:none"></span></div>
+</sc-for>
+</div>
+<div onClick="{{ weeklyDone }}" style="margin:12px 16px 0;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer;opacity:{{ weeklyDoneOpacity }}">Got it, put it on Today</div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- ========== Bottom nav ========== -->
+<sc-if value="{{ showNav }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;left:12px;right:12px;bottom:24px;height:66px;background:var(--nav);border-radius:33px;display:grid;grid-template-columns:repeat(5,1fr);align-items:center;font-size:12px;color:var(--nav-text);text-align:center;font-weight:500">
+<span onClick="{{ goToday }}" style="cursor:pointer;color:{{ navToday }};font-weight:600">Today</span>
+<span onClick="{{ goDiary }}" style="cursor:pointer;color:{{ navDiary }};font-weight:600">Diary</span>
+<span style="display:flex;justify-content:center"><span onClick="{{ openLog }}" style="width:62px;height:62px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-size:30px;margin-top:-26px;box-shadow:0 0 0 5px var(--bg);cursor:pointer">+</span></span>
+<span onClick="{{ goInsights }}" style="cursor:pointer;color:{{ navInsights }};font-weight:600;position:relative">Insights</span>
+<span onClick="{{ goMore }}" style="cursor:pointer;color:{{ navMore }};font-weight:600">More</span>
+</div>
+</sc-if>
+
+<!-- ========== S09 LOG SHEET ========== -->
+<sc-if value="{{ isLog }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:var(--sheet)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:32px 32px 0 0;padding:10px 16px 34px;animation:km-up .25s ease both;max-height:88%;overflow-y:auto">
+<div style="width:40px;height:4px;border-radius:2px;background:var(--dash);margin:0 auto 14px"></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="background:var(--accent);color:var(--on-accent);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600">⌖ Nasi kandar near home · Nearby</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">Now</span><span style="background:var(--card);border-radius:999px;padding:7px 12px;font-size:13px">Dinner</span></div>
+<div style="margin-top:12px;background:var(--card);border-radius:20px;padding:14px 16px;min-height:88px;display:flex;flex-direction:column;justify-content:space-between">
+<div onClick="{{ typeSample }}" style="font-size:17px;line-height:1.4;color:{{ logTextColor }};cursor:text">{{ logTextShown }}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-size:12px;color:var(--muted)">{{ logHint }}</span><div style="display:flex;gap:8px"><span onClick="{{ goPlateFromLog }}" style="width:40px;height:40px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer">◎</span><span onClick="{{ sendLog }}" style="height:40px;padding:0 16px;border-radius:999px;background:{{ sendBg }};color:{{ sendColor }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer">Estimate</span></div></div>
+</div>
+<sc-if value="{{ logMatches }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:8px;background:var(--card);border-radius:16px;padding:4px 14px;font-size:14px">
+<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)"><span>Nasi kandar ayam goreng, kuah campur <span style="color:var(--muted)">· your usual here</span></span><b>~950</b></div>
+<div style="display:flex;justify-content:space-between;padding:9px 0"><span>Teh o ais kurang <span style="color:var(--muted)">· your correction</span></span><b>~60</b></div>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">
+<div style="background:var(--card);border-radius:16px;padding:12px 6px;text-align:center;font-size:12px;font-weight:600"><div style="font-size:20px;margin-bottom:4px">▣</div>Photo</div>
+<div onClick="{{ goPlateFromLog }}" style="background:var(--card);border-radius:16px;padding:12px 6px;text-align:center;font-size:12px;font-weight:600;cursor:pointer"><div style="font-size:20px;margin-bottom:4px">◎</div>Plate</div>
+<div style="background:var(--card);border-radius:16px;padding:12px 6px;text-align:center;font-size:12px;font-weight:600"><div style="font-size:20px;margin-bottom:4px">↻</div>Usuals</div>
+<div style="background:var(--card);border-radius:16px;padding:12px 6px;text-align:center;font-size:12px;font-weight:600"><div style="font-size:20px;margin-bottom:4px">◍</div>Pot</div>
+</div>
+<div style="padding:16px 4px 6px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.02em">AT NASI KANDAR NEAR HOME</div>
+<div style="background:var(--card);border-radius:20px;padding:4px 14px;font-size:14px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div><div style="font-weight:600">Nasi kandar ayam goreng</div><div style="font-size:12px;color:var(--muted)">Kuah campur · 9 times · ~950 kcal</div></div><span onClick="{{ logUsual }}" style="background:var(--card2);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer">Log</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)"><div><div style="font-weight:600">Roti telur + dhal</div><div style="font-size:12px;color:var(--muted)">4 times · ~420 kcal</div></div><span style="background:var(--card2);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700">Log</span></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0"><div><div style="font-weight:600">Kari ayam pot <span style="color:var(--accent-text);font-size:12px">· 3 left</span></div><div style="font-size:12px;color:var(--muted)">Home · ~500 a serving</div></div><span style="background:var(--card2);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700">Log 1</span></div>
+</div>
+</div>
+</sc-if>
+
+<!-- ========== S17 BUDGET BREAKDOWN ========== -->
+<sc-if value="{{ isBudget }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:var(--sheet)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:32px 32px 0 0;padding:10px 16px 34px;animation:km-up .25s ease both;max-height:90%;overflow-y:auto">
+<div style="width:40px;height:4px;border-radius:2px;background:var(--dash);margin:0 auto 14px"></div>
+<div style="font-size:22px;font-weight:700;padding:0 4px">This week's budget</div>
+<div style="margin-top:12px;background:var(--card);border-radius:20px;padding:4px 16px;font-size:15px">
+<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)"><span>Weekly budget <span style="color:var(--muted);font-size:12px">7 × 1,800</span></span><b>12,600</b></div>
+<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)"><span>Workouts added</span><b>+0</b></div>
+<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)"><span>Eaten so far <span style="color:var(--muted);font-size:12px">Mon–Fri</span></span><b>{{ eatenWeek }}</b></div>
+<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)"><span>Saved from finished days</span><b style="color:var(--accent-text)">+650</b></div>
+<div style="display:flex;justify-content:space-between;padding:12px 0"><span style="font-weight:700">Left this week</span><b style="font-size:18px">{{ leftWeek }}</b></div>
+</div>
+<div style="padding:12px 4px 0;font-size:13px;color:var(--muted);line-height:1.45">Unspent calories from finished days are saved for later in the week. Each week starts fresh on Monday. No day goes below your 1,400 minimum.</div>
+<div onClick="{{ goMakan }}" style="margin-top:14px;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer">{{ makanButton }}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;background:var(--card);border-radius:16px;padding:12px 14px;font-size:14px"><span>One-off bonus today</span><span style="color:var(--accent-text);font-weight:700">+ kcal</span></div>
+</div>
+</sc-if>
+
+<!-- ========== S18 PLAN A MAKAN DAY ========== -->
+<sc-if value="{{ isMakan }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:var(--sheet)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:32px 32px 0 0;padding:10px 16px 34px;animation:km-up .25s ease both">
+<div style="width:40px;height:4px;border-radius:2px;background:var(--dash);margin:0 auto 14px"></div>
+<div style="font-size:22px;font-weight:700;padding:0 4px">Plan a makan day</div>
+<div style="display:flex;gap:6px;margin-top:12px"><sc-for list="{{ makanDays }}" as="d" hint-placeholder-count="3"><span onClick="{{ d.pick }}" style="flex:1;text-align:center;background:{{ d.bg }};color:{{ d.color }};border-radius:16px;padding:14px 0;font-size:15px;font-weight:700;cursor:pointer">{{ d.label }}</span></sc-for></div>
+<div style="margin-top:12px;background:var(--card);border-radius:20px;padding:16px 18px;text-align:center"><div style="font-size:13px;color:var(--muted)">Room on {{ makanDayName }}</div><div style="font-size:48px;font-weight:800;letter-spacing:-.03em;line-height:1.1">~2,450 <span style="font-size:18px;color:var(--muted);font-weight:500">kcal</span></div><div style="font-size:13px;color:var(--muted);margin-top:4px">if today and the other days stay at 1,800</div></div>
+<div onClick="{{ confirmMakan }}" style="margin-top:12px;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer">Confirm</div>
+</div>
+</sc-if>
+
+<!-- ========== S15 CHECK-IN ========== -->
+<sc-if value="{{ isCheckin }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:var(--sheet)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:32px 32px 0 0;padding:10px 16px 34px;animation:km-up .25s ease both;max-height:92%;overflow-y:auto">
+<div style="width:40px;height:4px;border-radius:2px;background:var(--dash);margin:0 auto 14px"></div>
+<div style="font-size:13px;color:var(--muted);padding:0 4px">Good morning</div>
+<div style="font-size:22px;font-weight:700;padding:0 4px">Yesterday · 2 meals · 1,240 kcal</div>
+<div style="margin-top:12px;background:var(--card);border-radius:20px;padding:14px 16px">
+<div style="position:relative;height:16px;border-radius:8px;background:var(--card2)">
+<div style="position:absolute;left:20%;width:50%;top:0;bottom:0;border-radius:8px;background:var(--accent-soft)"></div>
+<div style="position:absolute;left:25%;top:3px;width:10px;height:10px;border-radius:50%;background:var(--accent);margin-left:-5px"></div>
+<div style="position:absolute;left:44%;top:2px;width:12px;height:12px;border-radius:50%;background:var(--accent);margin-left:-6px"></div>
+<div style="position:absolute;left:46%;width:40%;top:-4px;bottom:-4px;border:2px dashed var(--amber);border-radius:10px;box-sizing:border-box"></div>
+<div style="position:absolute;left:66%;top:-6px;font-size:10px;color:var(--amber-text);font-weight:700;transform:translateY(-100%)">usual dinner 9pm</div></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px"><span>woke 10am</span><span>11:10am</span><span>3:40pm</span><span>slept 1:30am</span></div>
+<div style="font-size:14px;line-height:1.45;margin-top:12px">Nothing logged for 10 hours after 3:40pm. You usually have dinner around 9pm.</div>
+</div>
+<div style="font-size:18px;font-weight:700;padding:16px 4px 8px">Was that everything?</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ checkinOptions }}" as="o" hint-placeholder-count="4">
+<div onClick="{{ o.pick }}" style="background:var(--card);border-radius:16px;padding:13px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:{{ o.ring }}"><span style="font-size:15px;font-weight:600">{{ o.label }}</span><span style="width:22px;height:22px;border-radius:50%;border:2px solid {{ o.dot }};background:{{ o.dotFill }};box-sizing:border-box;flex:none"></span></div>
+</sc-for>
+</div>
+<div style="padding:12px 4px 0;font-size:13px;color:var(--muted);line-height:1.45;min-height:40px">{{ checkinConsequence }}</div>
+<div onClick="{{ confirmCheckin }}" style="margin-top:10px;background:var(--accent);color:var(--on-accent);border-radius:999px;height:52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;cursor:pointer">Done</div>
+</div>
+</sc-if>
+
+<!-- ========== Toast ========== -->
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:24px;right:24px;bottom:106px;background:var(--nav);color:var(--nav-active);border-radius:16px;padding:12px 16px;display:flex;justify-content:space-between;font-size:14px;font-weight:600;animation:km-up .25s ease both;box-shadow:0 8px 24px rgba(0,0,0,.2)"><span>{{ toast }}</span><span onClick="{{ undo }}" style="color:var(--accent);cursor:pointer">Undo</span></div>
+</sc-if>
+
+</div>
+
+<!-- Notes -->
+<div style="width:260px;flex:none;position:sticky;top:40px;font-size:13px;line-height:1.5;color:#4A4038;display:flex;flex-direction:column;gap:14px">
+<div><div style="font-weight:700;color:#1a1a1a;margin-bottom:4px">Direction 6a, locked</div>Cream, Bricolage Grotesque, soft cards, pandan green as the one action colour, kopi-brown dark mode. Amber for timing and over budget, never red.</div>
+<div><div style="font-weight:700;color:#1a1a1a;margin-bottom:4px">Try these flows</div><b>F02</b> + → tap the box → Estimate → change kuah → Save.<br><b>F03</b> + → Plate → tap dishes → Review → Save.<br><b>F07</b> Check-in banner → pick an answer → Done.<br><b>F08</b> Tap the big number → Plan a makan day.<br><b>F09</b> Dinner · Meal ideas → Log this → Save.<br><b>F10</b> Insights → weekly review → pick a focus.</div>
+<div><div style="font-weight:700;color:#1a1a1a;margin-bottom:4px">Live numbers</div>Left today, the Friday bar, macros, the week total and the "after this" line all recompute when you save a meal.</div>
+<div><div style="font-weight:700;color:#1a1a1a;margin-bottom:4px">Not yet built</div>Setup (S01–S07), Places, Usuals, Pots, Photo capture, Workouts, Settings, Goals editor. Coming in the next passes.</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;goal&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;cut&quot;,&quot;options&quot;:[&quot;cut&quot;,&quot;lean&quot;,&quot;festive&quot;,&quot;pause&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Today variants&quot;},&quot;showCheckin&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Today variants&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'today', weeklyStep: 1, focus: null, focusPick: null,
+    checkinDone: false, checkinChoice: null,
+    logText: '', reviewFlow: null, reviewItems: [], toast: null,
+    makanDay: 'Sat', makanPlanned: true,
+    riceIdx: 1, kuahIdx: 1, dishCounts: { 'ayam masak merah': 1, 'kangkung belacan': 1, 'kubis goreng': 1 },
+    weightInput: '77.8', weightSaved: false,
+    extraMeals: []
+  };
+  go(screen) { return () => this.setState({ screen, toast: null }); }
+  setItemChip(i, ci) { return () => { const items = this.state.reviewItems.map((it, k) => k === i ? { ...it, sel: ci, edited: true } : it); this.setState({ reviewItems: items }); }; }
+  pct(v, t) { return Math.min(100, Math.round(v / t * 100)) + '%'; }
+  fmt(n) { return n.toLocaleString('en-US'); }
+  startReview(flow, items, meta) { this.setState({ screen: 'review', reviewFlow: flow, reviewItems: items, reviewMeta: meta }); }
+  reviewTotalNum() { return this.state.reviewItems.reduce((s, it) => s + (it.chips ? it.chips[it.sel].kcal : it.kcal), 0); }
+  renderVals() {
+    const s = this.state, dark = !!this.props.dark, goal = this.props.goal || 'cut';
+    const checkinOn = (this.props.showCheckin ?? true) && !s.checkinDone;
+    const baseMeals = [
+      { slot: 'Breakfast', time: '10:40am', place: 'Nasi kandar near home', price: 'RM 4.80', name: 'Roti canai + teh tarik', kcal: 560, tag: '◔ Late for you', late: true, protein: 14, carbs: 70, fat: 22 },
+      { slot: 'Lunch', time: '2:15pm', place: 'Kedai near home', price: 'RM 9.50', name: 'Economy rice', kcal: 670, tag: '● On time', late: false, protein: 28, carbs: 75, fat: 30 }
+    ];
+    const allMeals = baseMeals.concat(s.extraMeals);
+    const eaten = allMeals.reduce((a, m) => a + m.kcal, 0);
+    const left = 1800 - eaten;
+    const protein = allMeals.reduce((a, m) => a + m.protein, 0), carbs = allMeals.reduce((a, m) => a + m.carbs, 0), fat = allMeals.reduce((a, m) => a + m.fat, 0);
+    const amber = 'var(--amber-soft)', amberT = 'var(--amber-text)', green = 'var(--accent-soft)', greenT = 'var(--accent-text)';
+    const meals = allMeals.map(m => ({ ...m, kcal: this.fmt(m.kcal), tagBg: m.late ? amber : green, tagColor: m.late ? amberT : greenT, open: this.go('diary') }));
+    const dinnerLogged = s.extraMeals.length > 0;
+    // hero per goal
+    let heroLabel = 'Left today', heroNumber = this.fmt(Math.abs(left)), heroColor = 'var(--text)', heroNote = '', goalPill = 'Cut · 1,800';
+    if (left < 0) { heroLabel = 'Over today'; heroNumber = '+' + this.fmt(-left); heroColor = 'var(--amber-text)'; heroNote = 'Covered by your +650 saved'; }
+    if (goal === 'lean') { goalPill = 'Lean bulk · 130g'; heroLabel = 'Protein left'; heroNumber = Math.max(0, 130 - protein) + 'g'; heroColor = 'var(--text)'; heroNote = ''; }
+    if (goal === 'festive') { goalPill = 'Festive · 2,100'; heroLabel = 'Days in range'; heroNumber = '5 of 7'; heroColor = 'var(--text)'; heroNote = ''; }
+    if (goal === 'pause') { goalPill = 'Paused until Mon'; heroLabel = 'Budget off'; heroNumber = '—'; heroNote = 'Logging is optional this week'; heroColor = 'var(--muted)'; }
+    const sc = s.screen;
+    const idx = [['today', 'S08 Today'], ['log', 'S09 Log sheet'], ['estimating', 'S10 Estimating'], ['review', 'S11 Review'], ['diary', 'S12 Diary day'], ['diaryWeek', 'S13 Diary week'], ['checkin', 'S15 Check-in'], ['weight', 'S16 Weight'], ['budget', 'S17 Budget breakdown'], ['makan', 'S18 Plan a makan day'], ['plate', 'S24 Plate builder'], ['insights', 'S31 Insights'], ['weekly', 'S33 Weekly review'], ['ideas', 'S36 Meal ideas'], ['more', 'S48 More']];
+    const index = idx.map(([id, label]) => ({ id: label.split(' ')[0], label: label.slice(4), go: () => { if (id === 'review' && !s.reviewItems.length) this.openTextReview(); else if (id === 'estimating') this.setState({ screen: 'estimating', logText: 'nasi kandar ayam goreng, kubis, kuah campur, teh o ais' }); else this.setState({ screen: id }); }, bg: sc === id ? '#1a1a1a' : 'transparent', color: sc === id ? '#fff' : '#4A4038' }));
+    // review derived
+    const rItems = s.reviewItems.map((it, i) => ({
+      ...it, kcal: it.chips ? it.chips[it.sel].kcal : it.kcal, hasChips: !!it.chips,
+      srcColor: it.source === 'AI guess' ? 'var(--amber-text)' : 'var(--muted)', srcBorder: it.source === 'AI guess' ? 'dashed var(--amber)' : 'solid var(--line)',
+      ring: it.question ? 'inset 0 0 0 1.5px var(--amber)' : 'var(--shadow)',
+      chips: (it.chips || []).map((c, ci) => ({ label: c.label, pick: this.setItemChip(i, ci), bg: ci === it.sel ? 'var(--accent)' : 'var(--chip)', color: ci === it.sel ? 'var(--on-accent)' : 'var(--text)' }))
+    }));
+    const rTotal = this.reviewTotalNum();
+    const after = left - rTotal;
+    const afterFit = Math.max(0, Math.min(rTotal, left)), afterOver = Math.max(0, -after);
+    const afterLine = after >= 0 ? `After this: ${this.fmt(after)} kcal left today` : `After this: ${this.fmt(-after)} over today · covered by your +650 saved`;
+    const meta = s.reviewMeta || {};
+    // plate
+    const riceOpts = [{ label: 'Half', kcal: 100 }, { label: '1 scoop', kcal: 200 }, { label: '1.5 scoops', kcal: 300 }];
+    const kuahOpts = [{ label: 'None', kcal: 0 }, { label: 'Some', kcal: 60 }, { label: 'Banjir', kcal: 140 }];
+    const groups = [
+      { name: 'PROTEIN', dishes: [['ayam goreng', 280, 'a piece'], ['ayam masak merah', 250, 'a piece', true], ['ikan goreng', 200, 'a piece'], ['telur dadar', 180, 'a piece']] },
+      { name: 'VEGETABLES', dishes: [['kangkung belacan', 90, 'a scoop', true], ['kubis goreng', 70, 'a scoop', true], ['terung sambal', 120, 'a scoop'], ['taugeh', 60, 'a scoop']] },
+      { name: 'TOFU AND EGG', dishes: [['tauhu goreng', 110, 'a piece'], ['telur rebus', 80, 'an egg']] }
+    ];
+    const plateDishKcal = Object.entries(s.dishCounts).reduce((a, [n, c]) => { const d = groups.flatMap(g => g.dishes).find(x => x[0] === n); return a + (d ? d[1] * c : 0); }, 0);
+    const plateTotalNum = riceOpts[s.riceIdx].kcal + kuahOpts[s.kuahIdx].kcal + plateDishKcal;
+    const dishGroups = groups.map(g => ({ name: g.name, dishes: g.dishes.map(([name, kcal, unit, often]) => { const count = s.dishCounts[name] || 0; return { name: name[0].toUpperCase() + name.slice(1), kcal, unit, often: !!often && !count, count, ring: count ? 'inset 0 0 0 2px var(--accent)' : 'var(--shadow)', tap: () => { const dc = { ...s.dishCounts }; dc[name] = ((dc[name] || 0) + 1) % 3; if (!dc[name]) delete dc[name]; this.setState({ dishCounts: dc }); } }; }) }));
+    const chipRow = (opts, idxKey) => opts.map((o, i) => ({ label: o.label, pick: () => this.setState({ [idxKey]: i }), bg: s[idxKey] === i ? 'var(--accent)' : 'var(--chip)', color: s[idxKey] === i ? 'var(--on-accent)' : 'var(--text)' }));
+    // ideas
+    const ideasData = [
+      { role: 'YOUR USUAL', name: 'Ayam bakar, half rice, ulam', reason: 'You had this 6 times this month', kcal: 540, protein: 38, place: 'Medan selera nearby', items: [{ name: 'Ayam bakar', kcal: 290, source: 'Your correction' }, { name: 'Rice', chips: [{ label: 'Half', kcal: 100 }, { label: 'Normal', kcal: 200 }], sel: 0, source: 'Catalogue' }, { name: 'Ulam + sambal', kcal: 150, source: 'Catalogue' }] },
+      { role: 'LIGHTER SWAP', name: 'Mee sup ayam instead of mee goreng', reason: 'Your Friday favourite, about 400 kcal lighter', kcal: 430, protein: 26, place: 'Nasi kandar near home', items: [{ name: 'Mee sup ayam', chips: [{ label: 'Small', kcal: 350 }, { label: 'Normal', kcal: 430 }, { label: 'Mamak big', kcal: 560 }], sel: 1, source: 'Catalogue' }] },
+      { role: 'SOMETHING DIFFERENT', name: '3-egg omelette, sayur, small rice', reason: 'Not had in 12 days. Easy for a WFH evening', kcal: 510, protein: 27, place: 'Home', items: [{ name: 'Omelette', chips: [{ label: '2 eggs', kcal: 190 }, { label: '3 eggs', kcal: 280 }], sel: 1, source: 'USDA' }, { name: 'Sayur goreng', kcal: 130, source: 'Catalogue' }, { name: 'Rice', chips: [{ label: 'Small', kcal: 100 }, { label: 'Normal', kcal: 200 }], sel: 0, source: 'Catalogue' }] }
+    ];
+    const ideas = ideasData.map(d => { const fits = d.kcal <= left; return { ...d, fit: fits ? 'Fits' : 'Tight fit', fitBg: fits ? green : amber, fitColor: fits ? greenT : amberT, log: () => this.startReview('ideas', d.items, { place: d.place, title: 'Check your meal', time: 'Now', slot: 'Dinner', name: d.name, protein: d.protein }) }; });
+    // weekly / focus
+    const focusOpts = [['Kurang manis for drinks', 'About 300 kcal a week less'], ['Half rice at nasi kandar', 'Around 250 kcal a visit'], ['Keep eating days under 12 hours', 'Long days ran +350']];
+    const focusOptions = focusOpts.map(([label, sub], i) => ({ label, sub, pick: () => this.setState({ focusPick: i }), ring: s.focusPick === i ? 'inset 0 0 0 2px var(--accent)' : 'var(--shadow)', dot: s.focusPick === i ? 'var(--accent)' : 'var(--dash)', dotFill: s.focusPick === i ? 'var(--accent)' : 'transparent' }));
+    // checkin
+    const cOpts = [["Yes, that's all I ate", 'Marks yesterday complete. Counts toward maintenance and timing.'], ['I had dinner. Fill in a typical one (~650)', "Adds ~650 kcal to this week's budget, marked as a guess. Left out of maintenance and timing insights."], ['I ate more. Let me add it', 'Opens Log with the time set to last night.'], ["Don't count this day", 'Counts as exactly 1,800. Missed meals never count as calories saved.']];
+    const checkinOptions = cOpts.map(([label], i) => ({ label, pick: () => this.setState({ checkinChoice: i }), ring: s.checkinChoice === i ? 'inset 0 0 0 2px var(--accent)' : 'var(--shadow)', dot: s.checkinChoice === i ? 'var(--accent)' : 'var(--dash)', dotFill: s.checkinChoice === i ? 'var(--accent)' : 'transparent' }));
+    // weight
+    const wVals = [78.6, 78.3, 78.5, 78.1, 78.2, 78.0, 79.0, 78.6, 78.2, 78.1, 77.9, 78.0, 77.7, 77.8];
+    const toY = v => 100 - (v - 77.5) / 1.6 * 90;
+    const weightDots = wVals.map((v, i) => ({ x: i * (320 / 13), y: toY(v) }));
+    let ema = wVals[0]; const trend = wVals.map(v => (ema = ema + (v - ema) * 0.25));
+    const trendPath = trend.map((v, i) => (i ? 'L' : 'M') + (i * (320 / 13)).toFixed(1) + ' ' + toY(v).toFixed(1)).join(' ');
+    const numpad = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(k => ({ label: k, press: () => { let w = s.weightInput; if (s.weightSaved) w = ''; if (k === '⌫') w = w.slice(0, -1); else if (w.length < 4) w += k; this.setState({ weightInput: w, weightSaved: false }); } }));
+    const timing = [[16, 50, [[20, 8], [38, 10], [60, 9]]], [14, 55, [[18, 9], [40, 8], [62, 10]]], [18, 48, [[22, 7], [45, 10], [58, 8]]], [22, 44, [[26, 8], [50, 11]]], [19, 52, [[23, 7], [38, 9], [66, 10, true]]], [25, 58, [[30, 10], [55, 12], [78, 9, true]]], [20, 46, [[24, 8], [46, 10], [60, 9]]]];
+    const timingRows = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => ({ day, start: timing[i][0] + '%', len: timing[i][1] + '%', dots: timing[i][2].map(([x, sz, late]) => ({ x: x + '%', s: sz + 'px', c: late ? 'var(--amber)' : 'var(--accent)' })) }));
+    const weekRows = [['Mon', 1620, 'Complete'], ['Tue', 1710, 'Complete'], ['Wed', 1540, 'Complete'], ['Thu', 1680, checkinOn ? 'Unconfirmed' : 'Complete'], ['Fri', eaten, 'In progress'], ['Sat', 2450, 'Makan day'], ['Sun', 1800, 'Planned']].map(([day, k, st]) => ({ day, kcal: this.fmt(k), status: st, bg: st === 'Complete' ? green : st === 'Unconfirmed' || st === 'Makan day' ? amber : 'var(--card2)', color: st === 'Complete' ? greenT : st === 'Unconfirmed' || st === 'Makan day' ? amberT : 'var(--muted)', numColor: st === 'Planned' || st === 'Makan day' ? 'var(--muted)' : 'var(--text)' }));
+    const eatenWeek = 1620 + 1710 + 1540 + 1680 + eaten;
+    return {
+      themeClass: dark ? 'dark' : '', index,
+      isToday: sc === 'today' || sc === 'log' || sc === 'budget' || sc === 'makan' || sc === 'checkin', isDiary: sc === 'diary', isDiaryWeek: sc === 'diaryWeek', isInsights: sc === 'insights', isMore: sc === 'more', isWeight: sc === 'weight', isIdeas: sc === 'ideas', isPlate: sc === 'plate', isEstimating: sc === 'estimating', isReview: sc === 'review', isWeekly: sc === 'weekly',
+      isLog: sc === 'log', isBudget: sc === 'budget', isMakan: sc === 'makan', isCheckin: sc === 'checkin',
+      showNav: ['today', 'diary', 'diaryWeek', 'insights', 'more', 'log', 'budget', 'makan', 'checkin'].includes(sc),
+      navToday: ['today', 'log', 'budget', 'makan', 'checkin'].includes(sc) ? 'var(--nav-active)' : 'var(--nav-text)', navDiary: sc.startsWith('diary') ? 'var(--nav-active)' : 'var(--nav-text)', navInsights: sc === 'insights' ? 'var(--nav-active)' : 'var(--nav-text)', navMore: sc === 'more' ? 'var(--nav-active)' : 'var(--nav-text)',
+      goToday: this.go('today'), goDiary: this.go('diary'), goDiaryWeek: this.go('diaryWeek'), goInsights: this.go('insights'), goMore: this.go('more'), goIdeas: this.go('ideas'), goWeight: this.go('weight'), goWeekly: () => this.setState({ screen: 'weekly', weeklyStep: 1 }), goBudget: this.go('budget'), goMakan: this.go('makan'), goCheckin: this.go('checkin'),
+      openLog: () => this.setState({ screen: 'log', toast: null }), closeSheet: this.go('today'),
+      goalPill, heroLabel, heroNumber, heroColor, heroNote, leftWeek: this.fmt(12600 - eatenWeek), eatenToday: this.fmt(eaten), eatenNum: eaten, todayFillPct: this.pct(eaten, 1800), satRoom: s.makanPlanned ? 'Sat: 2,450 room' : 'Sat: not planned',
+      protein, carbs, fat, proteinPct: this.pct(protein, 110), carbsPct: this.pct(carbs, 180), fatPct: this.pct(fat, 60), proteinLabel: protein < 60 ? 'Protein · behind' : 'Protein', proteinLeft: Math.max(0, 110 - protein),
+      showCheckinBanner: checkinOn, hasFocus: !!s.focus, focus: s.focus, meals, dinnerEmpty: !dinnerLogged, dinnerLogged,
+      nudge: dinnerLogged ? 'Dinner logged. Window closes 10:40pm.' : `Protein is behind: ~${110 - protein}g left. A protein-heavy dinner helps.`,
+      // log
+      logTextShown: s.logText || 'nasi lemak ayam goreng, teh o ais', logTextColor: s.logText ? 'var(--text)' : 'var(--muted)', logHint: s.logText ? 'Matches from your library · no AI yet' : 'Type it like a message', logMatches: !!s.logText, sendBg: s.logText ? 'var(--accent)' : 'var(--card2)', sendColor: s.logText ? 'var(--on-accent)' : 'var(--muted)',
+      typeSample: () => this.setState({ logText: 'nasi kandar ayam goreng, kubis, kuah campur, teh o ais' }),
+      sendLog: () => { if (!s.logText) return; this.setState({ screen: 'estimating' }); clearTimeout(this.t); this.t = setTimeout(() => this.openTextReview(), 2200); },
+      logUsual: () => this.startReview('usual', [{ name: 'Nasi kandar rice', chips: [{ label: 'Small', kcal: 250 }, { label: 'Normal', kcal: 330 }, { label: 'Mamak big', kcal: 430 }], sel: 2, source: 'Your correction' }, { name: 'Ayam goreng', chips: [{ label: '1 piece', kcal: 300 }, { label: '2 pieces', kcal: 600 }], sel: 0, source: 'MyFCD' }, { name: 'Kuah campur', chips: [{ label: 'Sikit', kcal: 60 }, { label: 'Normal', kcal: 120 }, { label: 'Banjir', kcal: 220 }], sel: 2, source: 'Your correction' }], { place: 'Nasi kandar near home', title: 'Your usual order', time: 'Now', name: 'Nasi kandar ayam goreng', protein: 42 }),
+      goPlateFromLog: this.go('plate'), logText: s.logText,
+      skeletons: [{ w: '120px', delay: '0s' }, { w: '150px', delay: '.15s' }, { w: '90px', delay: '.3s' }, { w: '110px', delay: '.45s' }],
+      // review
+      reviewItems: rItems, reviewTitle: meta.title || 'Check your meal', reviewPlace: meta.place || 'Medan selera nearby', reviewTime: meta.time || 'Now · 7:10pm', reviewText: meta.text || '', reviewTotal: this.fmt(rTotal), reviewRange: this.fmt(Math.round(rTotal * 0.85 / 10) * 10) + '–' + this.fmt(Math.round(rTotal * 1.15 / 10) * 10),
+      afterFit, afterOver, afterLine, reviewBack: () => this.setState({ screen: s.reviewFlow === 'plate' ? 'plate' : s.reviewFlow === 'ideas' ? 'ideas' : 'today' }),
+      saveReview: () => { const name = meta.name || 'Nasi kandar ayam goreng'; const kcal = rTotal; this.setState({ screen: 'today', extraMeals: [{ slot: 'Dinner', time: '7:10pm', place: meta.place || 'Medan selera nearby', price: 'RM 12.00', name, kcal, tag: '● On time', late: false, protein: meta.protein || 40, carbs: Math.round(kcal * 0.12), fat: Math.round(kcal * 0.035) }], toast: 'Saved · ~' + this.fmt(kcal) + ' kcal', reviewItems: [] }); clearTimeout(this.t2); this.t2 = setTimeout(() => this.setState({ toast: null }), 3500); },
+      toast: s.toast, undo: () => this.setState({ extraMeals: [], toast: null }),
+      // plate
+      riceKcal: riceOpts[s.riceIdx].kcal, kuahKcal: kuahOpts[s.kuahIdx].kcal, riceChips: chipRow(riceOpts, 'riceIdx'), kuahChips: chipRow(kuahOpts, 'kuahIdx'), dishGroups,
+      plateTotal: this.fmt(plateTotalNum), plateRange: this.fmt(Math.round(plateTotalNum * 0.85 / 10) * 10) + '–' + this.fmt(Math.round(plateTotalNum * 1.15 / 10) * 10),
+      plateReview: () => { const items = [{ name: 'Rice', chips: riceOpts, sel: s.riceIdx, source: 'Catalogue' }].concat(Object.entries(s.dishCounts).map(([n, c]) => { const d = groups.flatMap(g => g.dishes).find(x => x[0] === n); return { name: d[0][0].toUpperCase() + d[0].slice(1) + (c > 1 ? ' ×2' : ''), kcal: d[1] * c, source: 'Catalogue' }; })).concat([{ name: 'Kuah on rice', chips: kuahOpts, sel: s.kuahIdx, source: 'Catalogue' }]); this.startReview('plate', items, { place: 'Kedai near home', title: 'Check your plate', time: 'Now', name: 'Economy rice', protein: 30 }); },
+      // ideas
+      ideas,
+      // weekly
+      weeklyStep1: s.weeklyStep === 1, weeklyStep2: s.weeklyStep === 2, weeklyStep3: s.weeklyStep === 3, weeklyStepLabel: 'Step ' + s.weeklyStep + ' of 3', step2Bg: s.weeklyStep >= 2 ? 'var(--accent)' : 'var(--line)', step3Bg: s.weeklyStep >= 3 ? 'var(--accent)' : 'var(--line)',
+      weeklyNext: () => this.setState({ weeklyStep: s.weeklyStep + 1 }), focusOptions, weeklyDoneOpacity: s.focusPick === null ? 0.4 : 1,
+      weeklyDone: () => { if (s.focusPick === null) return; this.setState({ focus: focusOpts[s.focusPick][0], screen: 'today', toast: "Got it. It's on your Today screen" }); clearTimeout(this.t2); this.t2 = setTimeout(() => this.setState({ toast: null }), 3500); },
+      insights: [
+        { head: 'Drinks were 17% of your calories', evidence: 'Teh tarik 8 times, milo ais 3 times, ~2,200 kcal.', link: 'See 11 drinks', try: 'kurang manis for half of them, about 300 kcal a week less', meta: 'Based on 7 days' },
+        { head: 'Nasi kandar nights cost the most', evidence: '4 visits, ~950 kcal each vs 640 elsewhere.', link: 'See 4 visits', try: 'half rice there, or kuah sikit', meta: 'Based on 4 visits' },
+        { head: 'Long eating days ran higher', evidence: 'Days over 13 hours averaged +350 kcal.', link: 'See 3 days', try: 'an earlier first meal on WFH days', meta: 'Early read · based on 9 days' }
+      ],
+      categories: [['Rice dishes', 38, 'var(--bar)', 500], ['Home cooking', 18, 'var(--bar)', 500], ['Drinks', 17, 'var(--accent)', 700], ['Noodles', 14, 'var(--bar)', 500], ['Snacks and kuih', 13, 'var(--bar)', 500]].map(([name, pct, color, weight]) => ({ name, pct, color, weight })),
+      timingRows, weekRows, eatenWeek: this.fmt(eatenWeek),
+      moreRows: [['Goals', 'Cut active · 2 saved', 'more'], ['Places', '4 places · Nasi kandar near home most visited', 'more'], ['Usuals', '4 one-tap meals', 'more'], ['Pots', 'Kari ayam · 3 of 8 left', 'more'], ['Weight', '77.9 kg trend · −0.4 this week', 'weight'], ['Activity', 'Futsal last Tue · +470', 'more'], ['Settings', 'Day rollover 5am · backups Sun', 'more']].map(([label, sub, to]) => ({ label, sub, go: this.go(to) })),
+      // makan
+      makanDays: ['Sat', 'Sun', 'Other'].map(d => ({ label: d, pick: () => this.setState({ makanDay: d }), bg: s.makanDay === d ? 'var(--accent)' : 'var(--card)', color: s.makanDay === d ? 'var(--on-accent)' : 'var(--text)' })), makanDayName: s.makanDay === 'Sat' ? 'Saturday' : s.makanDay === 'Sun' ? 'Sunday' : 'that day',
+      confirmMakan: () => { this.setState({ makanPlanned: true, screen: 'today', toast: 'Saving for ' + (s.makanDay === 'Sun' ? 'Sunday' : 'Saturday') }); clearTimeout(this.t2); this.t2 = setTimeout(() => this.setState({ toast: null }), 3000); }, makanButton: s.makanPlanned ? 'Change makan day' : 'Plan a makan day',
+      // checkin
+      checkinOptions, checkinConsequence: s.checkinChoice === null ? 'Pick an answer to see what it means for your budget.' : cOpts[s.checkinChoice][1],
+      confirmCheckin: () => { if (s.checkinChoice === null) return; this.setState({ checkinDone: true, screen: 'today', toast: s.checkinChoice === 1 ? 'Yesterday · typical dinner added as a guess' : 'Yesterday confirmed' }); clearTimeout(this.t2); this.t2 = setTimeout(() => this.setState({ toast: null }), 3000); },
+      // weight
+      weightInput: s.weightInput || '0', numpad, weightDots, trendPath, weightSaveLabel: s.weightSaved ? 'Saved · trend 77.9 kg' : 'Save weigh-in', saveWeight: () => this.setState({ weightSaved: true })
+    };
+  }
+  openTextReview() {
+    this.startReview('text', [
+      { name: 'Rice', chips: [{ label: 'Small', kcal: 250 }, { label: 'Normal', kcal: 330 }, { label: 'Mamak big', kcal: 430 }], sel: 1, source: 'Catalogue' },
+      { name: 'Ayam goreng', chips: [{ label: '1 piece', kcal: 300 }, { label: '2 pieces', kcal: 600 }], sel: 0, source: 'MyFCD' },
+      { name: 'Kubis · 1 scoop', kcal: 70, source: 'Catalogue' },
+      { name: 'Kuah campur', chips: [{ label: 'Sikit', kcal: 60 }, { label: 'Normal', kcal: 120 }, { label: 'Banjir', kcal: 220 }], sel: 1, source: 'AI guess', question: 'Is there kuah under the rice?' },
+      { name: 'Teh o ais', chips: [{ label: 'Kosong', kcal: 5 }, { label: 'Kurang', kcal: 60 }, { label: 'Normal', kcal: 110 }], sel: 1, source: 'Your correction' }
+    ], { place: 'Medan selera nearby', title: 'Check your meal', time: 'Now · 7:10pm', text: this.state.logText || 'nasi kandar ayam goreng, kubis, kuah campur, teh o ais', name: 'Nasi kandar ayam goreng', protein: 42 });
+  }
+  componentWillUnmount() { clearTimeout(this.t); clearTimeout(this.t2); }
+}
+</script>
+</body>
+</html>
