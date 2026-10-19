@@ -23,7 +23,7 @@ import { createTokenVerifier, createVerifierClient } from './verify.ts';
 import catalogueJson from './catalogue.json' with { type: 'json' };
 
 const catalogue = catalogueJson as CatalogueEntry[];
-const systemPrompt = buildSystemPrompt(catalogue); // built once so every request shares the cached prefix
+const systemPrompt = buildSystemPrompt(catalogue); // built once at start-up and reused for every request
 const anthropic = new Anthropic(); // reads ANTHROPIC_API_KEY from the function's secrets
 
 let supabase: ReturnType<typeof createVerifierClient> | null = null;

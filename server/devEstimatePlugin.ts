@@ -107,7 +107,7 @@ export function createDevEstimateMiddleware(deps: DevEstimateDeps): (req: Incomi
     try {
       const result = await deps.estimate(input);
       deps.logger.info(
-        `[estimate] ${result.items.length} items · in ${result.usage.inputTokens} (cache read ${result.usage.cacheReadTokens}) · out ${result.usage.outputTokens}`,
+        `[estimate] ${result.items.length} items · in ${result.usage.inputTokens} · out ${result.usage.outputTokens}`,
       );
       send(res, 200, result);
     } catch (err) {

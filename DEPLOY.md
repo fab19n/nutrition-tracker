@@ -250,11 +250,12 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 
 **Vercel and Supabase**: the free plans cover one person comfortably (static hosting; a few Edge Function calls a day; one auth user). Supabase pauses free projects that go unused for a while; restoring one from the dashboard takes a click.
 
-**Claude API** (`claude-sonnet-5-5`: US$2 per million input tokens, US$2.50 per million for 5-minute cache writes, US$0.20 per million for cache reads, US$10 per million output tokens — about half of Opus 5.5):
+**Claude API** (`claude-sonnet-5-5`: US$2 per million input tokens, US$10 per million output tokens — about half of Opus 5.5):
 
-- Each estimate sends the food catalogue as a cached system prompt, about 30,000 characters (roughly 8,000–11,000 tokens), plus a short request, and gets back a small structured answer at low effort.
-- The cache lasts 5 minutes, and meals are hours apart, so nearly every estimate pays the cache write: about **US$0.03 per typed meal** (roughly US$0.02–0.04 depending on the meal and the answer). A second estimate within 5 minutes, such as a correction, costs about US$0.01. A photo adds well under a cent.
-- With **When needed**, the AI runs only for meals the offline catalogue can't fully match, so a typical day is 0–3 calls: roughly US$0–3 a month. **Always** with 4 meals a day is about 120 calls, roughly US$3–4 a month.
+- Each estimate sends a compact listing of the food catalogue (about 20,000 characters) plus your meal, about **12,000 input tokens** in all, and gets back a small structured answer (about 170 tokens) at low effort.
+- Measured on a real call (`nasi goreng kampung, teh o ais limau`): **about US$0.026 per estimate**. A photo adds well under a cent.
+- The prompt is deliberately not cached: a cache write costs 25% more and only pays off if the next estimate comes within 5 minutes, which rarely happens with meals hours apart. (With caching, the same call measured about US$0.043.)
+- With **When needed**, the AI runs only for meals the offline catalogue can't fully match, so a typical day is 0–3 calls: roughly US$0–2.50 a month. **Always** with 4 meals a day is about 120 calls, roughly US$3 a month.
 - The model is set in one place, `ESTIMATE_MODEL` in `supabase/functions/estimate/core.ts`. Change it there and redeploy the function (step 29) if you ever want a different one.
 - The spend limit from step 3 (US$10 a month) is the real cap. The function also stops one user at 30 estimates an hour, but that guard lives in the function's memory and resets when Supabase restarts it.
 - Your actual usage is on the Anthropic Console's [Usage](https://platform.claude.com/usage) page, and spend on the [Billing](https://platform.claude.com/settings/billing) page.

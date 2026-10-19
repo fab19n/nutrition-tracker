@@ -100,9 +100,43 @@ describe('toItems', () => {
 });
 
 describe('buildSystemPrompt', () => {
-  it('is deterministic so the prompt cache can hit', () => {
-    expect(buildSystemPrompt(CATALOGUE)).toBe(buildSystemPrompt(CATALOGUE));
-    expect(buildSystemPrompt(CATALOGUE)).toContain('teh-o-ais | Teh o ais | - | a cup | Kosong=5, Kurang=60, Normal=110*');
+  it('lists the catalogue compactly, grouped by category', () => {
+    const prompt = buildSystemPrompt(CATALOGUE);
+    expect(prompt).toBe(buildSystemPrompt(CATALOGUE));
+    expect(prompt).toContain('[gravy]\nkuah-campur ~ mixed curry: Sikit=60 | Normal=120* | Banjir=220');
+    expect(prompt).toContain('[drinks]\nteh-o-ais: Kosong=5 | Kurang=60 | Normal=110*');
+  });
+
+  it('shows a name only when it differs from the id, and skips aliases that add nothing', () => {
+    const entry: CatalogueEntry = {
+      id: 'ayam-goreng-mamak',
+      name: 'Ayam goreng',
+      aliases: ['ayam goreng', 'ayamgoreng', 'goreng ayam', 'fried chicken', 'ayam goreng kandar', 'ayam goreng berempah', 'kfc style'],
+      category: 'protein',
+      unit: 'a piece',
+      variants: [{ id: 'one', label: '1 piece', macros: m(300) }],
+      defaultVariant: 0,
+      uncertainty: 0.2,
+    };
+    // 'ayam goreng', 'ayamgoreng' and 'goreng ayam' only repeat the id's words; at most 3 are kept.
+    // A single choice shows its label without kcal or a default mark.
+    expect(buildSystemPrompt([entry])).toContain(
+      '[protein]\nayam-goreng-mamak (Ayam goreng) ~ fried chicken, ayam goreng kandar, ayam goreng berempah: 1 piece',
+    );
+  });
+
+  it('leaves recipe-only pot ingredients out of the meal prompt', () => {
+    const santan: CatalogueEntry = {
+      id: 'santan',
+      name: 'Santan',
+      aliases: ['coconut milk'],
+      category: 'other',
+      unit: 'a can',
+      variants: [{ id: 'can', label: '1 can', macros: m(800) }],
+      defaultVariant: 0,
+      uncertainty: 0.15,
+    };
+    expect(buildSystemPrompt([...CATALOGUE, santan])).not.toContain('santan');
   });
 });
 
