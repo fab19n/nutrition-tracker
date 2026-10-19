@@ -1,0 +1,103 @@
+import type { CatalogueItem } from '@/domain/types';
+import { dish, macros, scaled } from '../define';
+
+/** Packaged and casual snacks. */
+export const SNACKS: CatalogueItem[] = [
+  dish({
+    id: 'biskut',
+    name: 'Biscuits',
+    aliases: ['biskut', 'biscuit', 'biskut kering', 'marie', 'marie biscuits', 'cream crackers', 'cream cracker', 'hup seng'],
+    category: 'snack',
+    unit: 'a piece',
+    variants: scaled(macros(140, 2.5, 20, 5.5), [
+      ['1 piece', 35, 8],
+      ['4 pieces', 140, 32],
+      ['8 pieces', 280, 64],
+    ]),
+    defaultVariant: 1,
+    note: 'Marie biscuits or cream crackers, about 35 kcal each.',
+    question: 'How many pieces?',
+  }),
+  dish({
+    id: 'donut',
+    name: 'Donut',
+    aliases: ['doughnut', 'donat', 'donut gula', 'sugar donut'],
+    category: 'snack',
+    unit: 'a piece',
+    variants: scaled(macros(230, 4, 28, 11.5), [['1 piece', 230, 60]]),
+    uncertainty: 0.2,
+    note: 'Fried ring donut with a sugar coating.',
+  }),
+  dish({
+    id: 'keropok-lekor',
+    name: 'Keropok lekor',
+    aliases: ['lekor', 'keropok lekor goreng', 'fish sausage'],
+    category: 'snack',
+    unit: 'a piece',
+    variants: scaled(macros(250, 9, 32, 9.5), [
+      ['5 pieces', 250, 100],
+      ['10 pieces', 500, 200],
+    ]),
+    uncertainty: 0.25,
+    note: 'Fried fish and sago sticks, with chilli sauce.',
+  }),
+  dish({
+    id: 'kerepek',
+    name: 'Kerepek',
+    aliases: ['kerepek pisang', 'kerepek ubi', 'banana chips', 'tapioca chips', 'chips'],
+    category: 'snack',
+    unit: 'a handful',
+    variants: scaled(macros(150, 0.7, 17, 9), [
+      ['1 handful', 150, 30],
+      ['Small pack', 300, 60],
+    ]),
+    uncertainty: 0.2,
+    note: 'Fried banana or tapioca chips, about 30 g a handful.',
+  }),
+  dish({
+    id: 'kacang',
+    name: 'Kacang',
+    aliases: ['kacang tanah', 'kacang goreng', 'peanuts', 'roasted peanuts'],
+    category: 'snack',
+    unit: 'a handful',
+    variants: scaled(macros(170, 7.5, 5, 14.5), [['1 handful', 170, 30]]),
+    note: 'Roasted or fried peanuts, about 30 g.',
+  }),
+  dish({
+    id: 'coklat',
+    name: 'Chocolate',
+    aliases: ['coklat', 'chocolate bar', 'milk chocolate', 'kitkat', 'cadbury'],
+    category: 'snack',
+    unit: 'a piece',
+    variants: scaled(macros(210, 3, 23, 12), [
+      ['2 squares', 55, 10],
+      ['Small bar', 210, 40],
+    ]),
+    defaultVariant: 1,
+    note: 'Milk chocolate, about 5.3 kcal a gram.',
+  }),
+  dish({
+    id: 'aiskrim',
+    name: 'Aiskrim',
+    aliases: ['ice cream', 'ais krim', 'aiskrim potong', 'cornetto', 'ice cream cone'],
+    category: 'snack',
+    unit: 'a piece',
+    variants: scaled(macros(180, 3, 22, 9), [['1 piece', 180, 70]]),
+    uncertainty: 0.25,
+    note: 'One stick, cone or small cup.',
+  }),
+  dish({
+    id: 'kek',
+    name: 'Cake',
+    aliases: ['kek', 'kek coklat', 'chocolate cake', 'kek pisang', 'banana cake', 'sponge cake', 'kek span'],
+    category: 'snack',
+    unit: 'a slice',
+    variants: scaled(macros(300, 4, 40, 14), [
+      ['Thin slice', 200, 55],
+      ['1 slice', 300, 80],
+    ]),
+    defaultVariant: 1,
+    uncertainty: 0.3,
+    note: 'Bakery or home cake slice; frosted cakes run higher.',
+  }),
+];
