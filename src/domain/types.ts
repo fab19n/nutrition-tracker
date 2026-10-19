@@ -104,6 +104,8 @@ export type ActivityLevel = 'sedentary' | 'light' | 'active';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
+export type AiEstimateMode = 'auto' | 'always' | 'off';
+
 export interface Profile {
   id: 'me';
   name?: string;
@@ -122,6 +124,11 @@ export interface Profile {
   /** No day's allowance goes below this. */
   dailyMinimumKcal: number;
   theme: ThemePreference;
+  /**
+   * When typed or photographed meals go to the AI estimator (undefined = 'auto').
+   * auto: only when the offline estimator can't match everything · always · off (offline only).
+   */
+  aiEstimates?: AiEstimateMode;
   keepPhotos: boolean;
   useLocation: boolean;
   /** First logical day the app was used (drives "day N" and unlock progress). */

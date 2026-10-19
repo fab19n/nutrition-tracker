@@ -1,0 +1,10 @@
+# Supabase CLI config for Kira Makan. Only what the app needs; everything else keeps the CLI
+# defaults. project_id is a local label, not the hosted project ref (`supabase link` sets that).
+project_id = "kira-makan"
+
+[functions.estimate]
+# The function verifies the caller itself (supabase/functions/estimate/index.ts): it checks the
+# signed-in user's access token with supabase-js auth.getClaims and the ALLOWED_EMAILS list, and
+# answers 401/403 with CORS headers the app can read. That works with both the legacy anon/JWT
+# secret keys and the new publishable keys and signing keys, so the platform's check stays off.
+verify_jwt = false

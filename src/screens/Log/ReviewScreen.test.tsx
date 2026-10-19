@@ -78,7 +78,8 @@ describe('F02 · mamak meal by text', () => {
     expect(savedKuah?.variants?.[savedKuah.selectedVariant ?? -1]?.label).toBe('Banjir');
     expect(savedKuah?.edited).toBe(true);
     expect(useUiStore.getState().logText).toBe('');
-    expect(useUiStore.getState().reviewDraft).toBeNull();
+    // Review drops the draft as it unmounts, which can land just after Today first renders.
+    await waitFor(() => expect(useUiStore.getState().reviewDraft).toBeNull());
   });
 
   it('takes the save back with Undo', async () => {

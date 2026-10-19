@@ -1,19 +1,36 @@
-import { useState } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
+import {
+  RESEND_COOLDOWN_SECONDS,
+  SIGN_IN_CODE_LENGTH,
+  isAuthConfigured,
+  readCodeRequest,
+  sendSignInCode,
+  signOut,
+  useSession,
+  verifySignInCode,
+  type CodeRequest,
+  type SessionState,
+} from '@/auth/session';
+import { clearStoredSession } from '@/auth/supabase';
 import { BottomSheet, SheetTitle } from '@/components/BottomSheet/BottomSheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog/ConfirmDialog';
+import { nextOptionIndex } from '@/components/OptionRow/optionKeys';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsRow/SettingsRow';
+import { SignInPanel } from '@/components/SignInPanel/SignInPanel';
 import { SubScreenHeader } from '@/components/TopBar/TopBar';
 import { Button } from '@/components/ui/Button';
 import { ChipGroup } from '@/components/ui/Chip';
 import { resetAll, setDemoMode } from '@/db/actions';
 import { useProfile, useWeightTrend } from '@/db/hooks';
 import {
+  AI_ESTIMATE_MODES,
   DAILY_MINIMUM_STEP,
   PROFILE_LIMITS,
   ROLLOVER_HOURS,
+  aiEstimateModeOf,
   clearLastExport,
   readLastExport,
   updateProfileSettings,
@@ -21,7 +38,8 @@ import {
 } from '@/db/settings';
 import { fmtClock, fmtDayShort, fmtInt, fmtKcal, fmtKg } from '@/domain/format';
 import { logicalDayOf } from '@/domain/day';
-import type { Profile, Sex, ThemePreference } from '@/domain/types';
+import type { AiEstimateMode, Profile, Sex, ThemePreference } from '@/domain/types';
+import { readEstimateUrl } from '@/estimate/aiClient';
 import { SEX_OPTIONS } from '@/screens/Setup/AboutStep';
 import { fieldError, parseNumber } from '@/screens/Setup/fields';
 import { NumberField } from '@/screens/Setup/NumberField';
@@ -42,8 +60,34 @@ const SEX_LABEL: Record<Sex, string> = { male: 'Male', female: 'Female' };
 
 const TARGET_NOTE = 'Your target changes through a suggestion you approve.';
 
+const AI_MODE_COPY: Record<AiEstimateMode, { label: string; sub: string }> = {
+  auto: { label: 'When needed', sub: "Only when the offline estimator can't match everything you typed. Cheapest." },
+  always: { label: 'Always', sub: 'Every typed meal and photo goes to the AI.' },
+  off: { label: 'Off', sub: 'Offline estimates only. Nothing leaves your phone.' },
+};
+
 function hourLabel(hour: number): string {
   return fmtClock(hour * 60, { compact: true });
+}
+
+/** How long Delete everything waits for Supabase to end the session before forgetting it anyway. */
+const SIGN_OUT_WAIT_MS = 3_000;
+
+/**
+ * Delete everything signs this phone out too, so no token, email or user record stays behind.
+ * It never rejects and never holds the wipe up for long: whatever Supabase answers, the stored
+ * session and the last code request are removed.
+ */
+async function forgetAccount(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const waited = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, SIGN_OUT_WAIT_MS);
+  });
+  // Caught here so a sign-out that fails after the wait never surfaces as an unhandled rejection.
+  const signingOut = signOut().catch(() => undefined);
+  await Promise.race([signingOut, waited]);
+  clearTimeout(timer);
+  clearStoredSession();
 }
 
 /** Age, sex and height. Saving updates the profile only, never the target. */
@@ -153,22 +197,120 @@ function RolloverSheet({ initial, onSave }: { initial: number; onSave: (hour: nu
   );
 }
 
+/** When typed and photographed meals go to the AI: a radio list inside the AI estimates card. */
+function AiModeChooser({ value, onChange }: { value: AiEstimateMode; onChange: (mode: AiEstimateMode) => void }) {
+  const captionId = useId();
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const selected = AI_ESTIMATE_MODES.indexOf(value);
+  const tabbable = selected >= 0 ? selected : 0;
+
+  const onKeyDown = (index: number) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    const next = nextOptionIndex(event.key, index, AI_ESTIMATE_MODES.length);
+    const mode = next === null ? undefined : AI_ESTIMATE_MODES[next];
+    if (next === null || mode === undefined) return;
+    event.preventDefault();
+    refs.current[next]?.focus();
+    onChange(mode);
+  };
+
+  return (
+    <div className={styles.modeBlock}>
+      <p id={captionId} className={styles.modeCaption}>
+        When to use AI
+      </p>
+      <div role="radiogroup" aria-labelledby={captionId} className={styles.modeList}>
+        {AI_ESTIMATE_MODES.map((mode, i) => {
+          const checked = mode === value;
+          return (
+            <button
+              key={mode}
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              tabIndex={i === tabbable ? 0 : -1}
+              className={[styles.modeRow, checked ? styles.modeChecked : ''].filter(Boolean).join(' ')}
+              onClick={() => onChange(mode)}
+              onKeyDown={onKeyDown(i)}
+            >
+              <span className={styles.modeText}>
+                <span className={styles.controlLabel}>{AI_MODE_COPY[mode].label}</span>
+                <span className={styles.controlSub}>{AI_MODE_COPY[mode].sub}</span>
+              </span>
+              <span className={styles.radio} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface AccountRowProps {
+  session: SessionState;
+  signingOut: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}
+
+/** Who's signed in, with Sign out; or the way into the sign-in sheet. */
+function AccountRow({ session, signingOut, onSignIn, onSignOut }: AccountRowProps) {
+  if (session.status === 'signedIn') {
+    return (
+      <div className={styles.accountRow}>
+        <span className={styles.accountText}>
+          <span className={styles.controlLabel}>Account</span>
+          <span className={[styles.controlSub, styles.accountEmail].join(' ')}>
+            {session.email ? `Signed in as ${session.email}` : 'Signed in'}
+          </span>
+        </span>
+        <Button variant="secondary" size="sm" disabled={signingOut} onClick={onSignOut}>
+          {signingOut ? 'Signing out…' : 'Sign out'}
+        </Button>
+      </div>
+    );
+  }
+  if (session.status === 'loading') return <SettingsRow label="Account" sub="Checking sign-in…" />;
+  return <SettingsRow label="Account" sub="Sign in for AI estimates" value="Sign in" onPress={onSignIn} />;
+}
+
 const SHEET_TITLE: Record<SheetKind, string> = {
   profile: 'Profile and body',
   minimum: 'Daily minimum',
   rollover: 'Day rollover',
 };
 
-/** S19 Settings: profile, budget, day, appearance, privacy, data, demo, about and Delete everything. */
+/**
+ * S19 Settings: AI estimates (account and when to use AI), profile, budget, day, appearance,
+ * privacy, data, demo, about and Delete everything.
+ */
 export default function SettingsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const profile = useProfile();
   const weight = useWeightTrend();
+  const session = useSession();
   const showToast = useUiStore((s) => s.showToast);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const [codeRequest, setCodeRequest] = useState<CodeRequest | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastExport] = useState(readLastExport);
+
+  // Sign-in only guards the AI function, so the account row exists only when Supabase is set up.
+  // Without Supabase, AI calls go straight to the endpoint (the Vite dev server in local dev).
+  const authConfigured = isAuthConfigured();
+  const aiReachable = authConfigured || readEstimateUrl() !== undefined;
+  const aiMode = aiEstimateModeOf(profile);
+  let aiNote: string | undefined;
+  if (!authConfigured) {
+    aiNote = import.meta.env.DEV ? 'AI estimates run through the dev server.' : undefined;
+  } else if (session.status === 'signedOut' && aiMode !== 'off') {
+    aiNote = 'Until you sign in, estimates stay offline.';
+  }
 
   const back = () => (location.key !== 'default' ? goBack(navigate) : navigate(PATHS.more, { replace: true }));
 
@@ -187,15 +329,33 @@ export default function SettingsScreen() {
     if (await save(patch, toast)) setSheet(null);
   };
 
+  const leaveAccount = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      showToast('Signed out');
+    } catch {
+      showToast("Couldn't sign out. Try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   const leaveDemo = async () => {
     await setDemoMode(false);
     resetUiState();
     navigate(PATHS.setup, { replace: true });
   };
 
+  const openSignIn = () => {
+    // Read as the sheet opens, so a code asked for earlier (before a close or a relaunch) is reused.
+    setCodeRequest(readCodeRequest());
+    setSignInOpen(true);
+  };
+
   const deleteEverything = async () => {
     setConfirmDelete(false);
-    await resetAll();
+    await Promise.all([resetAll(), forgetAccount()]);
     resetUiState();
     clearLastExport();
     navigate(PATHS.setup, { replace: true });
@@ -213,6 +373,25 @@ export default function SettingsScreen() {
 
       {profile ? (
         <div className={styles.settingsBody}>
+          {aiReachable ? (
+            <SettingsGroup title="AI estimates" note={aiNote}>
+              {authConfigured ? (
+                <AccountRow
+                  session={session}
+                  signingOut={signingOut}
+                  onSignIn={openSignIn}
+                  onSignOut={() => void leaveAccount()}
+                />
+              ) : null}
+              <AiModeChooser
+                value={aiMode}
+                onChange={(mode) => {
+                  if (mode !== aiMode) void save({ aiEstimates: mode });
+                }}
+              />
+            </SettingsGroup>
+          ) : null}
+
           <SettingsGroup title="Profile and body" note={TARGET_NOTE}>
             <SettingsRow label="Age" value={fmtInt(profile.age)} onPress={() => setSheet('profile')} />
             <SettingsRow label="Sex" value={SEX_LABEL[profile.sex]} onPress={() => setSheet('profile')} />
@@ -323,6 +502,21 @@ export default function SettingsScreen() {
             ) : null}
           </>
         ) : null}
+      </BottomSheet>
+
+      <BottomSheet open={signInOpen && authConfigured} onClose={() => setSignInOpen(false)}>
+        <SheetTitle>Sign in for AI estimates</SheetTitle>
+        <SignInPanel
+          sendCode={sendSignInCode}
+          verifyCode={verifySignInCode}
+          codeLength={SIGN_IN_CODE_LENGTH}
+          cooldownSeconds={RESEND_COOLDOWN_SECONDS}
+          lastRequest={codeRequest}
+          onSignedIn={() => {
+            setSignInOpen(false);
+            showToast('Signed in');
+          }}
+        />
       </BottomSheet>
 
       <ConfirmDialog

@@ -8,19 +8,41 @@ import { Button } from '@/components/ui/Button';
 import { db } from '@/db/db';
 import { usePersonalItems, usePlace, useUsuals } from '@/db/hooks';
 import { discardPhoto, loadEstimateContext } from '@/db/logging';
-import { getPhoto } from '@/db/repo';
+import { getPhoto, getProfile } from '@/db/repo';
 import type { MealItem } from '@/domain/types';
-import { readEstimateUrl } from '@/estimate/aiClient';
-import { estimateMeal, withPendingEstimates } from '@/estimate/service';
-import type { EstimateRequest } from '@/estimate/types';
+import { estimateMeal, needsAi } from '@/estimate/service';
+import type { EstimateRequest, EstimateResult } from '@/estimate/types';
 import { useUiStore, type LogResume, type ReviewDraft } from '@/state/ui';
 import { usePhotoUrl } from './hooks';
 import { ItemSearchSheet } from './ItemSearchSheet';
-import { manualItem, newItemId } from './library';
+import { manualItem } from './library';
 import styles from './EstimatingScreen.module.css';
 
 /** "Still working…" after this long (README › Loading). */
 export const SLOW_AFTER_MS = 6000;
+
+/** Shown on Review when a meal needed the AI but nobody is signed in (once per app session). */
+export const SIGN_IN_HINT = 'Sign in under Settings to use AI estimates.';
+
+let signInHintShown = false;
+
+/** Tests: lets the sign-in hint show again. */
+export function resetSignInHint(): void {
+  signInHintShown = false;
+}
+
+/** The AI was skipped for want of a session, and the meal had something only the AI could read. */
+function wantsSignIn(req: EstimateRequest, result: EstimateResult): boolean {
+  return result.aiSkipped === 'notSignedIn' && needsAi(req, result);
+}
+
+function showSignInHint(): void {
+  if (signInHintShown) return;
+  signInHintShown = true;
+  // CONTRACT: the ui store's toast only offers Undo. Once it takes an action label and handler
+  // (C05 Toast already has actionLabel), add "Settings" → navigate(PATHS.settings) here.
+  useUiStore.getState().showToast(SIGN_IN_HINT);
+}
 
 type Phase = 'working' | 'slow' | 'failed';
 
@@ -71,19 +93,22 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
     void (async () => {
       try {
         const current = useUiStore.getState().reviewDraft ?? draft;
-        const [ctx, stored] = await Promise.all([
+        // The profile is read here rather than through useProfile(), so the saved AI setting
+        // ('off' included) applies even before the live query has loaded.
+        const [ctx, stored, profile] = await Promise.all([
           loadEstimateContext(db, current.meta.placeId),
           current.meta.photoId ? getPhoto(db, current.meta.photoId) : Promise.resolve(undefined),
+          getProfile(db),
         ]);
         const req = requestFor(current, stored?.blob);
-        let result = await estimateMeal(req, ctx, { signal: controller.signal });
-        // Without an AI endpoint a photo can't be read yet: it waits as "Meal from photo".
-        if (req.photo && !readEstimateUrl()) result = withPendingEstimates(result, req, newItemId);
+        // A photo the AI can't read yet comes back as a pending "Meal from photo".
+        const result = await estimateMeal(req, ctx, { signal: controller.signal, mode: profile?.aiEstimates });
         if (controller.signal.aborted) return;
         if (result.items.length === 0) {
           setPhase('failed');
           return;
         }
+        if (wantsSignIn(req, result)) showSignInHint();
         toReview(result.items);
       } catch {
         if (!controller.signal.aborted) setPhase('failed');

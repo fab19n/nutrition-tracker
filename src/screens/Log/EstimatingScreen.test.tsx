@@ -6,30 +6,66 @@ import { db } from '@/db/db';
 import { storePhoto } from '@/db/logging';
 import { DEMO_IDS } from '@/db/seed/demo';
 import { now } from '@/domain/clock';
-import type { EstimateContext, EstimateOptions, EstimateRequest, EstimateResult } from '@/estimate/types';
+import type { EstimateMealOptions } from '@/estimate/service';
+import type { EstimateContext, EstimateRequest, EstimateResult } from '@/estimate/types';
 import { resetUiState, useUiStore } from '@/state/ui';
 import { photoDraft, textDraft } from './drafts';
 import { PENDING_ESTIMATE_HINT, ROUGH_GUESS_HINT } from '@/components/ReviewItemRow/ReviewItemRow';
-import { SLOW_AFTER_MS } from './EstimatingScreen';
+import { SIGN_IN_HINT, SLOW_AFTER_MS, resetSignInHint } from './EstimatingScreen';
 import { initialContext, timeSettings } from './mealTime';
 import { renderLogRoutes } from './testHarness';
 
-type EstimateFn = (req: EstimateRequest, ctx: EstimateContext, opts?: EstimateOptions) => Promise<EstimateResult>;
+type EstimateFn = (req: EstimateRequest, ctx: EstimateContext, opts?: EstimateMealOptions) => Promise<EstimateResult>;
 
-/** Lets a test stand in for the estimator; the real (local) one runs otherwise. */
+/** Lets a test stand in for the estimator; the real one runs otherwise. */
 const override = vi.hoisted(() => ({ estimate: null as EstimateFn | null }));
+
+/** Stands in for the Supabase session (src/auth/session.ts): unconfigured unless a test says so. */
+const session = vi.hoisted(() => ({
+  configured: false,
+  getAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
+}));
 
 vi.mock('@/estimate/service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/estimate/service')>();
   return {
     ...actual,
-    estimateMeal: (req: EstimateRequest, ctx: EstimateContext, opts?: EstimateOptions) =>
+    estimateMeal: (req: EstimateRequest, ctx: EstimateContext, opts?: EstimateMealOptions) =>
       override.estimate ? override.estimate(req, ctx, opts) : actual.estimateMeal(req, ctx, opts),
   };
 });
 
+vi.mock('@/auth/session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/auth/session')>()),
+  isAuthConfigured: () => session.configured,
+  getAccessToken: () => session.getAccessToken(),
+}));
+
+/** The deployed app: the Supabase Edge Function is the endpoint; signed in when a token is given. */
+function deployed(token: string | null): void {
+  vi.stubEnv('VITE_SUPABASE_URL', 'https://abcdefgh.supabase.co');
+  vi.stubEnv('VITE_SUPABASE_KEY', 'sb_publishable_test_key');
+  session.configured = true;
+  session.getAccessToken.mockImplementation(async () => token);
+}
+
+const AI_RESULT = {
+  items: [{ id: 'ai-1', name: 'Durian crepe', unitMacros: { kcal: 380, proteinG: 6, carbsG: 50, fatG: 17 }, source: 'aiGuess' }],
+  questions: [],
+  unmatched: [],
+};
+
+function aiFetch() {
+  return vi.fn<typeof fetch>(async () => new Response(JSON.stringify(AI_RESULT), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+}
+
 beforeEach(async () => {
   override.estimate = null;
+  // No endpoint unless a test sets one, whatever .env.local says.
+  vi.stubEnv('VITE_ESTIMATE_URL', '');
+  vi.stubEnv('VITE_SUPABASE_URL', '');
+  vi.stubEnv('VITE_SUPABASE_KEY', '');
+  resetSignInHint();
   await resetAll();
   await loadDemoData();
   resetUiState();
@@ -38,6 +74,11 @@ beforeEach(async () => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  session.configured = false;
+  session.getAccessToken.mockReset();
+  session.getAccessToken.mockImplementation(async () => null);
 });
 
 function context(placeId?: string) {
@@ -200,5 +241,103 @@ describe('S47 estimate failed', () => {
 
     expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More for Roti canai' })).toBeInTheDocument();
+  });
+});
+
+describe('S10 AI estimates setting and sign-in', () => {
+  it("passes the profile's AI estimates setting to the estimator", async () => {
+    await db.profile.update('me', { aiEstimates: 'off' });
+    const modes: (string | undefined)[] = [];
+    const actual = await vi.importActual<typeof import('@/estimate/service')>('@/estimate/service');
+    override.estimate = (req, ctx, opts) => {
+      modes.push(opts?.mode);
+      return actual.estimateMeal(req, ctx, opts);
+    };
+    useUiStore.getState().setReviewDraft(textDraft('teh tarik', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(modes).toEqual(['off']);
+  });
+
+  it("with 'off', never sends a meal even when signed in", async () => {
+    await db.profile.update('me', { aiEstimates: 'off' });
+    deployed('user-jwt');
+    const fetchSpy = aiFetch();
+    vi.stubGlobal('fetch', fetchSpy);
+    useUiStore.getState().setReviewDraft(textDraft('durian crepe', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(useUiStore.getState().reviewDraft?.items.map((i) => i.name)).toEqual(['Durian crepe']);
+  });
+
+  it("with 'always', sends even a fully matched meal, with the session token", async () => {
+    await db.profile.update('me', { aiEstimates: 'always' });
+    deployed('user-jwt');
+    const fetchSpy = aiFetch();
+    vi.stubGlobal('fetch', fetchSpy);
+    useUiStore.getState().setReviewDraft(textDraft('teh tarik', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe('https://abcdefgh.supabase.co/functions/v1/estimate');
+    expect(new Headers(fetchSpy.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe('Bearer user-jwt');
+    expect(useUiStore.getState().reviewDraft?.items.map((i) => i.name)).toEqual(['Durian crepe']);
+  });
+
+  it('says once per session to sign in when a meal needed the AI and nobody is signed in', async () => {
+    deployed(null);
+    const fetchSpy = aiFetch();
+    vi.stubGlobal('fetch', fetchSpy);
+    useUiStore.getState().setReviewDraft(textDraft('durian crepe', context()));
+    const first = renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(await screen.findByText(SIGN_IN_HINT)).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // The local guess is still there to adjust.
+    expect(useUiStore.getState().reviewDraft?.items.map((i) => [i.name, i.source])).toEqual([['Durian crepe', 'aiGuess']]);
+    first.unmount();
+
+    // The next meal that needs the AI goes through quietly.
+    resetUiState();
+    useUiStore.getState().setReviewDraft(textDraft('kuih ketayap pandan', context()));
+    renderLogRoutes(PATHS.estimating);
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(useUiStore.getState().toast).toBeNull();
+    expect(screen.queryByText(SIGN_IN_HINT)).toBeNull();
+  });
+
+  it('says nothing about signing in for a meal the local estimator matched', async () => {
+    deployed(null);
+    useUiStore.getState().setReviewDraft(textDraft('nasi kandar ayam goreng, kubis, kuah campur, teh o ais', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(useUiStore.getState().reviewDraft?.items).toHaveLength(5);
+    expect(session.getAccessToken).not.toHaveBeenCalled();
+    expect(useUiStore.getState().toast).toBeNull();
+  });
+
+  it('keeps a photo as a pending "Meal from photo" and hints at signing in', async () => {
+    // The session lookup can keep S10 up long enough to show the photo, and the stored test
+    // photo isn't a real Blob after fake-indexeddb's clone, so object URLs are stubbed.
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    deployed(null);
+    const fetchSpy = aiFetch();
+    vi.stubGlobal('fetch', fetchSpy);
+    const photoId = await storePhoto(db, new Blob(['jpeg'], { type: 'image/jpeg' }), new Blob(['jpg'], { type: 'image/jpeg' }));
+    useUiStore.getState().setReviewDraft(photoDraft(photoId, '', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More for Meal from photo' })).toBeInTheDocument();
+    expect(await screen.findByText(SIGN_IN_HINT)).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(useUiStore.getState().reviewDraft?.items[0]?.pendingEstimate).toBe(true);
   });
 });

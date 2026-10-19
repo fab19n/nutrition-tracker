@@ -477,6 +477,16 @@ const FUZZY_TERMS: readonly (readonly [term: string, target: RecipeTarget])[] = 
 
 const MIN_FUZZY_LENGTH = 5;
 
+/**
+ * Words in the longest name or alias any lookup knows. A run of name words (tokenise's [a-z]+
+ * tokens) normalises to exactly as many words, so longer runs can never match: exactMatch stops
+ * there, which keeps a long pasted line quick.
+ */
+const MAX_TERM_WORDS = Math.max(
+  1,
+  ...[RECIPE_TERMS, INGREDIENT_TERMS, RAW_TERMS, FOOD_TERMS].flatMap((terms) => [...terms.keys()].map((term) => term.split(/\s+/).length)),
+);
+
 // ---------------------------------------------------------------------------
 // Rough guesses for lines the catalogue doesn't know
 // ---------------------------------------------------------------------------
@@ -775,7 +785,7 @@ function isAromatics(target: RecipeTarget): boolean {
 
 /** The longest run of words that `accept` takes, leftmost first. */
 function exactMatch(words: readonly string[], accept: (found: NameMatch, others: readonly string[]) => boolean): NameMatch | undefined {
-  for (let length = words.length; length >= 1; length -= 1) {
+  for (let length = Math.min(words.length, MAX_TERM_WORDS); length >= 1; length -= 1) {
     for (let start = 0; start + length <= words.length; start += 1) {
       const term = normaliseName(words.slice(start, start + length).join(' '));
       const found = term ? lookup(term) : undefined;

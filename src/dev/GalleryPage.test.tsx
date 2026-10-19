@@ -48,7 +48,8 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByText('C52 OneOffBonus / Empty · today')).toBeInTheDocument();
 
     expect(consoleError).not.toHaveBeenCalled();
-  });
+    // Renders every component in one go: about 1 s alone, 10 s+ while the whole suite runs.
+  }, 30_000);
 
   it('shows the sample week from the engine (trend 78.0 kg, 570 left)', () => {
     render(<GalleryPage />);

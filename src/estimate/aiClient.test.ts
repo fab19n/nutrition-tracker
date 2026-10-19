@@ -1,8 +1,32 @@
 import type { Place } from '@/domain/types';
-import { EstimateUnavailableError, createAiEstimator, postEstimate, type PostEstimateOptions } from './aiClient';
+import { EstimateUnavailableError, createAiEstimator, postEstimate, readEstimateUrl, type PostEstimateOptions } from './aiClient';
 import { parseEstimateResponse } from './aiResponse';
 
+/** Stands in for the Supabase session (src/auth/session.ts): unconfigured unless a test says so. */
+const session = vi.hoisted(() => ({
+  configured: false,
+  getAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
+}));
+
+vi.mock('@/auth/session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/auth/session')>()),
+  isAuthConfigured: () => session.configured,
+  getAccessToken: () => session.getAccessToken(),
+}));
+
 const URL = 'https://estimate.test/api/estimate';
+const SUPABASE_URL = 'https://abcdefgh.supabase.co';
+const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/estimate`;
+const PUBLISHABLE_KEY = 'sb_publishable_test_key';
+
+/** The deployed app: Supabase configured, and signed in when a token is given. */
+function deployed(token: string | null): void {
+  vi.stubEnv('VITE_ESTIMATE_URL', '');
+  vi.stubEnv('VITE_SUPABASE_URL', SUPABASE_URL);
+  vi.stubEnv('VITE_SUPABASE_KEY', PUBLISHABLE_KEY);
+  session.configured = true;
+  session.getAccessToken.mockImplementation(async () => token);
+}
 
 const NASI_KANDAR: Place = {
   id: 'place-1',
@@ -62,6 +86,9 @@ async function unavailableReason(promise: Promise<unknown>): Promise<string> {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  session.configured = false;
+  session.getAccessToken.mockReset();
+  session.getAccessToken.mockImplementation(async () => null);
 });
 
 describe('postEstimate', () => {
@@ -175,6 +202,125 @@ describe('postEstimate', () => {
     const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
     await postEstimate({ text: 'teh tarik' }, { fetch: fetchMock, isOnline: () => true });
     expect(fetchMock.mock.calls[0]?.[0]).toBe(URL);
+  });
+});
+
+describe('readEstimateUrl', () => {
+  it('prefers VITE_ESTIMATE_URL', () => {
+    deployed('token');
+    vi.stubEnv('VITE_ESTIMATE_URL', ' /api/estimate ');
+    expect(readEstimateUrl()).toBe('/api/estimate');
+  });
+
+  it('falls back to the Supabase Edge Function when sign-in is configured', () => {
+    deployed('token');
+    expect(readEstimateUrl()).toBe(FUNCTION_URL);
+    vi.stubEnv('VITE_SUPABASE_URL', `${SUPABASE_URL}/`);
+    expect(readEstimateUrl()).toBe(FUNCTION_URL);
+  });
+
+  it('has no endpoint without either', () => {
+    vi.stubEnv('VITE_ESTIMATE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_URL', SUPABASE_URL);
+    expect(readEstimateUrl()).toBeUndefined();
+  });
+});
+
+describe('postEstimate with sign-in', () => {
+  it('sends the access token and the publishable key to the Edge Function', async () => {
+    deployed('user-jwt');
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
+    const result = await postEstimate({ text: 'durian crepe' }, { fetch: fetchMock, isOnline: () => true });
+
+    expect(result.method).toBe('ai');
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(FUNCTION_URL);
+    const headers = new Headers(init?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer user-jwt');
+    expect(headers.get('apikey')).toBe(PUBLISHABLE_KEY);
+    expect(headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('sends them with a photo too, leaving the multipart Content-Type to the browser', async () => {
+    deployed('user-jwt');
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
+    await postEstimate({ photo: new Blob(['jpeg'], { type: 'image/jpeg' }) }, { fetch: fetchMock, isOnline: () => true });
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer user-jwt');
+    expect(headers.get('apikey')).toBe(PUBLISHABLE_KEY);
+    expect(headers.has('Content-Type')).toBe(false);
+  });
+
+  it('is unavailable as notSignedIn without a session, before anything is sent', async () => {
+    deployed(null);
+    const fetchMock = vi.fn<typeof fetch>();
+    expect(await unavailableReason(postEstimate({ text: 'durian crepe' }, { fetch: fetchMock, isOnline: () => true }))).toBe('notSignedIn');
+    expect(session.getAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports offline without asking for a token', async () => {
+    deployed('user-jwt');
+    const fetchMock = vi.fn<typeof fetch>();
+    expect(await unavailableReason(postEstimate({ text: 'durian crepe' }, { fetch: fetchMock, isOnline: () => false }))).toBe('offline');
+    expect(session.getAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, 'notSignedIn'],
+    [403, 'forbidden'],
+  ] as const)('maps a %i from the server to %s', async (status, reason) => {
+    deployed('expired-jwt');
+    const failing = postEstimate({ text: 'durian crepe' }, { fetch: vi.fn<typeof fetch>(async () => jsonResponse({ error: 'no' }, status)), isOnline: () => true });
+    await expect(failing).rejects.toMatchObject({ reason, status });
+  });
+
+  it('treats a session that cannot be refreshed as a network failure, not a sign-out', async () => {
+    deployed(null);
+    session.getAccessToken.mockImplementation(async () => Promise.reject(new TypeError('Failed to fetch')));
+    const fetchMock = vi.fn<typeof fetch>();
+    expect(await unavailableReason(postEstimate({ text: 'durian crepe' }, { fetch: fetchMock, isOnline: () => true }))).toBe('network');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('lets Cancel and the timeout stop a token refresh that hangs', async () => {
+    deployed(null);
+    session.getAccessToken.mockImplementation(() => new Promise<string | null>(() => {}));
+    const fetchMock = vi.fn<typeof fetch>();
+
+    const controller = new AbortController();
+    const cancelled = postEstimate({ text: 'teh tarik' }, { fetch: fetchMock, isOnline: () => true, signal: controller.signal });
+    controller.abort();
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+
+    expect(await unavailableReason(postEstimate({ text: 'teh tarik' }, { fetch: fetchMock, isOnline: () => true, timeoutMs: 20 }))).toBe('timeout');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('takes an explicit auth over the session', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
+    await postEstimate({ text: 'teh tarik' }, options(fetchMock, { auth: { getAccessToken: async () => 'given', apiKey: 'key' } }));
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer given');
+    expect(headers.get('apikey')).toBe('key');
+  });
+
+  it('in local dev without Supabase, calls /api/estimate with no auth headers', async () => {
+    vi.stubEnv('VITE_ESTIMATE_URL', '/api/estimate');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('VITE_SUPABASE_KEY', '');
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
+    const result = await postEstimate({ text: 'durian crepe' }, { fetch: fetchMock, isOnline: () => true });
+
+    expect(result.method).toBe('ai');
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe('/api/estimate');
+    const headers = new Headers(init?.headers);
+    expect(headers.has('Authorization')).toBe(false);
+    expect(headers.has('apikey')).toBe(false);
+    expect(session.getAccessToken).not.toHaveBeenCalled();
   });
 });
 

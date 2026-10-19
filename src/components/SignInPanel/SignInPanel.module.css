@@ -1,0 +1,101 @@
+/* Sign-in by emailed code. Tokens only; fields match the setup fields (S02). */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.email {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.inputWrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.invalid,
+.invalid:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+/* 16px or more, so iOS doesn't zoom into the field. */
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.input::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.codeInput {
+  font-size: 22px;
+  letter-spacing: 0.3em;
+}
+
+.codeInput::placeholder {
+  letter-spacing: 0.3em;
+  opacity: 0.5;
+}
+
+.hint,
+.error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: -8px;
+}

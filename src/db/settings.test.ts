@@ -4,7 +4,9 @@ import { createDb, type KiraMakanDb } from '@/db/db';
 import { DEMO_EXPECTED } from '@/db/seed/demo';
 import { dailyTargetFor, startingMaintenance } from '@/domain/targets';
 import {
+  AI_ESTIMATE_MODES,
   addRegulars,
+  aiEstimateModeOf,
   clearLastExport,
   defaultDailyMinimum,
   finishSetup,
@@ -59,6 +61,35 @@ describe('updateProfileSettings', () => {
     await expect(updateProfileSettings({ heightCm: 400 }, db)).rejects.toThrow(RangeError);
     await expect(updateProfileSettings({ dailyMinimumKcal: 500 }, db)).rejects.toThrow(RangeError);
     await expect(updateProfileSettings({ rolloverHour: 24 }, db)).rejects.toThrow(RangeError);
+  });
+});
+
+describe('AI estimates mode', () => {
+  it("defaults to 'auto' for a profile from before the setting", () => {
+    expect(aiEstimateModeOf(undefined)).toBe('auto');
+    expect(aiEstimateModeOf({})).toBe('auto');
+    expect(aiEstimateModeOf({ aiEstimates: 'off' })).toBe('off');
+    expect(AI_ESTIMATE_MODES).toEqual(['auto', 'always', 'off']);
+  });
+
+  it('writes the mode to the profile and nothing else', async () => {
+    await createActions(db).loadDemoData();
+    const before = await db.profile.get('me');
+    const versions = await db.goalVersions.toArray();
+
+    const profile = await updateProfileSettings({ aiEstimates: 'always' }, db);
+
+    expect(profile.aiEstimates).toBe('always');
+    expect(profile).toEqual({ ...before, aiEstimates: 'always' });
+    expect(await db.goalVersions.toArray()).toEqual(versions);
+    expect((await updateProfileSettings({ aiEstimates: 'off' }, db)).aiEstimates).toBe('off');
+    expect((await db.profile.get('me'))?.aiEstimates).toBe('off');
+  });
+
+  it('rejects an unknown mode', async () => {
+    await createActions(db).loadDemoData();
+    const patch = JSON.parse('{"aiEstimates":"sometimes"}') as Parameters<typeof updateProfileSettings>[0];
+    await expect(updateProfileSettings(patch, db)).rejects.toThrow(RangeError);
   });
 });
 

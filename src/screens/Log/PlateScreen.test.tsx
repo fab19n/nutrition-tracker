@@ -88,7 +88,8 @@ describe('S24 Plate builder', () => {
     expect(dinner?.placeId).toBe(DEMO_IDS.places.kedai);
     expect(dinner?.priceRm).toBe(9.5);
     expect(Math.round(mealMacros(dinner!).kcal)).toBe(850);
-    expect(useUiStore.getState().reviewDraft).toBeNull();
+    // Review drops the draft as it unmounts, which can land just after Today first renders.
+    await waitFor(() => expect(useUiStore.getState().reviewDraft).toBeNull());
   });
 
   it("after a save, the phone's back button from Today doesn't reopen the plate (and a double tap stacks no Review)", async () => {

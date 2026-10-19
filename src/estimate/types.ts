@@ -5,6 +5,7 @@
  * ranges, at most two follow-up questions (C25) and the phrases it could not place.
  */
 import type { Id, MealItem, MealSlot, PersonalItem, Place } from '@/domain/types';
+import type { EstimateUnavailableReason } from './errors';
 
 export interface EstimateRequest {
   text?: string;
@@ -21,12 +22,21 @@ export interface EstimateQuestion {
 
 export type EstimateMethod = 'local' | 'ai';
 
+/**
+ * Why a result came from the local estimator instead of the AI: 'off' (the profile turned AI
+ * estimates off), 'notNeeded' (auto mode matched everything, or there was nothing to read), or
+ * the reason the AI couldn't run ('notConfigured', 'offline', 'notSignedIn', 'timeout', …).
+ */
+export type AiSkipReason = 'off' | 'notNeeded' | EstimateUnavailableReason;
+
 export interface EstimateResult {
   items: MealItem[];
   questions: EstimateQuestion[];
   /** Phrases from the text that matched nothing in the library or catalogue. */
   unmatched: string[];
   method: EstimateMethod;
+  /** Set by the service (service.ts) when method is 'local': why the AI didn't answer. */
+  aiSkipped?: AiSkipReason;
 }
 
 /** What the estimator knows about the user: the Place they're at and their saved corrections. */

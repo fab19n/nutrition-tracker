@@ -128,7 +128,8 @@ describe('S09 Log sheet', () => {
 
     expect(await screen.findByText('Saved · ~500 kcal · 2 left')).toBeInTheDocument();
     expect((await db.pots.get(DEMO_IDS.pots.kariAyam))?.servingsLeft).toBe(2);
-    expect(screen.queryByRole('dialog', { name: 'Log a meal' })).not.toBeInTheDocument();
+    // The toast can render a commit before the sheet's close navigation lands (slow under load).
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Log a meal' })).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.pots.get(DEMO_IDS.pots.kariAyam))?.servingsLeft).toBe(3));
   });

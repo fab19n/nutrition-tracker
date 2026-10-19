@@ -13,8 +13,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import * as z from 'zod/v4';
 
-/** Default model per the Claude API guidance; change only on purpose (cost/quality is the owner's call). */
-export const ESTIMATE_MODEL = 'claude-opus-5-5';
+/**
+ * Claude Sonnet 5.5, chosen by the owner for cost (about half of Opus 5.5 per token). Identifying
+ * catalogue dishes and portions is well within its range; calories come from the catalogue anyway.
+ * Low effort, adaptive thinking (the default; Sonnet 5.5 rejects disabled thinking) and the
+ * server-side 'default' fallback all apply unchanged.
+ */
+export const ESTIMATE_MODEL = 'claude-sonnet-5-5';
 
 // ---------------------------------------------------------------------------
 // Types shared with the app (kept structural so this file has no app imports)

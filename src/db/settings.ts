@@ -13,7 +13,7 @@ import { getProfile, listActivePots, listGoals, listPlaces, listUsuals, listWork
 import { byId, normaliseName } from '@/data/catalogue';
 import { now } from '@/domain/clock';
 import { itemFromCatalogue } from '@/domain/meal';
-import type { Goal, LogicalDay, MealItem, MealSlot, Place, Pot, Profile, Usual, Workout } from '@/domain/types';
+import type { AiEstimateMode, Goal, LogicalDay, MealItem, MealSlot, Place, Pot, Profile, Usual, Workout } from '@/domain/types';
 
 // ---------------------------------------------------------------------------
 // Limits shared by setup (S02, S04, S07) and settings (S19)
@@ -52,8 +52,23 @@ function within(value: number, limit: NumberLimit): boolean {
 
 /** What S19 can change. Weight is logged as a weigh-in (S16), never edited here. */
 export type ProfileSettingsPatch = Partial<
-  Pick<Profile, 'age' | 'sex' | 'heightCm' | 'theme' | 'useLocation' | 'keepPhotos' | 'dailyMinimumKcal' | 'rolloverHour'>
+  Pick<
+    Profile,
+    'age' | 'sex' | 'heightCm' | 'theme' | 'useLocation' | 'keepPhotos' | 'dailyMinimumKcal' | 'rolloverHour' | 'aiEstimates'
+  >
 >;
+
+/** AI estimates choices in S19's order: When needed · Always · Off. */
+export const AI_ESTIMATE_MODES = ['auto', 'always', 'off'] as const satisfies readonly AiEstimateMode[];
+
+/** The profile's AI estimates mode; a profile from before the setting means 'auto'. */
+export function aiEstimateModeOf(profile: Pick<Profile, 'aiEstimates'> | undefined): AiEstimateMode {
+  return profile?.aiEstimates ?? 'auto';
+}
+
+function isAiEstimateMode(value: unknown): value is AiEstimateMode {
+  return (AI_ESTIMATE_MODES as readonly unknown[]).includes(value);
+}
 
 function assertPatch(patch: ProfileSettingsPatch): void {
   if (patch.age !== undefined && (!Number.isInteger(patch.age) || !within(patch.age, PROFILE_LIMITS.age))) {
@@ -67,6 +82,9 @@ function assertPatch(patch: ProfileSettingsPatch): void {
   }
   if (patch.rolloverHour !== undefined && (!Number.isInteger(patch.rolloverHour) || patch.rolloverHour < 0 || patch.rolloverHour > 23)) {
     throw new RangeError('Settings: rollover hour must be 0–23');
+  }
+  if (patch.aiEstimates !== undefined && !isAiEstimateMode(patch.aiEstimates)) {
+    throw new RangeError('Settings: AI estimates must be auto, always or off');
   }
 }
 
