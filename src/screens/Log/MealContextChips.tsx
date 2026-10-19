@@ -6,7 +6,9 @@ import { SlotPicker } from '@/components/SlotPicker/SlotPicker';
 import { TimePicker, type TimeOption } from '@/components/TimePicker/TimePicker';
 import { Button } from '@/components/ui/Button';
 import { db } from '@/db/db';
+import { useSlotBaselines } from '@/db/hooks';
 import { createPlace, guessPlaceType, type LatLng } from '@/db/logging';
+import { usualSlotMinute } from '@/domain/timing';
 import type { Id, Instant, LogicalDay, Place, PlaceType } from '@/domain/types';
 import {
   QUICK_TIMES,
@@ -18,6 +20,7 @@ import {
   slotFor,
   timeChipLabel,
   wallClockValue,
+  withSlot,
   type MealContext,
   type TimeId,
   type TimeSettings,
@@ -41,8 +44,6 @@ export interface MealContextChipsProps {
   baseDay?: LogicalDay;
   now: Date;
   settings: TimeSettings;
-  /** Review shows "Now · 7:10pm". */
-  withClock?: boolean;
   /** Called when the user picks or creates a Place themselves. */
   onPlacePicked?: () => void;
   /** Extra content at the end of the row (a photo thumbnail). */
@@ -51,7 +52,11 @@ export interface MealContextChipsProps {
 
 type Picker = 'place' | 'time' | 'slot' | null;
 
-/** Place · time · slot chips with their pickers, shared by Log (S09), Review (S11) and Plate (S24). */
+/**
+ * Place · time · slot chips with their pickers, shared by Log (S09), Review (S11) and Plate (S24).
+ * The time chip always shows a clock ("Now · 7:10pm"). Picking an earlier slot while the time is
+ * still "Now" moves the meal to your usual time for that slot (mealTime.withSlot).
+ */
 export function MealContextChips({
   value,
   onChange,
@@ -63,13 +68,15 @@ export function MealContextChips({
   baseDay: baseDayProp,
   now,
   settings,
-  withClock,
   onPlacePicked,
   extra,
 }: MealContextChipsProps) {
   const [open, setOpen] = useState<Picker>(null);
   const [createdIds, setCreatedIds] = useState<readonly Id[]>([]);
+  // Until they load (or with under 5 days of history) the slots' default times stand in.
+  const baselines = useSlotBaselines();
   const close = () => setOpen(null);
+  const pickedTime = value.timeId === 'custom' || value.timeId === 'slot';
 
   const place = value.placeId ? places.find((p) => p.id === value.placeId) : undefined;
   const placeName = place?.name ?? (value.placeId ? undefined : value.placeName);
@@ -121,7 +128,7 @@ export function MealContextChips({
           isNew={value.placeId !== undefined && createdIds.includes(value.placeId)}
           onPress={() => setOpen('place')}
         />
-        <TimeChip label={timeChipLabel(value, now, settings, withClock)} onPress={() => setOpen('time')} />
+        <TimeChip label={timeChipLabel(value, now, settings)} onPress={() => setOpen('time')} />
         <MealSlotChip slot={value.slot} onPress={() => setOpen('slot')} />
         {extra}
       </ContextChipRow>
@@ -158,8 +165,8 @@ export function MealContextChips({
         <div className={styles.sheetBody}>
           <TimePicker
             options={timeOptions}
-            selectedId={value.timeId === 'custom' ? undefined : value.timeId}
-            customValue={value.timeId === 'custom' && value.eatenAt ? wallClockValue(value.eatenAt, settings) : undefined}
+            selectedId={pickedTime ? undefined : value.timeId}
+            customValue={pickedTime && value.eatenAt ? wallClockValue(value.eatenAt, settings) : undefined}
             afterMidnightHint={afterMidnightHint(value.eatenAt ?? now.toISOString(), settings)}
             onSelect={(id) => {
               if (id === 'preset') onChange(withTime('preset', presetAt));
@@ -183,7 +190,7 @@ export function MealContextChips({
           <SlotPicker
             value={value.slot}
             onChange={(slot) => {
-              onChange({ ...value, slot, slotTouched: true });
+              onChange(withSlot(value, slot, usualSlotMinute(slot, baselines), now, settings));
               close();
             }}
           />

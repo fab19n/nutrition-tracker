@@ -219,6 +219,7 @@ export function LogSheetContent({ close }: { close: () => void }) {
               onPress: () => {
                 const state: LogNavState = { slot: meal.slot };
                 if (meal.eatenAt) state.eatenAt = meal.eatenAt;
+                if (meal.eatenAt && meal.timeId === 'slot') state.timeFromSlot = true;
                 if (place) state.placeId = place.id;
                 navigate(PATHS.plate, { state, replace: true });
               },

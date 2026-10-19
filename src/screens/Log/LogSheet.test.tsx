@@ -18,7 +18,7 @@ describe('S09 Log sheet', () => {
   it('opens on the last Place, now and the suggested slot, with what you usually have there', async () => {
     renderLogRoutes('/?sheet=log');
     expect(await placeChip('Kedai near home')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Time:\s*Now$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Time:\s*Now · 7:10pm$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Meal:\s*Dinner$/ })).toBeInTheDocument();
     expect(screen.getByText('Type it like a message')).toBeInTheDocument();
     for (const label of ['Photo', 'Plate', 'Usuals', 'Pot']) expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
@@ -158,6 +158,98 @@ describe('S09 Log sheet', () => {
     // …and turning back to 6pm is today again, not 6pm last night.
     fireEvent.change(input, { target: { value: '18:00' } });
     expect(await screen.findByRole('button', { name: /^Time:\s*6:00pm$/ })).toBeInTheDocument();
+  });
+
+  // The demo's breakfasts and lunches centre on 9:30am and 1:30pm, the same as the defaults;
+  // MealContextChips.test pins that a learned time is used.
+  const pickSlot = async (user: ReturnType<typeof userEvent.setup>, slot: string) => {
+    await user.click(await screen.findByRole('button', { name: /^Meal:/ }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Which meal?' })).getByRole('button', { name: slot }));
+  };
+  const pickNow = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /^Time:/ }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'When did you eat?' })).getByRole('button', { name: 'Now' }));
+  };
+
+  it('moves a "Now" meal to your usual time for an earlier slot, and back to now for the current one', async () => {
+    const user = userEvent.setup();
+    renderLogRoutes('/?sheet=log');
+    await pickSlot(user, 'Breakfast');
+    expect(await screen.findByRole('button', { name: /^Time:\s*9:30am$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Meal:\s*Breakfast$/ })).toBeInTheDocument();
+
+    await pickSlot(user, 'Dinner');
+    expect(await screen.findByRole('button', { name: /^Time:\s*Now · 7:10pm$/ })).toBeInTheDocument();
+  });
+
+  /** Log sheet: Breakfast (time moves to 9:30am), then a library match into Review. */
+  const breakfastToReview = async (user: ReturnType<typeof userEvent.setup>) => {
+    renderLogRoutes('/?sheet=log');
+    await pickSlot(user, 'Breakfast');
+    await user.click(screen.getByRole('textbox', { name: 'What did you eat?' }));
+    await user.paste('teh o ais');
+    const list = await screen.findByRole('list', { name: 'Matches from your library' });
+    await user.click(within(list).getByRole('button', { name: /^Teh o ais kurang\s*· your correction\s*~60$/ }));
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(useUiStore.getState().reviewDraft?.meta).toMatchObject({ slot: 'breakfast', eatenAt: '2026-10-16T01:30:00.000Z', timeFromSlot: true });
+    expect(screen.getByRole('button', { name: /^Time:\s*9:30am$/ })).toBeInTheDocument();
+  };
+
+  /** Log sheet: Breakfast (time moves to 9:30am), then the plate builder. */
+  const breakfastToPlate = async (user: ReturnType<typeof userEvent.setup>) => {
+    renderLogRoutes('/?sheet=log');
+    await pickSlot(user, 'Breakfast');
+    await user.click(await screen.findByRole('button', { name: 'Plate' }));
+    expect(await screen.findByRole('heading', { name: 'Build your plate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Time:\s*9:30am$/ })).toBeInTheDocument();
+  };
+
+  it('carries a slot time into the review, where another slot still moves it', async () => {
+    const user = userEvent.setup();
+    await breakfastToReview(user);
+    await pickSlot(user, 'Lunch');
+    expect(await screen.findByRole('button', { name: /^Time:\s*1:30pm$/ })).toBeInTheDocument();
+    expect(useUiStore.getState().reviewDraft?.meta).toMatchObject({ slot: 'lunch', eatenAt: '2026-10-16T05:30:00.000Z', timeFromSlot: true });
+  });
+
+  it('keeps the slot you picked when you change the time on the review', async () => {
+    const user = userEvent.setup();
+    await breakfastToReview(user);
+    // It was breakfast, just later: the time changes, the slot you picked stays.
+    await pickNow(user);
+    expect(await screen.findByRole('button', { name: /^Time:\s*Now · 7:10pm$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Meal:\s*Breakfast$/ })).toBeInTheDocument();
+    expect(useUiStore.getState().reviewDraft?.meta).toMatchObject({ slot: 'breakfast' });
+    expect(useUiStore.getState().reviewDraft?.meta.timeFromSlot).toBeUndefined();
+  });
+
+  it('carries a slot time to the plate builder, where another slot still moves it', async () => {
+    const user = userEvent.setup();
+    await breakfastToPlate(user);
+    await pickSlot(user, 'Lunch');
+    expect(await screen.findByRole('button', { name: /^Time:\s*1:30pm$/ })).toBeInTheDocument();
+  });
+
+  it('keeps the slot you picked when you change the time on the plate builder', async () => {
+    const user = userEvent.setup();
+    await breakfastToPlate(user);
+    await pickNow(user);
+    expect(await screen.findByRole('button', { name: /^Time:\s*Now · 7:10pm$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Meal:\s*Breakfast$/ })).toBeInTheDocument();
+  });
+
+  it('never moves a time you picked when the slot changes', async () => {
+    const user = userEvent.setup();
+    renderLogRoutes('/?sheet=log');
+    await user.click(await screen.findByRole('button', { name: /^Time:/ }));
+    fireEvent.change(within(await screen.findByRole('dialog', { name: 'When did you eat?' })).getByLabelText('Pick a time'), { target: { value: '18:00' } });
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(await screen.findByRole('button', { name: /^Time:\s*6:00pm$/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Meal:/ }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Which meal?' })).getByRole('button', { name: 'Breakfast' }));
+    expect(await screen.findByRole('button', { name: /^Meal:\s*Breakfast$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Time:\s*6:00pm$/ })).toBeInTheDocument();
   });
 
   it('lists pots in their own sheet', async () => {

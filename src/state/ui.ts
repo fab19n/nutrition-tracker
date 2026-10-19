@@ -22,6 +22,11 @@ export interface ReviewMeta {
   placeName?: string;
   eatenAt?: Instant;
   slot?: MealSlot;
+  /**
+   * eatenAt came from the slot chip (the slot's usual time), not from the time picker, so picking
+   * another slot can still move it. Never saved on the meal.
+   */
+  timeFromSlot?: boolean;
   /** What was typed (text and photo-caption flows). */
   text?: string;
   /** Ledger name for the meal ("Economy rice"). */
@@ -71,7 +76,7 @@ export interface UiState {
 }
 
 /** What the Log sheet picks back up after Cancel on S10. */
-export type LogResume = Pick<ReviewMeta, 'placeId' | 'placeName' | 'eatenAt' | 'slot'>;
+export type LogResume = Pick<ReviewMeta, 'placeId' | 'placeName' | 'eatenAt' | 'slot' | 'timeFromSlot'>;
 
 let lastToastId = 0;
 

@@ -127,14 +127,16 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
     if (isPhoto && draft.meta.photoId && !draft.meta.editingMealId) void discardPhoto(db, draft.meta.photoId);
     // Back to the Log sheet with the text still there, and the Place, time and slot it had (the
     // check-in's "last night" time included), so a new estimate still lands on that day.
-    const { placeId, placeName, eatenAt, slot } = (useUiStore.getState().reviewDraft ?? draft).meta;
+    const { placeId, placeName, eatenAt, slot, timeFromSlot } = (useUiStore.getState().reviewDraft ?? draft).meta;
     const resume: LogResume = {};
     if (placeId) resume.placeId = placeId;
     else if (placeName) resume.placeName = placeName;
     if (eatenAt) resume.eatenAt = eatenAt;
+    if (eatenAt && timeFromSlot) resume.timeFromSlot = true;
     if (slot) resume.slot = slot;
     setLogResume(resume);
-    const at = eatenAt ? `&at=${encodeURIComponent(eatenAt)}` : '';
+    // A time the slot chip set is today's and stays a slot time; only a picked time is a preset.
+    const at = eatenAt && !timeFromSlot ? `&at=${encodeURIComponent(eatenAt)}` : '';
     navigate(`${draft.backTo ?? PATHS.today}?sheet=log${at}`, { replace: true });
   };
 

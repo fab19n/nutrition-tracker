@@ -1,13 +1,15 @@
 /**
  * When a meal was eaten, as the Log, Review and Plate chips show it (C19): quick choices,
- * a custom wall-clock time, the check-in's "last night" preset, and the after-midnight hint.
+ * a custom wall-clock time, the check-in's "last night" preset, the slot's usual time, and the
+ * after-midnight hint.
  */
 import { DEFAULT_ROLLOVER_HOUR, DEFAULT_TZ, addDays, compareDays, instantAt, logicalDayOf, zonedParts } from '@/domain/day';
 import { fmtDayShort, fmtTime, fmtWeekday } from '@/domain/format';
 import { suggestSlot } from '@/domain/timing';
 import type { Id, Instant, LogicalDay, MealSlot, Profile } from '@/domain/types';
 
-export type TimeId = 'now' | 'm30' | 'h1' | 'preset' | 'custom';
+/** 'slot': the time came from picking the meal slot (its usual time), not from the time picker. */
+export type TimeId = 'now' | 'm30' | 'h1' | 'preset' | 'custom' | 'slot';
 
 export interface TimeSettings {
   tz: string;
@@ -78,17 +80,56 @@ export function absoluteTimeLabel(at: Instant, current: Date, s: TimeSettings): 
   return `${ago ? fmtWeekday(day) : fmtDayShort(day)} ${time}`;
 }
 
-/** The TimeChip text for the current choice. `withClock` adds the time to "Now" (Review: "Now · 7:10pm"). */
-export function timeChipLabel(ctx: Pick<MealContext, 'timeId' | 'eatenAt'>, current: Date, s: TimeSettings, withClock = false): string {
+/**
+ * The TimeChip text for the current choice, always with a clock time so it reads as a time you
+ * can change: "Now · 7:10pm", "30 min ago · 6:40pm", "9:30am", "Last night 11:30pm".
+ */
+export function timeChipLabel(ctx: Pick<MealContext, 'timeId' | 'eatenAt'>, current: Date, s: TimeSettings): string {
   if (ctx.timeId === 'now' || !ctx.eatenAt) {
-    const label = withClock ? `Now · ${fmtTime(current, s.tz)}` : 'Now';
+    const label = `Now · ${fmtTime(current, s.tz)}`;
     // A 1am supper counts toward the day before (C19), "Now" included.
     if (!isAfterMidnight(current, s)) return label;
     return `${label} · counts toward ${fmtWeekday(logicalDayOf(current, s.tz, s.rolloverHour))}`;
   }
   const quick = QUICK_TIMES.find((t) => t.id === ctx.timeId);
-  if (quick) return quick.label;
+  if (quick) return `${quick.label} · ${fmtTime(ctx.eatenAt, s.tz)}`;
   return absoluteTimeLabel(ctx.eatenAt, current, s);
+}
+
+/** Picking a slot moves a "Now" meal to the slot's usual time only when that time is at least this long ago. */
+export const SLOT_TIME_MIN_AGO_MINUTES = 120;
+
+/** A snack has no time of its own: one picked at night is as likely now as at its usual hour. */
+const ANYTIME_SLOTS: ReadonlySet<MealSlot> = new Set(['snack']);
+
+/**
+ * `slot`'s usual time (`usualMinute`, minutes after midnight) on today's logical day, when that
+ * was at least 2 hours ago. Undefined for a time later today or too close to now to tell apart
+ * from "now", for a snack, and for the slot now itself falls in (re-tapping the Supper chip at
+ * 2am is the supper being eaten now, not one at its usual 11:30pm).
+ */
+export function slotTimeAt(slot: MealSlot, usualMinute: number, current: Date, s: TimeSettings): Instant | undefined {
+  if (ANYTIME_SLOTS.has(slot) || slot === slotFor(undefined, current, s)) return undefined;
+  const day = logicalDayOf(current, s.tz, s.rolloverHour);
+  const hour = Math.floor(usualMinute / 60);
+  const at = instantAt(day, hour < s.rolloverHour ? hour + 24 : hour, usualMinute % 60, s.tz);
+  return current.getTime() - Date.parse(at) >= SLOT_TIME_MIN_AGO_MINUTES * MINUTE_MS ? at : undefined;
+}
+
+/**
+ * The context once the user picks `slot`. While the time is still "Now" (or came from an earlier
+ * slot pick), an earlier slot moves the meal to its usual time: a meal logged at 9pm as
+ * "Breakfast" was this morning's, not a breakfast at 9pm. Any other slot puts the time back to
+ * "Now". A time picked by hand is never moved.
+ */
+export function withSlot(value: MealContext, slot: MealSlot, usualMinute: number, current: Date, s: TimeSettings): MealContext {
+  const next: MealContext = { ...value, slot, slotTouched: true };
+  if (value.timeId !== 'now' && value.timeId !== 'slot') return next;
+  const at = slotTimeAt(slot, usualMinute, current, s);
+  if (at) return { ...next, timeId: 'slot', eatenAt: at };
+  next.timeId = 'now';
+  delete next.eatenAt;
+  return next;
 }
 
 /** "HH:MM" (24 h) wall-clock time of an instant, for the time input. */
@@ -129,18 +170,19 @@ export function initialContext(current: Date, s: TimeSettings, presetAt?: Instan
  * time that is also the sheet's preset (?at=) shows as that choice again.
  */
 export function resumedContext(
-  resume: { placeId?: Id; placeName?: string; eatenAt?: Instant; slot?: MealSlot },
+  resume: { placeId?: Id; placeName?: string; eatenAt?: Instant; slot?: MealSlot; timeFromSlot?: boolean },
   current: Date,
   s: TimeSettings,
   presetAt?: Instant,
 ): MealContext {
   const suggested = slotFor(resume.eatenAt, current, s);
   const isPreset = resume.eatenAt !== undefined && presetAt !== undefined && Date.parse(resume.eatenAt) === Date.parse(presetAt);
-  const timeId: TimeId = !resume.eatenAt ? 'now' : isPreset ? 'preset' : 'custom';
+  const timeId: TimeId = !resume.eatenAt ? 'now' : isPreset ? 'preset' : resume.timeFromSlot ? 'slot' : 'custom';
   const ctx: MealContext = {
     timeId,
     slot: resume.slot ?? suggested,
-    slotTouched: resume.slot !== undefined && resume.slot !== suggested,
+    // A slot time only exists because the slot was picked, so it counts as picked too.
+    slotTouched: timeId === 'slot' || (resume.slot !== undefined && resume.slot !== suggested),
   };
   if (resume.placeId) ctx.placeId = resume.placeId;
   else if (resume.placeName) ctx.placeName = resume.placeName;

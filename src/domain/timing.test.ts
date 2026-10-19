@@ -8,6 +8,7 @@ import {
   slotBaselines,
   suggestSlot,
   timingTag,
+  usualSlotMinute,
   type SlotBaselines,
 } from './timing';
 import type { MealLog, MealSlot } from './types';
@@ -138,6 +139,16 @@ describe('isUsualSlot', () => {
     expect(isUsualSlot(b.snack)).toBe(false);
     expect(isUsualSlot(b.lunch)).toBe(true);
     expect(isUsualSlot(slotBaselines(history('dinner', [[21, 0], [21, 0], [21, 0], [21, 0]])).dinner)).toBe(false);
+  });
+});
+
+describe('usualSlotMinute', () => {
+  it('is your own median from 5 days of history, else the default', () => {
+    const five = slotBaselines(history('breakfast', [[8, 0], [8, 10], [8, 20], [8, 0], [8, 10]]));
+    expect(usualSlotMinute('breakfast', five)).toBe(8 * 60 + 10);
+    const four = slotBaselines(history('breakfast', [[8, 0], [8, 10], [8, 20], [8, 0]]));
+    expect(usualSlotMinute('breakfast', four)).toBe(DEFAULT_SLOT_TIMES.breakfast);
+    expect(usualSlotMinute('lunch')).toBe(DEFAULT_SLOT_TIMES.lunch);
   });
 });
 

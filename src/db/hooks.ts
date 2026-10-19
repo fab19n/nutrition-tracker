@@ -23,6 +23,7 @@ import {
 } from '@/db/repo';
 import { isDemoClock, now, setDemoClock } from '@/domain/clock';
 import { addDays } from '@/domain/day';
+import type { SlotBaselines } from '@/domain/timing';
 import type { Id, LogicalDay, MealLog, PersonalItem, Place, Pot, Profile, Usual, WeekPlan, Workout } from '@/domain/types';
 import {
   getActiveGoal,
@@ -30,6 +31,7 @@ import {
   getDaySummary,
   getFestiveDaysInRange,
   getProteinLeft,
+  getSlotBaselines,
   getWeekBudget,
   getWeightTrend,
   todayFor,
@@ -132,6 +134,13 @@ export function useActiveGoal(day?: LogicalDay): ActiveGoal | undefined {
 
 export function useDaySummary(day: LogicalDay): DaySummary | undefined {
   return useLiveQuery(() => getDaySummary(db, day), [day]);
+}
+
+/** When you usually eat each slot, judged from the days before `day` (default today). */
+export function useSlotBaselines(day?: LogicalDay): SlotBaselines | undefined {
+  const today = useToday();
+  const target = day ?? today;
+  return useLiveQuery(() => getSlotBaselines(db, target), [target]);
 }
 
 /** The budget week containing `day` (default today). */

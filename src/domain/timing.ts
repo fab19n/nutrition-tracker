@@ -185,6 +185,15 @@ export function slotBaselines(
 }
 
 /**
+ * When you usually eat a slot, in minutes after midnight: your own median once it has 5 days of
+ * history, else the default. The same centre timingTag judges a meal against.
+ */
+export function usualSlotMinute(slot: MealSlot, baselines?: SlotBaselines): number {
+  const baseline = baselines?.[slot];
+  return baseline && baseline.samples >= MIN_BASELINE_SAMPLES ? baseline.medianMin : DEFAULT_SLOT_TIMES[slot];
+}
+
+/**
  * A slot that's part of your usual day: at least 5 days of history, and on at least half the
  * days in the window, so an occasional snack doesn't make every day without one look short.
  */
@@ -213,7 +222,7 @@ export function timingTag(
 
   const baseline = ctx.baselines[meal.slot];
   const useOwn = baseline.samples >= MIN_BASELINE_SAMPLES;
-  const centre = useOwn ? baseline.medianMin : DEFAULT_SLOT_TIMES[meal.slot];
+  const centre = usualSlotMinute(meal.slot, ctx.baselines);
   const tolerance = useOwn ? Math.max(MIN_TOLERANCE_MIN, 2 * baseline.spreadMin) : MIN_TOLERANCE_MIN;
   const parts = zonedParts(meal.eatenAt, tz);
   const offset = clockOffset(parts.hour * 60 + parts.minute, centre);

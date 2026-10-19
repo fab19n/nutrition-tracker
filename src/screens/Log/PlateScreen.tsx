@@ -40,12 +40,13 @@ import styles from './PlateScreen.module.css';
 const OIL_LEVELS: readonly OilLevel[] = ['low', 'medium', 'high'];
 const OIL_LABEL: Record<OilLevel, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 
-function contextFrom(meta: Pick<ReviewMeta, 'placeId' | 'eatenAt' | 'slot'>, s: TimeSettings): MealContext {
+function contextFrom(meta: Pick<ReviewMeta, 'placeId' | 'eatenAt' | 'slot' | 'timeFromSlot'>, s: TimeSettings): MealContext {
   const suggested = slotFor(meta.eatenAt, now(), s);
   const ctx: MealContext = {
-    timeId: meta.eatenAt ? 'custom' : 'now',
+    timeId: meta.eatenAt ? (meta.timeFromSlot ? 'slot' : 'custom') : 'now',
     slot: meta.slot ?? suggested,
-    slotTouched: meta.slot !== undefined && meta.slot !== suggested,
+    // A slot time only exists because the slot was picked, so it counts as picked too.
+    slotTouched: (meta.eatenAt !== undefined && meta.timeFromSlot === true) || (meta.slot !== undefined && meta.slot !== suggested),
   };
   if (meta.placeId) ctx.placeId = meta.placeId;
   if (meta.eatenAt) ctx.eatenAt = meta.eatenAt;

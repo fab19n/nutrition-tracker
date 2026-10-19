@@ -16,12 +16,15 @@ export const REVIEW_TITLE = {
   edit: 'Edit entry',
 } as const;
 
+type ContextMeta = Pick<ReviewMeta, 'placeId' | 'placeName' | 'eatenAt' | 'slot' | 'timeFromSlot'>;
+
 /** The Place and time chips as draft fields (an unset key stays out of the draft). */
-export function contextMeta(ctx: Pick<MealContext, 'placeId' | 'placeName' | 'eatenAt' | 'slot'>): Pick<ReviewMeta, 'placeId' | 'placeName' | 'eatenAt' | 'slot'> {
-  const meta: Pick<ReviewMeta, 'placeId' | 'placeName' | 'eatenAt' | 'slot'> = { slot: ctx.slot };
+export function contextMeta(ctx: Pick<MealContext, 'placeId' | 'placeName' | 'eatenAt' | 'slot'> & Partial<Pick<MealContext, 'timeId'>>): ContextMeta {
+  const meta: ContextMeta = { slot: ctx.slot };
   if (ctx.placeId) meta.placeId = ctx.placeId;
   else if (ctx.placeName?.trim()) meta.placeName = ctx.placeName.trim();
   if (ctx.eatenAt) meta.eatenAt = ctx.eatenAt;
+  if (ctx.eatenAt && ctx.timeId === 'slot') meta.timeFromSlot = true;
   return meta;
 }
 
@@ -96,6 +99,8 @@ export interface LogNavState {
   placeId?: Id;
   eatenAt?: Instant;
   slot?: MealSlot;
+  /** eatenAt came from the slot chip (ReviewMeta.timeFromSlot). */
+  timeFromSlot?: boolean;
   /** Back from Review: the plate builder picks its plate up from the review draft. */
   restore?: boolean;
 }

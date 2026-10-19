@@ -213,6 +213,12 @@ export interface DaySummary {
   goal?: ActiveGoal;
 }
 
+/** When you usually eat each slot, from the complete days before `day` (what getDaySummary judges by). */
+export async function getSlotBaselines(db: KiraMakanDb, day: LogicalDay): Promise<SlotBaselines> {
+  const [settings, history] = await Promise.all([loadSettings(db), completeHistoryBefore(db, day)]);
+  return slotBaselines(history, settings.tz, settings.rolloverHour);
+}
+
 export async function getDaySummary(db: KiraMakanDb, day: LogicalDay): Promise<DaySummary> {
   const [settings, meals, record, history, timeline] = await Promise.all([
     loadSettings(db),

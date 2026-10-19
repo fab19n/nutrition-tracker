@@ -95,9 +95,10 @@ function Review({ draft }: { draft: ReviewDraft }) {
   // afresh by each time picked (a time still ahead of now means last night).
   const [editDay] = useState<LogicalDay | undefined>(() => (isEdit && meta.eatenAt ? mealDayOf(meta.eatenAt, now(), settings) : undefined));
 
-  const [timeId, setTimeId] = useState<TimeId>(meta.eatenAt ? 'custom' : 'now');
+  const [timeId, setTimeId] = useState<TimeId>(meta.eatenAt ? (meta.timeFromSlot && !isEdit ? 'slot' : 'custom') : 'now');
+  // A slot time only exists because the slot was picked, so it counts as picked too.
   const [slotTouched, setSlotTouched] = useState(
-    () => isEdit || (meta.slot !== undefined && meta.slot !== slotFor(meta.eatenAt, now(), settings)),
+    () => isEdit || meta.timeFromSlot === true || (meta.slot !== undefined && meta.slot !== slotFor(meta.eatenAt, now(), settings)),
   );
   const [price, setPrice] = useState(() => priceText(meta.priceRm));
   const [alsoUsual, setAlsoUsual] = useState(false);
@@ -138,7 +139,8 @@ function Review({ draft }: { draft: ReviewDraft }) {
     setSlotTouched(next.slotTouched);
     // Editing: "Now" moves the meal to now; a new meal gets its time stamped on save.
     const eatenAt = next.eatenAt ?? (isEdit ? now().toISOString() : undefined);
-    updateDraftMeta({ placeId: next.placeId, placeName: next.placeName, eatenAt, slot: next.slot });
+    const timeFromSlot = eatenAt !== undefined && next.timeId === 'slot' ? true : undefined;
+    updateDraftMeta({ placeId: next.placeId, placeName: next.placeName, eatenAt, slot: next.slot, timeFromSlot });
   };
 
   const totalKcal = mealMacros({ items, finished }).kcal;
@@ -255,7 +257,6 @@ function Review({ draft }: { draft: ReviewDraft }) {
           now={current}
           settings={settings}
           baseDay={editDay}
-          withClock
           extra={meta.photoId ? <PhotoThumb url={photoUrl} size={30} alt="Meal photo" /> : null}
         />
       </div>

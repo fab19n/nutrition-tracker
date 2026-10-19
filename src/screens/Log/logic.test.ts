@@ -1,8 +1,19 @@
 import { byId } from '@/data/catalogue';
 import { distanceMetres, nearestPlace } from '@/db/logging';
 import type { PersonalItem, Place } from '@/domain/types';
+import { DEFAULT_SLOT_TIMES } from '@/domain/timing';
+import { contextMeta } from './drafts';
 import { buildLogMatches, itemDisplayName, learnedItem, searchLibrary } from './library';
-import { absoluteTimeLabel, afterMidnightHint, customTimeAt, resumedContext, timeChipLabel } from './mealTime';
+import {
+  absoluteTimeLabel,
+  afterMidnightHint,
+  customTimeAt,
+  resumedContext,
+  slotTimeAt,
+  timeChipLabel,
+  withSlot,
+  type MealContext,
+} from './mealTime';
 import { parsePrice } from './price';
 
 const S = { tz: 'Asia/Kuala_Lumpur', rolloverHour: 5 };
@@ -10,10 +21,11 @@ const S = { tz: 'Asia/Kuala_Lumpur', rolloverHour: 5 };
 const NOW = new Date('2026-10-16T11:10:00.000Z');
 
 describe('meal time', () => {
-  it('labels quick choices, last night and after-midnight times', () => {
-    expect(timeChipLabel({ timeId: 'now' }, NOW, S)).toBe('Now');
-    expect(timeChipLabel({ timeId: 'now' }, NOW, S, true)).toBe('Now · 7:10pm');
-    expect(timeChipLabel({ timeId: 'm30', eatenAt: '2026-10-16T10:40:00.000Z' }, NOW, S)).toBe('30 min ago');
+  it('labels every choice with a clock time, plus last night and after-midnight times', () => {
+    expect(timeChipLabel({ timeId: 'now' }, NOW, S)).toBe('Now · 7:10pm');
+    expect(timeChipLabel({ timeId: 'm30', eatenAt: '2026-10-16T10:40:00.000Z' }, NOW, S)).toBe('30 min ago · 6:40pm');
+    expect(timeChipLabel({ timeId: 'h1', eatenAt: '2026-10-16T10:10:00.000Z' }, NOW, S)).toBe('1 h ago · 6:10pm');
+    expect(timeChipLabel({ timeId: 'slot', eatenAt: '2026-10-16T01:30:00.000Z' }, NOW, S)).toBe('9:30am');
     expect(absoluteTimeLabel('2026-10-15T13:00:00.000Z', NOW, S)).toBe('Last night 9:00pm');
     expect(absoluteTimeLabel('2026-10-15T05:30:00.000Z', NOW, S)).toBe('Yesterday 1:30pm');
     expect(absoluteTimeLabel('2026-10-16T06:15:00.000Z', NOW, S)).toBe('2:15pm');
@@ -35,8 +47,7 @@ describe('meal time', () => {
   it('says "Now" after midnight counts toward the day before', () => {
     // Sat 17 Oct, 1:00am MYT: still Friday's logical day.
     const late = new Date('2026-10-16T17:00:00.000Z');
-    expect(timeChipLabel({ timeId: 'now' }, late, S)).toBe('Now · counts toward Fri');
-    expect(timeChipLabel({ timeId: 'now' }, late, S, true)).toBe('Now · 1:00am · counts toward Fri');
+    expect(timeChipLabel({ timeId: 'now' }, late, S)).toBe('Now · 1:00am · counts toward Fri');
     expect(afterMidnightHint(late.toISOString(), S)).toBe('Counts toward Fri');
   });
 
@@ -51,6 +62,83 @@ describe('meal time', () => {
     });
     expect(resumedContext({ eatenAt: lastNight, slot: 'snack' }, NOW, S)).toMatchObject({ timeId: 'custom', slot: 'snack', slotTouched: true });
     expect(resumedContext({ placeName: 'Warung baru' }, NOW, S)).toMatchObject({ timeId: 'now', placeName: 'Warung baru' });
+    // A time the slot chip set stays a slot time, so another slot can still move it, and the slot
+    // counts as picked, so a new time keeps it.
+    expect(resumedContext({ eatenAt: '2026-10-16T01:30:00.000Z', slot: 'breakfast', timeFromSlot: true }, NOW, S)).toMatchObject({
+      timeId: 'slot',
+      slot: 'breakfast',
+      slotTouched: true,
+    });
+  });
+});
+
+describe('picking a slot moves a "Now" meal to its usual time', () => {
+  const BREAKFAST = DEFAULT_SLOT_TIMES.breakfast; // 9:30am
+  const LUNCH = DEFAULT_SLOT_TIMES.lunch; // 1:30pm
+  const nowCtx: MealContext = { timeId: 'now', slot: 'dinner', slotTouched: false };
+
+  it('moves to the slot’s usual time today when that was 2 hours ago or more', () => {
+    expect(slotTimeAt('breakfast', BREAKFAST, NOW, S)).toBe('2026-10-16T01:30:00.000Z');
+    expect(slotTimeAt('lunch', LUNCH, NOW, S)).toBe('2026-10-16T05:30:00.000Z');
+    // Your own usual time, when the app has learned one: breakfast at 8:05am.
+    expect(slotTimeAt('breakfast', 8 * 60 + 5, NOW, S)).toBe('2026-10-16T00:05:00.000Z');
+    // Exactly 2 hours ago moves; 1 h 40 min ago is too close to tell from now (a late learned lunch).
+    expect(slotTimeAt('lunch', 17 * 60 + 10, NOW, S)).toBe('2026-10-16T09:10:00.000Z');
+    expect(slotTimeAt('lunch', 17 * 60 + 30, NOW, S)).toBeUndefined();
+  });
+
+  it('leaves later slots, snacks and the slot now falls in at now', () => {
+    expect(slotTimeAt('supper', DEFAULT_SLOT_TIMES.supper, NOW, S)).toBeUndefined();
+    expect(slotTimeAt('snack', DEFAULT_SLOT_TIMES.snack, NOW, S)).toBeUndefined();
+    // 7:10pm is dinner time: even a learned 5pm dinner is the dinner being eaten now.
+    expect(slotTimeAt('dinner', 17 * 60, NOW, S)).toBeUndefined();
+  });
+
+  it('keeps a meal at now when you re-tap the slot it already shows', () => {
+    // Sat 2:15am is supper (Friday's logical day); tapping Supper again is the supper being eaten now…
+    const supperTime = new Date('2026-10-16T18:15:00.000Z');
+    const start: MealContext = { timeId: 'now', slot: 'supper', slotTouched: false };
+    expect(withSlot(start, 'supper', DEFAULT_SLOT_TIMES.supper, supperTime, S)).toEqual({ timeId: 'now', slot: 'supper', slotTouched: true });
+    // …while Dinner still means the one at 8:30pm.
+    expect(withSlot(start, 'dinner', DEFAULT_SLOT_TIMES.dinner, supperTime, S)).toMatchObject({ timeId: 'slot', eatenAt: '2026-10-16T12:30:00.000Z' });
+    // 3:45pm is lunch time: Lunch stays now, even with a learned 12:30 lunch.
+    const lunchTime = new Date('2026-10-16T07:45:00.000Z');
+    expect(withSlot({ timeId: 'now', slot: 'lunch', slotTouched: false }, 'lunch', 12 * 60 + 30, lunchTime, S)).toMatchObject({ timeId: 'now' });
+  });
+
+  it('reads the slot on the logical day after midnight', () => {
+    // Sat 17 Oct, 1:00am MYT is still Friday: "Breakfast" means Friday morning.
+    const late = new Date('2026-10-16T17:00:00.000Z');
+    expect(slotTimeAt('breakfast', BREAKFAST, late, S)).toBe('2026-10-16T01:30:00.000Z');
+    // Dinner at 8:30pm is Friday's too.
+    expect(slotTimeAt('dinner', DEFAULT_SLOT_TIMES.dinner, late, S)).toBe('2026-10-16T12:30:00.000Z');
+    // Before the rollover it's supper time, so Supper is the one being eaten now, even with a
+    // learned 12:30am supper 2 h 30 min before 3am.
+    expect(slotTimeAt('supper', DEFAULT_SLOT_TIMES.supper, late, S)).toBeUndefined();
+    expect(slotTimeAt('supper', 30, new Date('2026-10-16T19:00:00.000Z'), S)).toBeUndefined();
+  });
+
+  it('moves the time, then back to "Now" for a slot that is not earlier', () => {
+    const breakfast = withSlot(nowCtx, 'breakfast', BREAKFAST, NOW, S);
+    expect(breakfast).toEqual({ timeId: 'slot', eatenAt: '2026-10-16T01:30:00.000Z', slot: 'breakfast', slotTouched: true });
+    expect(withSlot(breakfast, 'lunch', LUNCH, NOW, S)).toMatchObject({ timeId: 'slot', eatenAt: '2026-10-16T05:30:00.000Z', slot: 'lunch' });
+    const dinner = withSlot(breakfast, 'dinner', DEFAULT_SLOT_TIMES.dinner, NOW, S);
+    expect(dinner).toEqual({ timeId: 'now', slot: 'dinner', slotTouched: true });
+  });
+
+  it('never moves a time you picked', () => {
+    const picked = '2026-10-16T08:00:00.000Z';
+    for (const timeId of ['custom', 'preset', 'm30', 'h1'] as const) {
+      const ctx: MealContext = { timeId, eatenAt: picked, slot: 'snack', slotTouched: false };
+      expect(withSlot(ctx, 'breakfast', BREAKFAST, NOW, S)).toEqual({ timeId, eatenAt: picked, slot: 'breakfast', slotTouched: true });
+    }
+  });
+
+  it('marks a slot time in the review draft, and only that', () => {
+    const breakfast = withSlot(nowCtx, 'breakfast', BREAKFAST, NOW, S);
+    expect(contextMeta(breakfast)).toEqual({ slot: 'breakfast', eatenAt: '2026-10-16T01:30:00.000Z', timeFromSlot: true });
+    expect(contextMeta({ ...breakfast, timeId: 'custom' })).toEqual({ slot: 'breakfast', eatenAt: '2026-10-16T01:30:00.000Z' });
+    expect(contextMeta(nowCtx)).toEqual({ slot: 'dinner' });
   });
 });
 
