@@ -2,18 +2,15 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { AuthApiError, AuthRetryableFetchError, createClient, type Session } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  SIGN_IN_CODE_VALID_MS,
   SIGN_IN_MESSAGES,
   SignInError,
   getAccessToken,
   isAuthConfigured,
-  readCodeRequest,
   resetSessionForTests,
-  sendSignInCode,
+  signIn,
   signOut,
   toSignInError,
   useSession,
-  verifySignInCode,
 } from './session';
 import { resetSupabaseForTests } from './supabase';
 
@@ -29,8 +26,7 @@ const fake = vi.hoisted(() => {
     }),
     getSession: vi.fn<() => Promise<unknown>>(),
     refreshSession: vi.fn<() => Promise<unknown>>(),
-    signInWithOtp: vi.fn<(credentials: unknown) => Promise<unknown>>(),
-    verifyOtp: vi.fn<(params: unknown) => Promise<unknown>>(),
+    signInWithPassword: vi.fn<(credentials: unknown) => Promise<unknown>>(),
     signOut: vi.fn<(options: unknown) => Promise<unknown>>(),
   };
   return {
@@ -50,8 +46,8 @@ vi.mock('@supabase/supabase-js', async (importOriginal) => ({
 
 const SUPABASE_URL = 'https://abcdefgh.supabase.co';
 const STORAGE_KEY = 'kira-makan:sb-abcdefgh-auth';
-const CODE_REQUEST_KEY = 'kira-makan:sb-abcdefgh-auth-code-request';
 const EMAIL = 'fabian@example.com';
+const PASSWORD = 'correct horse battery staple';
 const TOKEN = 'access-token-1';
 
 function configure(): void {
@@ -96,8 +92,7 @@ beforeEach(() => {
   fake.auth.onAuthStateChange.mockClear();
   signedInWith(null);
   fake.auth.refreshSession.mockReset().mockResolvedValue({ data: { session: null, user: null }, error: null });
-  fake.auth.signInWithOtp.mockReset().mockResolvedValue({ data: { user: null, session: null }, error: null });
-  fake.auth.verifyOtp.mockReset().mockResolvedValue({ data: { user: null, session: null }, error: null });
+  fake.auth.signInWithPassword.mockReset().mockResolvedValue({ data: { user: null, session: null }, error: null });
   fake.auth.signOut.mockReset().mockResolvedValue({ error: null });
 });
 
@@ -169,142 +164,82 @@ describe('useSession', () => {
   });
 });
 
-describe('sendSignInCode', () => {
+describe('signIn', () => {
   beforeEach(configure);
 
-  it('trims the email and never creates an account', async () => {
-    await sendSignInCode('  Fabian@Example.com ');
-    expect(fake.auth.signInWithOtp).toHaveBeenCalledWith({ email: EMAIL, options: { shouldCreateUser: false } });
+  it('signs in with the trimmed email and the password as typed', async () => {
+    fake.auth.signInWithPassword.mockResolvedValue({ data: { user: sessionFor().user, session: sessionFor() }, error: null });
+    render(<SessionProbe label="a" />);
+    await waitFor(() => expect(screen.getByTestId('a')).toHaveTextContent('signedOut'));
+
+    await act(() => signIn('  Fabian@Example.com ', ` ${PASSWORD} `));
+
+    expect(fake.auth.signInWithPassword).toHaveBeenCalledWith({ email: EMAIL, password: ` ${PASSWORD} ` });
+    expect(screen.getByTestId('a')).toHaveTextContent(`signedIn ${EMAIL}`);
   });
 
-  it('checks the email before asking Supabase', async () => {
-    await expect(sendSignInCode('   ')).rejects.toThrow(SIGN_IN_MESSAGES.emailMissing);
-    await expect(sendSignInCode('fabian@example')).rejects.toThrow(SIGN_IN_MESSAGES.emailInvalid);
-    await expect(sendSignInCode('not an email')).rejects.toMatchObject({ kind: 'invalidEmail' });
-    expect(fake.auth.signInWithOtp).not.toHaveBeenCalled();
+  it('checks the email and password before asking Supabase', async () => {
+    await expect(signIn('   ', PASSWORD)).rejects.toThrow(SIGN_IN_MESSAGES.emailMissing);
+    await expect(signIn('fabian@example', PASSWORD)).rejects.toThrow(SIGN_IN_MESSAGES.emailInvalid);
+    await expect(signIn('not an email', PASSWORD)).rejects.toMatchObject({ kind: 'invalidEmail' });
+    await expect(signIn(EMAIL, '')).rejects.toMatchObject({ kind: 'missingPassword', message: SIGN_IN_MESSAGES.passwordMissing });
+    expect(fake.auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
-  it("explains an email that can't sign in", async () => {
-    // shouldCreateUser: false answers an unknown email with 422 otp_disabled.
-    fake.auth.signInWithOtp.mockResolvedValue({
+  it('explains a wrong email or password without saying which', async () => {
+    // Supabase answers an unknown email and a wrong password alike: 400 invalid_credentials.
+    fake.auth.signInWithPassword.mockResolvedValue({
       data: { user: null, session: null },
-      error: new AuthApiError('Signups not allowed for otp', 422, 'otp_disabled'),
+      error: new AuthApiError('Invalid login credentials', 400, 'invalid_credentials'),
     });
-    const failure = sendSignInCode(EMAIL);
+    const failure = signIn(EMAIL, 'wrong-password');
     await expect(failure).rejects.toBeInstanceOf(SignInError);
-    await expect(failure).rejects.toThrow("That email can't sign in to this app.");
+    await expect(failure).rejects.toMatchObject({ kind: 'wrongPassword', message: 'Wrong email or password.' });
   });
 
-  it('explains the one-code-a-minute limit', async () => {
-    fake.auth.signInWithOtp.mockResolvedValue({
+  it('explains an account that was never confirmed', async () => {
+    fake.auth.signInWithPassword.mockResolvedValue({
       data: { user: null, session: null },
-      error: new AuthApiError('For security purposes, you can only request this after 42 seconds.', 429, 'over_email_send_rate_limit'),
+      error: new AuthApiError('Email not confirmed', 400, 'email_not_confirmed'),
     });
-    await expect(sendSignInCode(EMAIL)).rejects.toThrow('Too many codes asked for. Wait a minute and try again.');
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'notConfirmed', message: SIGN_IN_MESSAGES.notConfirmed });
   });
 
-  it("doesn't promise a minute when the hourly email limit is used up", async () => {
-    // The built-in mailer sends 2 emails an hour for the whole project.
-    fake.auth.signInWithOtp.mockResolvedValue({
+  it('explains too many tries', async () => {
+    fake.auth.signInWithPassword.mockResolvedValue({
       data: { user: null, session: null },
-      error: new AuthApiError('email rate limit exceeded', 429, 'over_email_send_rate_limit'),
+      error: new AuthApiError('Request rate limit reached', 429, 'over_request_rate_limit'),
     });
-    const failure = sendSignInCode(EMAIL);
-    await expect(failure).rejects.toMatchObject({ kind: 'rateLimited', message: SIGN_IN_MESSAGES.sendRateLimited });
-    await expect(failure).rejects.not.toThrow(/minute/);
-  });
-
-  it('remembers where the code went and when, never the code', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
-    await sendSignInCode('  Fabian@Example.com ');
-    expect(readCodeRequest()).toEqual({ email: EMAIL, sentAt: 1_000_000 });
-    expect(JSON.parse(window.localStorage.getItem(CODE_REQUEST_KEY) ?? 'null')).toEqual({ email: EMAIL, sentAt: 1_000_000 });
-  });
-
-  it("doesn't remember a code that wasn't sent", async () => {
-    fake.auth.signInWithOtp.mockResolvedValue({
-      data: { user: null, session: null },
-      error: new AuthApiError('Signups not allowed for otp', 422, 'otp_disabled'),
-    });
-    await expect(sendSignInCode(EMAIL)).rejects.toBeInstanceOf(SignInError);
-    expect(readCodeRequest()).toBeNull();
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'rateLimited', message: SIGN_IN_MESSAGES.rateLimited });
   });
 
   it('explains a lost connection', async () => {
-    fake.auth.signInWithOtp.mockResolvedValue({
+    fake.auth.signInWithPassword.mockResolvedValue({
       data: { user: null, session: null },
       error: new AuthRetryableFetchError('Failed to fetch', 0),
     });
-    await expect(sendSignInCode(EMAIL)).rejects.toThrow("No connection. Try again when you're online.");
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toThrow("No connection. Try again when you're online.");
+  });
+
+  it('explains a thrown network failure', async () => {
+    fake.auth.signInWithPassword.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'offline' });
   });
 
   it("doesn't try while the phone is offline", async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
-    await expect(sendSignInCode(EMAIL)).rejects.toMatchObject({ kind: 'offline', message: SIGN_IN_MESSAGES.offline });
-    expect(fake.auth.signInWithOtp).not.toHaveBeenCalled();
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'offline', message: SIGN_IN_MESSAGES.offline });
+    expect(fake.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('fails when Supabase answers without a session', async () => {
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'unknown', message: SIGN_IN_MESSAGES.failed });
   });
 
   it('refuses when sign-in is not configured', async () => {
     vi.stubEnv('VITE_SUPABASE_URL', '');
-    await expect(sendSignInCode(EMAIL)).rejects.toMatchObject({ kind: 'unconfigured' });
-  });
-});
-
-describe('verifySignInCode', () => {
-  beforeEach(configure);
-
-  it('verifies a 6-digit email code and signs in', async () => {
-    fake.auth.verifyOtp.mockResolvedValue({ data: { user: sessionFor().user, session: sessionFor() }, error: null });
-    render(<SessionProbe label="a" />);
-    await waitFor(() => expect(screen.getByTestId('a')).toHaveTextContent('signedOut'));
-
-    await act(() => verifySignInCode(' Fabian@example.com', '123 456'));
-
-    expect(fake.auth.verifyOtp).toHaveBeenCalledWith({ email: EMAIL, token: '123456', type: 'email' });
-    expect(screen.getByTestId('a')).toHaveTextContent(`signedIn ${EMAIL}`);
-  });
-
-  it('forgets the code request once signed in, and keeps it after a wrong code', async () => {
-    await sendSignInCode(EMAIL);
-    fake.auth.verifyOtp.mockResolvedValueOnce({
-      data: { user: null, session: null },
-      error: new AuthApiError('Token has expired or is invalid', 403, 'otp_expired'),
-    });
-    await expect(verifySignInCode(EMAIL, '000000')).rejects.toMatchObject({ kind: 'wrongCode' });
-    expect(readCodeRequest()?.email).toBe(EMAIL);
-
-    fake.auth.verifyOtp.mockResolvedValueOnce({ data: { user: sessionFor().user, session: sessionFor() }, error: null });
-    await verifySignInCode(EMAIL, '123456');
-    expect(readCodeRequest()).toBeNull();
-    expect(window.localStorage.getItem(CODE_REQUEST_KEY)).toBeNull();
-  });
-
-  it('checks the code before asking Supabase', async () => {
-    await expect(verifySignInCode(EMAIL, '')).rejects.toThrow(SIGN_IN_MESSAGES.codeMissing);
-    await expect(verifySignInCode(EMAIL, '12345')).rejects.toThrow(SIGN_IN_MESSAGES.codeInvalid);
-    await expect(verifySignInCode(EMAIL, '12345a')).rejects.toMatchObject({ kind: 'invalidCode' });
-    expect(fake.auth.verifyOtp).not.toHaveBeenCalled();
-  });
-
-  it('explains a wrong or expired code', async () => {
-    fake.auth.verifyOtp.mockResolvedValue({
-      data: { user: null, session: null },
-      error: new AuthApiError('Token has expired or is invalid', 403, 'otp_expired'),
-    });
-    await expect(verifySignInCode(EMAIL, '000000')).rejects.toMatchObject({ kind: 'wrongCode', message: SIGN_IN_MESSAGES.wrongCode });
-  });
-
-  it('explains too many tries', async () => {
-    fake.auth.verifyOtp.mockResolvedValue({
-      data: { user: null, session: null },
-      error: new AuthApiError('Request rate limit reached', 429, 'over_request_rate_limit'),
-    });
-    await expect(verifySignInCode(EMAIL, '000000')).rejects.toThrow(SIGN_IN_MESSAGES.verifyRateLimited);
-  });
-
-  it('explains a thrown network failure', async () => {
-    fake.auth.verifyOtp.mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(verifySignInCode(EMAIL, '123456')).rejects.toMatchObject({ kind: 'offline' });
+    await expect(signIn(EMAIL, PASSWORD)).rejects.toMatchObject({ kind: 'unconfigured' });
+    expect(fake.auth.signInWithPassword).not.toHaveBeenCalled();
   });
 });
 
@@ -422,71 +357,52 @@ describe('signOut', () => {
   });
 });
 
-describe('readCodeRequest', () => {
-  beforeEach(configure);
-
-  it('is null without Supabase or without a request', () => {
-    expect(readCodeRequest()).toBeNull();
-    vi.stubEnv('VITE_SUPABASE_URL', '');
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: Date.now() }));
-    expect(readCodeRequest()).toBeNull();
-  });
-
-  it('drops a request once its code has run out', () => {
-    const sentAt = Date.now() - SIGN_IN_CODE_VALID_MS;
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: sentAt + 1_000 }));
-    expect(readCodeRequest()).toEqual({ email: EMAIL, sentAt: sentAt + 1_000 });
-
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt }));
-    expect(readCodeRequest()).toBeNull();
-    expect(window.localStorage.getItem(CODE_REQUEST_KEY)).toBeNull();
-  });
-
-  it('ignores something that is not a request', () => {
-    for (const junk of ['not json', 'null', '{"email":""}', '{"email":"a@b.co","sentAt":"soon"}']) {
-      window.localStorage.setItem(CODE_REQUEST_KEY, junk);
-      expect(readCodeRequest()).toBeNull();
-    }
-    // A request from the future (the clock moved back) isn't trusted either.
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: Date.now() + 60_000 }));
-    expect(readCodeRequest()).toBeNull();
-  });
-});
-
 describe('toSignInError', () => {
   it('maps Supabase errors to the copy the UI shows', () => {
-    expect(toSignInError(new AuthApiError('Signups not allowed', 422, 'signup_disabled'), 'send').kind).toBe('notAllowed');
-    expect(toSignInError(new AuthApiError('Not authorized', 400, 'email_address_not_authorized'), 'send').kind).toBe('notAllowed');
-    expect(toSignInError(new AuthApiError('Too many', 429, undefined), 'send').message).toBe(SIGN_IN_MESSAGES.sendRateLimited);
-    expect(toSignInError(new AuthApiError('Email logins are disabled', 400, 'email_provider_disabled'), 'send').message).toBe(
+    expect(toSignInError(new AuthApiError('Invalid login credentials', 400, 'invalid_credentials')).kind).toBe('wrongPassword');
+    // Older Auth servers send the message without an error code.
+    expect(toSignInError(new AuthApiError('Invalid login credentials', 400, undefined)).kind).toBe('wrongPassword');
+    expect(toSignInError(new AuthApiError('User is banned', 400, 'user_banned')).kind).toBe('notAllowed');
+    expect(toSignInError(new AuthApiError('Too many', 429, undefined)).message).toBe(SIGN_IN_MESSAGES.rateLimited);
+    expect(toSignInError(new AuthApiError('Email logins are disabled', 400, 'email_provider_disabled')).message).toBe(
       SIGN_IN_MESSAGES.emailSignInOff,
     );
-    expect(toSignInError(new AuthRetryableFetchError('Bad gateway', 502), 'send').kind).toBe('unavailable');
-    expect(toSignInError(new AuthApiError('Boom', 500, 'unexpected_failure'), 'verify').kind).toBe('unavailable');
-    expect(toSignInError(new AuthApiError('Invalid', 400, 'invalid_credentials'), 'verify').kind).toBe('wrongCode');
-    expect(toSignInError(new Error('odd'), 'send').message).toBe(SIGN_IN_MESSAGES.sendFailed);
-    expect(toSignInError('odd', 'verify').message).toBe(SIGN_IN_MESSAGES.verifyFailed);
+    expect(toSignInError(new AuthApiError('Invalid email', 400, 'email_address_invalid')).kind).toBe('invalidEmail');
+    expect(toSignInError(new AuthRetryableFetchError('Bad gateway', 502)).kind).toBe('unavailable');
+    expect(toSignInError(new AuthApiError('Boom', 500, 'unexpected_failure')).kind).toBe('unavailable');
+    expect(toSignInError(new AuthApiError('Odd', 400, 'validation_failed')).message).toBe(SIGN_IN_MESSAGES.failed);
+    expect(toSignInError(new Error('odd')).message).toBe(SIGN_IN_MESSAGES.failed);
+    expect(toSignInError('odd').message).toBe(SIGN_IN_MESSAGES.failed);
+  });
+
+  it('passes a SignInError through', () => {
+    const error = new SignInError('offline', SIGN_IN_MESSAGES.offline);
+    expect(toSignInError(error)).toBe(error);
   });
 });
 
 describe('logging', () => {
-  it('never writes tokens or codes to the console', async () => {
+  it('never writes tokens or passwords to the console or storage', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method));
     configure();
     signedInWith(sessionFor({ expiresInS: 30 }));
     fake.auth.refreshSession.mockResolvedValue({ data: { session: sessionFor({ token: 'access-token-2' }), user: null }, error: null });
-    fake.auth.verifyOtp.mockResolvedValue({ data: { user: null, session: sessionFor() }, error: null });
+    fake.auth.signInWithPassword
+      .mockResolvedValueOnce({ data: { user: null, session: null }, error: new AuthApiError('Invalid login credentials', 400, 'invalid_credentials') })
+      .mockResolvedValueOnce({ data: { user: null, session: sessionFor() }, error: null });
 
     await getAccessToken();
-    await sendSignInCode(EMAIL);
-    await verifySignInCode(EMAIL, '654321');
+    await expect(signIn(EMAIL, 'wrong-password')).rejects.toBeInstanceOf(SignInError);
+    await signIn(EMAIL, PASSWORD);
     await signOut();
 
     const written = spies.flatMap((spy) => spy.mock.calls.flat().map(String)).join('\n');
     expect(written).not.toContain(TOKEN);
     expect(written).not.toContain('access-token-2');
-    expect(written).not.toContain('654321');
+    expect(written).not.toContain(PASSWORD);
+    expect(written).not.toContain('wrong-password');
     const stored = Object.keys(window.localStorage).map((key) => window.localStorage.getItem(key) ?? '');
-    expect(stored.join('\n')).not.toContain('654321');
+    expect(stored.join('\n')).not.toContain(PASSWORD);
+    expect(stored.join('\n')).not.toContain('wrong-password');
   });
 });

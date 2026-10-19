@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearStoredSession,
-  codeRequestKeyFor,
   getSupabase,
   hasStoredSession,
   readSupabaseConfig,
@@ -145,20 +144,16 @@ describe('hasStoredSession', () => {
 });
 
 describe('clearStoredSession', () => {
-  it("removes this project's stored session and last code request only", () => {
+  it("removes this project's stored session only", () => {
     configure();
-    const codeRequestKey = codeRequestKeyFor(SUPABASE_URL);
-    expect(codeRequestKey).toBe(`${STORAGE_KEY}-code-request`);
     window.localStorage.setItem(STORAGE_KEY, 'session');
     window.localStorage.setItem(`${STORAGE_KEY}-user`, 'user');
-    window.localStorage.setItem(codeRequestKey, 'request');
     window.localStorage.setItem('kira-makan:last-export', 'kept');
 
     clearStoredSession();
 
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(`${STORAGE_KEY}-user`)).toBeNull();
-    expect(window.localStorage.getItem(codeRequestKey)).toBeNull();
     expect(window.localStorage.getItem('kira-makan:last-export')).toBe('kept');
     expect(hasStoredSession()).toBe(false);
   });

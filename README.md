@@ -39,4 +39,4 @@ npm run preview       # serve dist/ locally
 
 ## Stack
 
-React 19, TypeScript, Vite and vite-plugin-pwa; Dexie (IndexedDB) for local data; Zustand for UI state; react-router. Sign-in for AI estimates uses Supabase Auth with emailed 6-digit codes; the estimate function (`supabase/functions/estimate`) runs on Supabase Edge Functions and calls the Claude API with the key it keeps as a secret.
+React 19, TypeScript, Vite and vite-plugin-pwa; Dexie (IndexedDB) for local data; Zustand for UI state; react-router. Sign-in for AI estimates uses Supabase Auth with email and password (no email is sent); the estimate function (`supabase/functions/estimate`) runs on Supabase Edge Functions and calls the Claude API with the key it keeps as a secret.

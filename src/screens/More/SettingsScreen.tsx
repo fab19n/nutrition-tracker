@@ -2,18 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
-import {
-  RESEND_COOLDOWN_SECONDS,
-  SIGN_IN_CODE_LENGTH,
-  isAuthConfigured,
-  readCodeRequest,
-  sendSignInCode,
-  signOut,
-  useSession,
-  verifySignInCode,
-  type CodeRequest,
-  type SessionState,
-} from '@/auth/session';
+import { isAuthConfigured, signIn, signOut, useSession, type SessionState } from '@/auth/session';
 import { clearStoredSession } from '@/auth/supabase';
 import { BottomSheet, SheetTitle } from '@/components/BottomSheet/BottomSheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog/ConfirmDialog';
@@ -76,7 +65,7 @@ const SIGN_OUT_WAIT_MS = 3_000;
 /**
  * Delete everything signs this phone out too, so no token, email or user record stays behind.
  * It never rejects and never holds the wipe up for long: whatever Supabase answers, the stored
- * session and the last code request are removed.
+ * session is removed.
  */
 async function forgetAccount(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -295,7 +284,6 @@ export default function SettingsScreen() {
   const showToast = useUiStore((s) => s.showToast);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
-  const [codeRequest, setCodeRequest] = useState<CodeRequest | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastExport] = useState(readLastExport);
@@ -347,12 +335,6 @@ export default function SettingsScreen() {
     navigate(PATHS.setup, { replace: true });
   };
 
-  const openSignIn = () => {
-    // Read as the sheet opens, so a code asked for earlier (before a close or a relaunch) is reused.
-    setCodeRequest(readCodeRequest());
-    setSignInOpen(true);
-  };
-
   const deleteEverything = async () => {
     setConfirmDelete(false);
     await Promise.all([resetAll(), forgetAccount()]);
@@ -379,7 +361,7 @@ export default function SettingsScreen() {
                 <AccountRow
                   session={session}
                   signingOut={signingOut}
-                  onSignIn={openSignIn}
+                  onSignIn={() => setSignInOpen(true)}
                   onSignOut={() => void leaveAccount()}
                 />
               ) : null}
@@ -507,11 +489,7 @@ export default function SettingsScreen() {
       <BottomSheet open={signInOpen && authConfigured} onClose={() => setSignInOpen(false)}>
         <SheetTitle>Sign in for AI estimates</SheetTitle>
         <SignInPanel
-          sendCode={sendSignInCode}
-          verifyCode={verifySignInCode}
-          codeLength={SIGN_IN_CODE_LENGTH}
-          cooldownSeconds={RESEND_COOLDOWN_SECONDS}
-          lastRequest={codeRequest}
+          signIn={signIn}
           onSignedIn={() => {
             setSignInOpen(false);
             showToast('Signed in');

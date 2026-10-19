@@ -13,8 +13,7 @@ import SettingsScreen from './SettingsScreen';
 const auth = vi.hoisted(() => ({
   configured: false,
   state: { status: 'unconfigured' } as SessionState,
-  sendSignInCode: vi.fn<(email: string) => Promise<void>>(async () => {}),
-  verifySignInCode: vi.fn<(email: string, code: string) => Promise<void>>(async () => {}),
+  signIn: vi.fn<(email: string, password: string) => Promise<void>>(async () => {}),
   signOut: vi.fn<() => Promise<void>>(async () => {}),
 }));
 
@@ -22,15 +21,14 @@ vi.mock('@/auth/session', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/auth/session')>()),
   isAuthConfigured: () => auth.configured,
   useSession: () => auth.state,
-  sendSignInCode: (email: string) => auth.sendSignInCode(email),
-  verifySignInCode: (email: string, code: string) => auth.verifySignInCode(email, code),
+  signIn: (email: string, password: string) => auth.signIn(email, password),
   signOut: () => auth.signOut(),
 }));
 
 /** Where supabase-js keeps the deployed app's session (src/auth/supabase.ts storageKeyFor). */
 const STORAGE_KEY = 'kira-makan:sb-abcdefgh-auth';
-const CODE_REQUEST_KEY = `${STORAGE_KEY}-code-request`;
 const EMAIL = 'fabian@example.com';
+const PASSWORD = 'correct horse battery staple';
 
 /** The deployed app: Supabase configured, with this session. */
 function deployed(state: SessionState): void {
@@ -68,8 +66,7 @@ beforeEach(async () => {
   vi.stubEnv('VITE_SUPABASE_KEY', '');
   auth.configured = false;
   auth.state = { status: 'unconfigured' };
-  auth.sendSignInCode.mockReset().mockResolvedValue(undefined);
-  auth.verifySignInCode.mockReset().mockResolvedValue(undefined);
+  auth.signIn.mockReset().mockResolvedValue(undefined);
   auth.signOut.mockReset().mockResolvedValue(undefined);
   await resetAll();
   resetUiState();
@@ -90,17 +87,15 @@ async function confirmDeleteEverything(user: ReturnType<typeof userEvent.setup>)
   await user.click(within(dialog).getByRole('button', { name: 'Delete everything' }));
 }
 
-/** A signed-in phone: the session, its user record and a code request in localStorage. */
+/** A signed-in phone: the session and its user record in localStorage. */
 function storeSignedInPhone(): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ access_token: 'access', refresh_token: 'refresh', expires_at: 2_000_000_000 }));
   window.localStorage.setItem(`${STORAGE_KEY}-user`, JSON.stringify({ user: { email: EMAIL } }));
-  window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: Date.now() }));
 }
 
 function expectNoSessionStored(): void {
   expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   expect(window.localStorage.getItem(`${STORAGE_KEY}-user`)).toBeNull();
-  expect(window.localStorage.getItem(CODE_REQUEST_KEY)).toBeNull();
 }
 
 describe('SettingsScreen (S19)', () => {
@@ -279,35 +274,6 @@ describe('SettingsScreen Delete everything and the account', () => {
     expect(await screen.findByRole('heading', { name: 'Setup screen' })).toBeInTheDocument();
     expectNoSessionStored();
   });
-
-  it('reopens sign-in on the code step for a code asked for earlier', async () => {
-    deployed({ status: 'signedOut' });
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: Date.now() - 10_000 }));
-    const user = userEvent.setup();
-    renderSettings();
-
-    await user.click(await screen.findByRole('button', { name: /^Account/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    expect(within(sheet).getByText(/We sent a 6-digit code to/)).toHaveTextContent(EMAIL);
-    expect(within(sheet).getByRole('button', { name: /^Send a new code in \d+s$/ })).toBeDisabled();
-    await user.type(within(sheet).getByLabelText('Code'), '123456');
-    await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
-
-    expect(auth.verifySignInCode).toHaveBeenCalledWith(EMAIL, '123456');
-    expect(auth.sendSignInCode).not.toHaveBeenCalled();
-  });
-
-  it('starts sign-in from the email step once the last code has run out', async () => {
-    deployed({ status: 'signedOut' });
-    window.localStorage.setItem(CODE_REQUEST_KEY, JSON.stringify({ email: EMAIL, sentAt: Date.now() - 2 * 60 * 60_000 }));
-    const user = userEvent.setup();
-    renderSettings();
-
-    await user.click(await screen.findByRole('button', { name: /^Account/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    expect(within(sheet).getByLabelText('Email')).toHaveValue('');
-    expect(within(sheet).queryByRole('button', { name: 'I have a code' })).not.toBeInTheDocument();
-  });
 });
 
 describe('SettingsScreen AI estimates', () => {
@@ -385,33 +351,28 @@ describe('SettingsScreen AI estimates', () => {
     await user.click(account);
 
     const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    await user.type(within(sheet).getByLabelText('Email'), 'fabian@example.com');
-    await user.click(within(sheet).getByRole('button', { name: 'Send code' }));
-    expect(auth.sendSignInCode).toHaveBeenCalledWith('fabian@example.com');
-
-    expect(await within(sheet).findByText(/We sent a 6-digit code to/)).toHaveTextContent('fabian@example.com');
-    await user.type(within(sheet).getByLabelText('Code'), '123456');
+    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
+    await user.type(within(sheet).getByLabelText('Password'), PASSWORD);
     await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
-    expect(auth.verifySignInCode).toHaveBeenCalledWith('fabian@example.com', '123456');
+    expect(auth.signIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Sign in for AI estimates' })).not.toBeInTheDocument());
     expect(useUiStore.getState().toast?.message).toBe('Signed in');
   });
 
-  it('keeps the sheet open with the error when the code is wrong', async () => {
+  it('keeps the sheet open with the error when the password is wrong', async () => {
     deployed({ status: 'signedOut' });
-    auth.verifySignInCode.mockRejectedValue(new Error('That code is wrong or has expired. Check it, or send a new code.'));
+    auth.signIn.mockRejectedValue(Object.assign(new Error('Wrong email or password.'), { kind: 'wrongPassword' }));
     const user = userEvent.setup();
     renderSettings();
 
     await user.click(await screen.findByRole('button', { name: /^Account/ }));
     const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    await user.type(within(sheet).getByLabelText('Email'), 'fabian@example.com');
-    await user.click(within(sheet).getByRole('button', { name: 'Send code' }));
-    await user.type(await within(sheet).findByLabelText('Code'), '000000');
+    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
+    await user.type(within(sheet).getByLabelText('Password'), 'wrong');
     await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
 
-    expect(await within(sheet).findByRole('alert')).toHaveTextContent('That code is wrong or has expired.');
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent('Wrong email or password.');
     expect(screen.getByRole('dialog', { name: 'Sign in for AI estimates' })).toBeInTheDocument();
     expect(useUiStore.getState().toast).toBeNull();
   });

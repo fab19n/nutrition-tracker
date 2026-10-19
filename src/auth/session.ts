@@ -8,25 +8,19 @@
  *   60 s; null when signed out or unconfigured. Rejects when the session can't be checked (a
  *   refresh that failed on a bad connection), so callers report the connection, not a sign-out.
  * - useSession(): live session state for the UI, from one shared subscription.
- * - sendSignInCode(email) / verifySignInCode(email, code): a 6-digit code by email (no links,
- *   because an emailed link opens Safari instead of the installed iPhone app). New accounts are
- *   never created here; the server allow-lists emails as well.
- * - readCodeRequest(): the last code this phone asked for while it still works, so a closed sheet
- *   or a relaunched app goes back to the code step instead of spending another email.
+ * - signIn(email, password): the account's email and password, typed in the app. No email is
+ *   sent, so there's no mailer to set up: new free Supabase projects can't edit the built-in
+ *   mailer's template (it sends only a link), and an emailed link opens Safari instead of the
+ *   installed iPhone app. Accounts are never created here; sign-ups are off in Supabase and the
+ *   server allow-lists emails as well.
  * - signOut(): forgets this phone's session.
  *
- * Errors are SignInError with copy the UI shows as is. Nothing here logs tokens or codes.
+ * Errors are SignInError with copy the UI shows as is. Nothing here logs or stores passwords or
+ * tokens; supabase-js keeps the session.
  */
 import { useSyncExternalStore } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
-import {
-  clearStoredSession,
-  codeRequestKeyFor,
-  getSupabase,
-  hasStoredSession,
-  readSupabaseConfig,
-  sessionStorageAdapter,
-} from './supabase';
+import { clearStoredSession, getSupabase, hasStoredSession, readSupabaseConfig } from './supabase';
 
 export type SessionStatus = 'unconfigured' | 'loading' | 'signedOut' | 'signedIn';
 
@@ -35,12 +29,6 @@ export interface SessionState {
   email?: string;
 }
 
-/** Supabase's email one-time codes are 6 digits. */
-export const SIGN_IN_CODE_LENGTH = 6;
-/** Supabase sends one address a code at most once a minute. */
-export const RESEND_COOLDOWN_SECONDS = 60;
-/** Supabase's email codes work for an hour unless the project changes it. */
-export const SIGN_IN_CODE_VALID_MS = 60 * 60_000;
 /** Tokens that run out sooner than this are refreshed before use. */
 const REFRESH_MARGIN_MS = 60_000;
 
@@ -50,10 +38,11 @@ const REFRESH_MARGIN_MS = 60_000;
 
 export type SignInErrorKind =
   | 'invalidEmail'
-  | 'invalidCode'
+  | 'missingPassword'
+  | 'wrongPassword'
+  | 'notConfirmed'
   | 'notAllowed'
   | 'rateLimited'
-  | 'wrongCode'
   | 'offline'
   | 'unavailable'
   | 'unconfigured'
@@ -73,22 +62,17 @@ export class SignInError extends Error {
 export const SIGN_IN_MESSAGES = {
   emailMissing: 'Enter your email address.',
   emailInvalid: "That doesn't look like an email address.",
-  codeMissing: 'Enter the 6-digit code from the email.',
-  codeInvalid: 'The code is 6 digits.',
+  passwordMissing: 'Enter your password.',
+  wrongPassword: 'Wrong email or password.',
+  notConfirmed: "This account isn't confirmed yet.",
   notAllowed: "That email can't sign in to this app.",
-  sendTooSoon: 'Too many codes asked for. Wait a minute and try again.',
-  sendRateLimited: 'Too many codes sent for now. Enter the last code you got, or try again later.',
-  verifyRateLimited: 'Too many tries. Wait a minute and try again.',
-  wrongCode: 'That code is wrong or has expired. Check it, or send a new code.',
+  rateLimited: 'Too many tries. Wait a few minutes and try again.',
   offline: "No connection. Try again when you're online.",
   unavailable: "Sign-in isn't answering right now. Try again in a minute.",
   emailSignInOff: 'Email sign-in is turned off for this app.',
   unconfigured: "Sign-in isn't set up in this version of the app.",
-  sendFailed: "Couldn't send a code right now. Try again.",
-  verifyFailed: "Couldn't sign in right now. Try again.",
+  failed: "Couldn't sign in right now. Try again.",
 } as const;
-
-type Step = 'send' | 'verify';
 
 interface ErrorParts {
   name?: string | undefined;
@@ -113,45 +97,33 @@ function isRetryableFetchError(error: unknown): boolean {
   return partsOf(error).name === 'AuthRetryableFetchError';
 }
 
-/*
- * Both of Supabase's email limits answer 429 over_email_send_rate_limit: one code per address a
- * minute ("For security purposes, you can only request this after 42 seconds.") and a few emails
- * an hour for the whole project (2 with the built-in mailer: "email rate limit exceeded").
- */
-const TOO_SOON = /\bafter \d+ seconds?\b/i;
-
-const NOT_ALLOWED_CODES = new Set(['otp_disabled', 'signup_disabled', 'user_not_found', 'user_banned', 'email_address_not_authorized']);
-const RATE_LIMIT_CODES = new Set(['over_email_send_rate_limit', 'over_request_rate_limit']);
-const WRONG_CODE_CODES = new Set(['otp_expired', 'invalid_credentials', 'validation_failed']);
+const RATE_LIMIT_CODES = new Set(['over_request_rate_limit', 'over_email_send_rate_limit']);
+const NOT_ALLOWED_CODES = new Set(['user_banned', 'user_not_found', 'signup_disabled', 'email_address_not_authorized']);
+/** Older Auth servers answer a wrong password with this message and no error code. */
+const WRONG_PASSWORD_MESSAGE = /invalid login credentials/i;
 
 /** Maps a Supabase Auth error (or a thrown fetch failure) to a SignInError. */
-export function toSignInError(error: unknown, step: Step): SignInError {
+export function toSignInError(error: unknown): SignInError {
   if (error instanceof SignInError) return error;
   const { name, code, status, message } = partsOf(error);
-  const failed = step === 'send' ? SIGN_IN_MESSAGES.sendFailed : SIGN_IN_MESSAGES.verifyFailed;
 
   if (name === 'AuthRetryableFetchError') {
     return status ? new SignInError('unavailable', SIGN_IN_MESSAGES.unavailable) : new SignInError('offline', SIGN_IN_MESSAGES.offline);
   }
   if (error instanceof TypeError) return new SignInError('offline', SIGN_IN_MESSAGES.offline);
+  // Supabase limits sign-ins per IP address (the token endpoint's limit, shared with refreshes).
   if (status === 429 || (code !== undefined && RATE_LIMIT_CODES.has(code))) {
-    if (step === 'verify') return new SignInError('rateLimited', SIGN_IN_MESSAGES.verifyRateLimited);
-    const tooSoon = message !== undefined && TOO_SOON.test(message);
-    return new SignInError('rateLimited', tooSoon ? SIGN_IN_MESSAGES.sendTooSoon : SIGN_IN_MESSAGES.sendRateLimited);
+    return new SignInError('rateLimited', SIGN_IN_MESSAGES.rateLimited);
   }
+  // An unknown email and a wrong password get the same answer, so neither says who has an account.
+  const oldWrongPassword = code === undefined && status === 400 && message !== undefined && WRONG_PASSWORD_MESSAGE.test(message);
+  if (code === 'invalid_credentials' || oldWrongPassword) return new SignInError('wrongPassword', SIGN_IN_MESSAGES.wrongPassword);
+  if (code === 'email_not_confirmed') return new SignInError('notConfirmed', SIGN_IN_MESSAGES.notConfirmed);
   if (code === 'email_provider_disabled') return new SignInError('unavailable', SIGN_IN_MESSAGES.emailSignInOff);
-  if (step === 'send') {
-    // shouldCreateUser: false answers an unknown email with otp_disabled ("Signups not allowed for otp").
-    if (code !== undefined && NOT_ALLOWED_CODES.has(code)) return new SignInError('notAllowed', SIGN_IN_MESSAGES.notAllowed);
-    if (code === 'validation_failed' || code === 'email_address_invalid') {
-      return new SignInError('invalidEmail', SIGN_IN_MESSAGES.emailInvalid);
-    }
-  } else if ((code !== undefined && WRONG_CODE_CODES.has(code)) || status === 403) {
-    // Supabase answers both a mistyped and an expired code with otp_expired (403).
-    return new SignInError('wrongCode', SIGN_IN_MESSAGES.wrongCode);
-  }
+  if (code !== undefined && NOT_ALLOWED_CODES.has(code)) return new SignInError('notAllowed', SIGN_IN_MESSAGES.notAllowed);
+  if (code === 'email_address_invalid') return new SignInError('invalidEmail', SIGN_IN_MESSAGES.emailInvalid);
   if (status !== undefined && status >= 500) return new SignInError('unavailable', SIGN_IN_MESSAGES.unavailable);
-  return new SignInError('unknown', failed);
+  return new SignInError('unknown', SIGN_IN_MESSAGES.failed);
 }
 
 // ---------------------------------------------------------------------------
@@ -168,70 +140,14 @@ export function normaliseEmail(email: string): string {
   return address;
 }
 
-/** The code's digits (spaces and dashes from a paste dropped), or a SignInError. */
-export function normaliseCode(code: string): string {
-  const digits = code.replace(/[\s-]/g, '');
-  if (digits === '') throw new SignInError('invalidCode', SIGN_IN_MESSAGES.codeMissing);
-  if (!new RegExp(`^\\d{${SIGN_IN_CODE_LENGTH}}$`).test(digits)) throw new SignInError('invalidCode', SIGN_IN_MESSAGES.codeInvalid);
-  return digits;
+/** The password exactly as typed (spaces count, so it's never trimmed), or a SignInError when empty. */
+export function checkPassword(password: string): string {
+  if (password === '') throw new SignInError('missingPassword', SIGN_IN_MESSAGES.passwordMissing);
+  return password;
 }
 
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
-}
-
-// ---------------------------------------------------------------------------
-// The last code request: the address and when, never the code
-// ---------------------------------------------------------------------------
-
-export interface CodeRequest {
-  email: string;
-  /** Epoch ms when the code went out. */
-  sentAt: number;
-}
-
-function codeRequestKey(): string | null {
-  const config = readSupabaseConfig();
-  return config ? codeRequestKeyFor(config.url) : null;
-}
-
-function rememberCodeRequest(email: string): void {
-  const key = codeRequestKey();
-  if (key) sessionStorageAdapter.setItem(key, JSON.stringify({ email, sentAt: Date.now() } satisfies CodeRequest));
-}
-
-function forgetCodeRequest(): void {
-  const key = codeRequestKey();
-  if (key) sessionStorageAdapter.removeItem(key);
-}
-
-function parseCodeRequest(stored: string): CodeRequest | null {
-  try {
-    const value: unknown = JSON.parse(stored);
-    if (typeof value !== 'object' || value === null) return null;
-    const { email, sentAt } = value as Record<string, unknown>;
-    if (typeof email !== 'string' || email === '' || typeof sentAt !== 'number' || !Number.isFinite(sentAt)) return null;
-    return { email, sentAt };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The last code this phone asked for, while it still works (under an hour old). Each new code
- * replaces the last one and the built-in mailer sends only 2 emails an hour, so the sign-in panel
- * reopens on this code instead of asking for another.
- */
-export function readCodeRequest(): CodeRequest | null {
-  const key = codeRequestKey();
-  if (!key) return null;
-  const stored = sessionStorageAdapter.getItem(key);
-  if (stored === null) return null;
-  const request = parseCodeRequest(stored);
-  const age = request ? Date.now() - request.sentAt : Number.NaN;
-  if (request && age >= 0 && age < SIGN_IN_CODE_VALID_MS) return request;
-  sessionStorageAdapter.removeItem(key);
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,37 +288,21 @@ async function requireClient(): Promise<SupabaseClient> {
   return client;
 }
 
-/** Emails a 6-digit code to an existing account. Never creates an account. */
-export async function sendSignInCode(email: string): Promise<void> {
+/** Signs in with the account's email and password. Never creates an account. */
+export async function signIn(email: string, password: string): Promise<void> {
   const address = normaliseEmail(email);
-  if (isOffline()) throw new SignInError('offline', SIGN_IN_MESSAGES.offline);
-  const client = await requireClient();
-  let error: unknown;
-  try {
-    ({ error } = await client.auth.signInWithOtp({ email: address, options: { shouldCreateUser: false } }));
-  } catch (thrown) {
-    error = thrown;
-  }
-  if (error) throw toSignInError(error, 'send');
-  rememberCodeRequest(address);
-}
-
-/** Signs in with the emailed code. */
-export async function verifySignInCode(email: string, code: string): Promise<void> {
-  const address = normaliseEmail(email);
-  const token = normaliseCode(code);
+  const secret = checkPassword(password);
   if (isOffline()) throw new SignInError('offline', SIGN_IN_MESSAGES.offline);
   const client = await requireClient();
   let session: Session | null = null;
   try {
-    const { data, error } = await client.auth.verifyOtp({ email: address, token, type: 'email' });
+    const { data, error } = await client.auth.signInWithPassword({ email: address, password: secret });
     if (error) throw error;
     session = data.session;
   } catch (thrown) {
-    throw toSignInError(thrown, 'verify');
+    throw toSignInError(thrown);
   }
-  if (!session) throw new SignInError('unknown', SIGN_IN_MESSAGES.verifyFailed);
-  forgetCodeRequest();
+  if (!session) throw new SignInError('unknown', SIGN_IN_MESSAGES.failed);
   heardFromAuth = true;
   setState(stateFor(session));
 }

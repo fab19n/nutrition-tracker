@@ -1,4 +1,4 @@
-/* Sign-in by emailed code. Tokens only; fields match the setup fields (S02). */
+/* Sign-in with email and password. Tokens only; fields match the setup fields (S02). */
 
 .panel {
   display: flex;
@@ -11,11 +11,6 @@
   margin: 0;
   font-size: 15px;
   line-height: 1.45;
-}
-
-.email {
-  font-weight: 700;
-  overflow-wrap: anywhere;
 }
 
 .field {
@@ -67,14 +62,24 @@
   font-weight: 400;
 }
 
-.codeInput {
-  font-size: 22px;
-  letter-spacing: 0.3em;
+/* Show or hide the password: a 32px icon with a 44px tap area, like the search field's clear. */
+.reveal {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: -6px;
+  border-radius: 50%;
+  color: var(--muted);
+  position: relative;
 }
 
-.codeInput::placeholder {
-  letter-spacing: 0.3em;
-  opacity: 0.5;
+.reveal::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 
 .hint,
@@ -91,11 +96,4 @@
 .error {
   color: var(--danger);
   font-weight: 600;
-}
-
-.secondary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: -8px;
 }

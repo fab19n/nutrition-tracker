@@ -78,11 +78,6 @@ export const sessionStorageAdapter = {
   },
 } satisfies SupportedStorage;
 
-/** Where the last sign-in code request lives: the address and when it went out, never the code. */
-export function codeRequestKeyFor(url: string): string {
-  return `${storageKeyFor(url)}-code-request`;
-}
-
 let clientPromise: Promise<SupabaseClient | null> | null = null;
 
 async function createSupabase(config: SupabaseConfig): Promise<SupabaseClient> {
@@ -91,7 +86,7 @@ async function createSupabase(config: SupabaseConfig): Promise<SupabaseClient> {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      // Sign-in is by emailed code, never by link, so nothing arrives in the URL.
+      // Sign-in is by password in the app, never by emailed link, so nothing arrives in the URL.
       detectSessionInUrl: false,
       storage: sessionStorageAdapter,
       storageKey: storageKeyFor(config.url),
@@ -125,9 +120,8 @@ export function hasStoredSession(): boolean {
 }
 
 /**
- * Removes this project's stored session and the last code request directly. Used when signing out
- * can't reach the server and the client refuses to forget a session whose token has run out, and
- * by Delete everything.
+ * Removes this project's stored session directly. Used when signing out can't reach the server
+ * and the client refuses to forget a session whose token has run out, and by Delete everything.
  */
 export function clearStoredSession(): void {
   const config = readSupabaseConfig();
@@ -135,7 +129,6 @@ export function clearStoredSession(): void {
   const key = storageKeyFor(config.url);
   sessionStorageAdapter.removeItem(key);
   sessionStorageAdapter.removeItem(`${key}-user`);
-  sessionStorageAdapter.removeItem(codeRequestKeyFor(config.url));
 }
 
 /** Tests only: forget the client so the next call builds a new one. */

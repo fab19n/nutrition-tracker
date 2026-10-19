@@ -3,7 +3,7 @@
 This guide takes Kira Makan from your PC to your phone:
 
 - **Vercel** hosts the app as static files, built from your GitHub repo.
-- **Supabase** runs the email sign-in and the `estimate` Edge Function, which holds your Anthropic API key as a secret.
+- **Supabase** runs the sign-in (email and password) and the `estimate` Edge Function, which holds your Anthropic API key as a secret.
 - **Anthropic** (Claude) reads typed meals and photos the offline catalogue can't.
 
 ```
@@ -13,7 +13,7 @@ Phone (installed app from Vercel)
                        checks: signed-in user, email on ALLOWED_EMAILS, web origin on ALLOWED_ORIGIN
 ```
 
-Sign-in exists only to protect the AI function. The app works fully without an account; only AI estimates need you to sign in. Sign-in is a 6-digit code by email rather than a link, because an emailed link opens Safari instead of the installed iPhone app. New sign-ups are blocked: only the account you create yourself can sign in.
+Sign-in exists only to protect the AI function. The app works fully without an account; only AI estimates need you to sign in. You sign in with your email and a password, typed in the app (your password manager fills it in), and the phone stays signed in. Supabase sends no email at all. An emailed link would open Safari instead of the installed iPhone app, and new free Supabase projects can't change the built-in email to carry a code instead. New sign-ups are blocked: only the account you create yourself can sign in.
 
 Plan on about 45 minutes. Steps are numbered straight through, so the troubleshooting table can point back at them.
 
@@ -21,7 +21,7 @@ Plan on about 45 minutes. Steps are numbered straight through, so the troublesho
 
 - Node.js 20.19 or later (`node --version`; this project is developed on Node 24), Git, and this repo pushed to GitHub.
 - A Vercel account connected to GitHub, a Supabase account (the free plan is enough) and an Anthropic Console account.
-- The email address you'll sign in with on the phone. Use the one you sign in to Supabase with, so the codes arrive without extra setup (see step 18).
+- The email address you'll sign in with on the phone, and a password manager to make and keep its password (on iPhone, the built-in Passwords app works). No email is ever sent to the address, so any address you own works.
 
 Run every command from the project folder, `C:\GitHub\nutrition-tracker`, in PowerShell or Git Bash. Commands are the same in both unless a step says otherwise.
 
@@ -83,20 +83,11 @@ The key goes in exactly two places: `.env.local` on your PC (part 2) and the Sup
 11. Open the [Supabase dashboard](https://supabase.com/dashboard) and click **New project**. Name it `kira-makan`, generate a database password and save it in your password manager (the app doesn't use the database, but Supabase asks for one), and set **Region** to **Southeast Asia (Singapore)**. Create the project and wait a minute or two until it's ready.
 12. Note the **project ref**: the part after `/project/` in the dashboard's address bar, for example `abcdefghijklmnopqrst`. Your project URL is `https://<project-ref>.supabase.co`. (The **Connect** button at the top of the dashboard shows the URL too.)
 13. Copy the public key. Go to **Settings → API Keys** and copy the **Publishable key** (`sb_publishable_...`). If your project shows only legacy keys, copy the **anon** key (a long `eyJ...` key) instead. Both are public by design; never copy a secret or `service_role` key into the app.
-14. Add yourself as the only user. Go to **Authentication → Users**, click **Add user → Create new user**, enter your email and a long random password (the app never uses it; sign-in is by code) and tick **Auto Confirm User**. Create the user. If the labels differ, look for the option that creates a user directly rather than sending an invitation. An unconfirmed user gets a sign-up confirmation email instead of a code, so the tick matters.
-15. Check the email settings. Go to **Authentication → Sign In / Providers** and open **Email**. Make sure it's enabled, and that **Email OTP Length** is `6`: the app takes exactly 6 digits. **Email OTP Expiration** can stay at the default of 3600 seconds. Save. If the label differs, look for the code length in the Email provider settings.
+14. Add yourself as the only user. First make the password: in your password manager, generate a random one of 20 to 64 characters (Supabase refuses passwords over 72) and save it as "Kira Makan" with your email. Then go to **Authentication → Users**, click **Add user → Create new user**, enter that email and paste the password, tick **Auto Confirm User** and create the user. If the labels differ, look for the option that creates a user directly rather than sending an invitation. The tick matters: an unconfirmed user can't sign in. Supabase never emails this address, so any address you own works; step 27 puts the same one on the function's allow list.
+15. Check that email sign-in is on. Go to **Authentication → Sign In / Providers** and open **Email**. Make sure it's enabled (password sign-in is part of it) and save. The **Email OTP** settings on that page don't matter: the app doesn't use codes.
 16. Block new sign-ups. On the same page, turn off **Allow new users to sign up** and save. If the label differs, look for **Enable sign ups** or **User Signups**. Leave anonymous sign-ins off. Existing users (you) can still sign in.
-17. Make the email show a code. Go to **Authentication → Emails** (or **Email Templates**) and open the **Magic link** template (the docs call it "Magic link or OTP"). Set the subject to `Your Kira Makan code` and replace the body with:
-
-    ```html
-    <h2>Your Kira Makan sign-in code</h2>
-    <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
-    <p>It expires in 1 hour. If you didn't ask for it, ignore this email.</p>
-    ```
-
-    Make sure `{{ .ConfirmationURL }}` is gone, so the email has no link. Save.
-
-18. Check email delivery. Supabase's built-in email service only sends to members of your Supabase organisation's team, and only about 2 emails an hour. If you sign in with the email you use for Supabase, that's enough for one person. For any other address, add it to the team (the organisation's settings, **Team** tab), or set up your own email provider in the Authentication settings (look for **SMTP Settings**); with custom SMTP you can also raise the email limit in the Authentication **Rate Limits** settings.
+17. Skip the email settings. The app never asks Supabase to send email, so leave **Emails** (templates) and **SMTP Settings** as they are. New free projects can't edit the built-in email templates anyway, and the built-in sender only reaches your Supabase team, about 2 emails an hour; none of that affects password sign-in.
+18. Leave the rate limits alone. What stops anyone guessing your password is its length: a random 20-character password can't be guessed in any useful time. Supabase also limits how often one internet connection can sign in. Password sign-ins count against the **token** limit in **Authentication → Rate Limits** (it says token refreshes; signing in uses the same endpoint), not the "sign-ups and sign-ins" one. Leave both at their defaults: one person never comes close, and lowering the token limit would also slow the background refreshes that keep your phone signed in.
 
 ## Part 4 · Vercel
 
@@ -114,7 +105,7 @@ The key goes in exactly two places: `.env.local` on your PC (part 2) and the Sup
       | `VITE_SUPABASE_KEY` | the publishable or anon key from step 13 |
 
       If Vercel asks for a type, **Config** is fine: both values are public. Don't add `VITE_ESTIMATE_URL`; the app derives `https://<project-ref>.supabase.co/functions/v1/estimate` itself. Never add `ANTHROPIC_API_KEY` to Vercel.
-22. Click **Deploy** and wait for the build to finish. Open the project's **Domains** (or the production deployment) and note the production address, for example `https://kira-makan.vercel.app`. Use this exact origin, with no trailing slash, in steps 27 and 31.
+22. Click **Deploy** and wait for the build to finish. Open the project's **Domains** (or the production deployment) and note the production address, for example `https://kira-makan.vercel.app`. Use this exact origin, with no trailing slash, in steps 27 and 31. Also add it as the website of the "Kira Makan" entry in your password manager (step 14), so the phone offers the login when you sign in (step 35).
 23. Check it on your PC: open `https://<your-app>.vercel.app/diary` directly. The app should load, not a 404. In **More → Settings → AI estimates** the **Account** row now says "Sign in for AI estimates": the build picked up Supabase. Sign-in already works, but AI estimates need part 5 first.
 
 `vercel.json` serves every app route (such as `/diary` or `/more/pots/123`) from `index.html`, while real files (`/assets/…`, `sw.js`, `workbox-*.js`, `manifest.webmanifest`, `/icons/…`) are served as they are. It also sets caching (hashed assets for a year, `sw.js` and the manifest always revalidated) and security headers, including a Content-Security-Policy that allows network calls only to this site and `https://*.supabase.co`.
@@ -190,7 +181,7 @@ The key goes in exactly two places: `.env.local` on your PC (part 2) and the Sup
 
 ## Part 6 · Finish the Supabase settings
 
-31. Go to **Authentication → URL Configuration** and set **Site URL** to your production address from step 22 (it starts as `http://localhost:3000`). Save. Codes don't use links, but this keeps any address Supabase puts in its emails pointing at your app.
+31. Go to **Authentication → URL Configuration** and set **Site URL** to your production address from step 22 (it starts as `http://localhost:3000`). Save. Sign-in sends no email, so this is a safety net: if Supabase ever does send one (say, from a button in its dashboard), any link in it points at your app instead of `localhost`.
 
 ## Part 7 · On the phone
 
@@ -199,7 +190,7 @@ The key goes in exactly two places: `.env.local` on your PC (part 2) and the Sup
     - **Android**: open it in **Chrome**, tap **⋮**, then **Add to Home screen** or **Install app**, and confirm. The welcome screen may also offer its own install button.
 33. Open Kira Makan **from the Home Screen icon**, not from the browser. On iPhone the installed app keeps its own data, separate from Safari: anything entered in a Safari tab doesn't carry over.
 34. Tap **Get started** and run setup (about 2 minutes). Or tap **Explore with sample data** to look around first; later, **More → Settings → Leave demo and start fresh** clears the sample data and opens setup.
-35. Sign in for AI estimates: **More → Settings → AI estimates → Account → Sign in**. Enter your email and tap **Send code**. Open the email (check spam the first time), type the 6-digit code and tap **Sign in**. The row now shows "Signed in as …". The phone stays signed in; Supabase refreshes the session in the background.
+35. Sign in for AI estimates: **More → Settings → AI estimates → Account → Sign in**. Enter your email and the password from step 14 and tap **Sign in**. On iPhone, tap the email field and pick the saved login above the keyboard to fill both; if it isn't offered, open the "Kira Makan" entry in your password manager, add the app's address (`https://<your-app>.vercel.app`) to it and try again. The row now shows "Signed in as …". The phone stays signed in; Supabase refreshes the session in the background, so you type the password about once per device.
 36. Leave **AI estimates** on **When needed** (the default and the cheapest): the AI runs only when the offline catalogue can't match everything you typed, and for photos. **Always** sends every typed meal and photo; **Off** keeps everything on the phone.
 37. Try a typed meal: tap **Log**, type something the catalogue may not know, such as `mee siput muar, kopi o kosong`, and tap **Estimate**. To see that the AI answered, open the Supabase dashboard → **Edge Functions → estimate** and look at its invocations or logs for a 200; the request also appears on the Anthropic Console's [Usage](https://platform.claude.com/usage) page.
 38. Your diary lives only on this phone. Save a backup now and then: **More → Export → Full backup (JSON)**, and keep the file somewhere off the phone (the app has no restore screen yet, but the file holds everything). The app asks the browser to keep its storage once setup is done, but on iPhone, removing the Home Screen app also removes its data, so export first.
@@ -232,13 +223,13 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 | Console says the Vercel feedback script was blocked (preview deployments only) | The Content-Security-Policy blocks Vercel's preview toolbar | Harmless; production deployments don't load it. |
 | Function answers **500** `upstream`, or **429** | Anthropic key missing or wrong, credit used up, spend limit reached, or more than 30 estimates in an hour | Supabase → Edge Functions → estimate → logs; Anthropic Console Billing and Usage; `npx supabase secrets list` shows `ANTHROPIC_API_KEY`. |
 | Function answers **503** `upstream` | The function couldn't check the sign-in with Supabase Auth | Try again in a minute. |
-| "That email can't sign in to this app." | The address isn't a user (sign-ups are off, so a mistyped address can't create one), or Supabase's built-in email refuses it because the address isn't on your Supabase organisation's team | Check the spelling; step 14 creates the user. If the user exists in **Authentication → Users**, step 18: add the address to the team, or set up your own email provider. |
-| "Too many codes asked for. Wait a minute and try again." | One code per address a minute, and the built-in email sends only about 2 emails an hour for the whole project | Wait, and use the newest code you already have; codes last an hour. Step 18 (your own email provider) raises the hourly limit. |
-| The code email never arrives | Spam filtering, or a slow delivery from the built-in email | Check spam, wait a few minutes, and use the newest email. If it keeps happening, step 18. |
+| "Wrong email or password." | A typo in either, or the email isn't a user. Supabase gives the same answer for both, so it doesn't reveal who has an account | Fill both from your password manager (step 35), or tap the eye icon to check the password. The email must match the user in **Authentication → Users** exactly. |
+| Lost the password | The app has no "forgot password" flow. Don't use **Send password recovery** in the dashboard: its email link opens Safari, and the app ignores it | In **Authentication → Users**, delete your user and repeat step 14 with a new password and the same email. Nothing in the app is lost: your diary lives on the phone, not in Supabase. A phone that still shows "Signed in as …" signs itself out within the hour; to switch now, tap **Sign out**, then sign in with the new password. |
+| "This account isn't confirmed yet." | The user was created without **Auto Confirm User** | Delete the user in **Authentication → Users** and repeat step 14 with the box ticked. |
+| "Too many tries. Wait a few minutes and try again." | Too many sign-ins from your connection for Supabase's token limit (step 18) | Wait 5 minutes, then fill the password from your password manager rather than typing it. |
+| "Email sign-in is turned off for this app." | The Email provider is disabled | Step 15. |
+| "That email can't sign in to this app." | The user is banned in Supabase | In **Authentication → Users**, unban the user, or delete it and repeat step 14. |
 | Sign-in and AI estimates stop after a quiet week or two | Supabase pauses free-plan projects after a stretch without activity | Open the Supabase dashboard and restore the project. The rest of the app keeps working meanwhile. |
-| The email has a link and no code | The template still uses `{{ .ConfirmationURL }}`, or the user is unconfirmed (that sends the sign-up template) | Steps 17 and 14. |
-| "That code is wrong or has expired." every time, and the email's code is longer than 6 digits | The project's code length is above 6. The code field takes 6 digits, so the rest are cut off and a new code fails the same way | Step 15: set **Email OTP Length** to 6 and save, then send a new code. |
-| "That code is wrong or has expired." | Typo, a code older than an hour, or an older code after a newer one was sent | Tap **Send a new code** and use the newest email. |
 | A deep link such as `/diary` shows Vercel's 404 page | `vercel.json` isn't at the repo root, or the Root Directory points elsewhere | Step 21; check `vercel.json` is in the deployed commit. |
 | The app looks old after a deploy | The service worker serves the previous version until it has fetched the new one | Close the app fully and reopen it, up to twice. In a desktop browser, a reload does the same. |
 | Data missing on iPhone | Data entered in a Safari tab, private browsing, or the Home Screen app was removed | Use the Home Screen app only (step 33), and keep regular backups (step 38). |
