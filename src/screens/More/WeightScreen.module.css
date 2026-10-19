@@ -1,0 +1,89 @@
+/* S16 Weight (prototype S16). */
+
+.screen {
+  padding-bottom: 40px;
+}
+
+.entryCard {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.block {
+  margin: 8px var(--pad-card-x) 0;
+}
+
+.tiles {
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.listCard {
+  margin: 0 var(--pad-card-x);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.entry:last-child {
+  border-bottom: 0;
+}
+
+.entryDay {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.entryTime {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.entryEnd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.entryKg {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.delete {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.first {
+  margin: 0;
+  padding: 12px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-align: center;
+}

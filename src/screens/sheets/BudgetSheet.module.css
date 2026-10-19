@@ -1,0 +1,120 @@
+/* S17 Budget breakdown (prototype: design/Kira Makan.dc.html). */
+.title {
+  padding: 0 4px;
+}
+
+.placeholder {
+  margin-top: 12px;
+  height: 260px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+.rows {
+  margin: 12px 0 0;
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 4px 16px;
+  font-size: 15px;
+  box-shadow: var(--shadow);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.label {
+  margin: 0;
+  min-width: 0;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.value {
+  margin: 0;
+  flex: none;
+  font-weight: 700;
+}
+
+.total .label {
+  font-weight: 700;
+}
+
+.total .value {
+  font-size: 18px;
+}
+
+.good {
+  color: var(--accent-text);
+}
+
+.over {
+  color: var(--amber-text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.explain {
+  margin: 0;
+  padding: 12px 4px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.shortfall {
+  color: var(--amber-text);
+}
+
+.makan {
+  margin-top: 14px;
+}
+
+/* "One-off bonus today  + kcal" row, expanding to the bonus form. */
+.bonus {
+  margin-top: 8px;
+  background: var(--card);
+  border-radius: var(--r-tile);
+  box-shadow: var(--shadow);
+}
+
+.bonusToggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: 14px;
+  text-align: left;
+  border-radius: var(--r-tile);
+}
+
+.bonusAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* The OneOffBonus card (C52) opens under the row. */
+.bonusForm {
+  margin-top: 8px;
+}

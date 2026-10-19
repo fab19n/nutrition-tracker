@@ -1,0 +1,21 @@
+/* S15 Morning check-in: the CheckInCard (C49) carries the layout; these are the loading and done states. */
+.placeholder {
+  height: 320px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+.caughtUp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}

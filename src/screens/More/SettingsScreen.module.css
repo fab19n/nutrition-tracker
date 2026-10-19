@@ -1,0 +1,57 @@
+/* S19 Settings. Tokens only. */
+
+.subScreen {
+  padding-bottom: 48px;
+}
+
+
+.settingsBody {
+  padding-top: 6px;
+}
+
+/* A SettingsGroup row with its own control (Appearance). */
+.controlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.controlLabel {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.controlSub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.sheetNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.sheetCard {
+  padding: 4px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+
+/* Delete everything sits apart from the rest. */
+.dangerZone {
+  margin-top: 24px;
+}

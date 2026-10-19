@@ -1,0 +1,30 @@
+.screen {
+  padding-bottom: 40px;
+}
+
+.context {
+  margin: 0;
+  padding: 12px var(--pad-text-x) 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.strong {
+  color: var(--text);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.note {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}

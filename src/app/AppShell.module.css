@@ -1,0 +1,65 @@
+/*
+ * The phone column: centred, max --app-max-width, full dynamic viewport height.
+ * The window scrolls (not an inner box), which keeps iOS PWAs' momentum scrolling and status-bar tap.
+ */
+.app {
+  max-width: var(--app-max-width);
+  min-height: 100dvh;
+  margin-inline: auto;
+  background: var(--bg);
+  color: var(--text);
+  /* The status-bar safe area; a small top margin in a browser tab, where the inset is 0. */
+  padding-top: max(env(safe-area-inset-top, 0px), 8px);
+}
+
+.main {
+  display: block;
+  min-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 8px));
+}
+
+.main:focus {
+  outline: none;
+}
+
+/* Start-up: a plain --bg screen until the clock is synced and the profile is known. */
+.splash {
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+/* S46: the offline banner sits at the top of the content, above the screen's TopBar. */
+.offline {
+  padding: 4px var(--pad-card-x) 8px;
+}
+
+/*
+ * Toast near the bottom edge when the nav is hidden (sub-screens), lifted above a floating footer
+ * (RangeTotal publishes --footer-space: its height plus its offset from the bottom edge).
+ * Beats Toast's own .root rule.
+ */
+.toastLow > div {
+  bottom: max(calc(24px + env(safe-area-inset-bottom, 0px)), calc(var(--footer-space, 0px) + 12px));
+}
+
+/* While a sheet is open its actions own the bottom edge: the toast shows below the status bar. */
+.toastTop > div {
+  top: calc(max(env(safe-area-inset-top, 0px), 8px) + 8px);
+  bottom: auto;
+}
+
+/* Placeholder while a sheet's content loads. */
+.sheetLoading {
+  min-height: 160px;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 48px var(--pad-text-x) 0;
+}
+
+.error h1,
+.error p {
+  margin: 0;
+}

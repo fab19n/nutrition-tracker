@@ -1,0 +1,8 @@
+/* Picker sheets: content sits 12px under the sheet title. */
+.sheetBody {
+  margin-top: 12px;
+}
+
+.done {
+  margin-top: 16px;
+}

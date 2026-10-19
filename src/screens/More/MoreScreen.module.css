@@ -1,0 +1,83 @@
+/* S48 More. Tokens only. */
+
+.screen {
+  /* Clear of the bottom nav, which sits above the home-indicator safe area. */
+  padding-bottom: calc(var(--content-pad-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+
+/* ---------- S48 goal card ---------- */
+
+.goalCard {
+  margin: 14px 16px 0;
+}
+
+.goalHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.goalText {
+  min-width: 0;
+}
+
+.goalLabel {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.goalTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.goalDetail {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.activeBadge {
+  flex: none;
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.savedGoals {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.savedGoal {
+  border-radius: var(--r-pill);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--card2);
+}
+
+.rows {
+  margin-top: 8px;
+}
+
+.disclaimer {
+  margin: 0;
+  padding: 16px 24px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--muted);
+}
+

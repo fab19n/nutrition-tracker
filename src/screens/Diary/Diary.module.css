@@ -1,0 +1,201 @@
+/* S12 Diary day and S13 Diary week (prototype S12 / S13). */
+
+.tabScreen {
+  /* Clear of the bottom nav, which sits above the home-indicator safe area. */
+  padding-bottom: calc(var(--content-pad-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+.loading {
+  padding: 12px var(--pad-card-x) 0;
+}
+
+.between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.caption {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rowTitle {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.positive {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+/* ---------- S12 status card ---------- */
+
+.statusCard {
+  margin: 12px var(--pad-card-x) 0;
+}
+
+.dayTotal {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.dayTotalOf {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.timeline {
+  margin-top: 12px;
+}
+
+.bannerWrap {
+  padding: 8px var(--pad-card-x) 0;
+}
+
+/* ---------- S12 entries ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.meals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+/* Not counted: the whole day reads as set aside. */
+.dimmed {
+  opacity: 0.6;
+}
+
+.dashedNote,
+.dashedRow {
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dashedRow {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+
+/* ---------- S13 week ---------- */
+
+.barsCard {
+  margin: 12px var(--pad-card-x) 0;
+}
+
+.barsCaptions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.saved {
+  color: var(--accent-text);
+}
+
+.over {
+  color: var(--amber-text);
+}
+
+.rowsCard {
+  margin: 8px var(--pad-card-x) 0;
+}
+
+.dayRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.dayRow:last-child {
+  border-bottom: 0;
+}
+
+.dayRowLeft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.dayName {
+  flex: none;
+  width: 36px;
+  font-weight: 600;
+}
+
+.makanStar {
+  display: inline-flex;
+  color: var(--amber-text);
+}
+
+.switchNote {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.dayKcal {
+  flex: none;
+  font-weight: 700;
+}
+
+.planned {
+  color: var(--muted);
+}
+
+/* "View under": --card track with a --card2 active segment, 12px (prototype S13). */
+/* The control drops under its label when the row runs out of room (130% text). */
+.viewUnder {
+  margin: 8px var(--pad-card-x) 0;
+  padding: 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.viewUnder [role='radiogroup'] {
+  background: var(--card);
+  padding: 3px;
+  font-size: 12px;
+}
+
+.viewUnder [role='radiogroup'] [role='radio'] {
+  padding: 5px 10px;
+}
+
+.viewUnder [role='radiogroup'] [role='radio'][aria-checked='true'] {
+  background: var(--card2);
+  color: var(--text);
+}

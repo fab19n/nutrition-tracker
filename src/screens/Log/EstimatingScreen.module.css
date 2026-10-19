@@ -1,0 +1,136 @@
+/* S10 Estimating (design/Kira Makan.dc.html › S10) and S47 in place. */
+.screen {
+  padding-bottom: 40px;
+}
+
+.quote {
+  margin: 16px var(--pad-card-x) 0;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 17px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.photoCard {
+  margin: 16px var(--pad-card-x) 0;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.photo,
+.photoPlaceholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.photoPlaceholder {
+  background: repeating-linear-gradient(135deg, var(--thumb1) 0 6px, var(--thumb2) 6px 12px);
+}
+
+.caption {
+  margin: 0;
+  padding: 12px 16px 14px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.skeleton {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.status {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cancelRow {
+  display: flex;
+  justify-content: center;
+}
+
+.cancel {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* S47 AI failed */
+.failed {
+  margin: 14px var(--pad-card-x) 0;
+  padding: 18px 16px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  animation: km-up 250ms var(--ease) both;
+}
+
+.failedTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.failedBody {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.failedActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  margin-top: 16px;
+}
+
+/* Enter kcal yourself */
+.manual {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.fieldLabel {
+  margin: 10px 4px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field {
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 16px;
+}
+
+.field::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.field:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.manualAction {
+  margin-top: 16px;
+}

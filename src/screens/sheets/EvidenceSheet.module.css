@@ -1,0 +1,32 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  padding: 0 4px 6px;
+  line-height: 1.25;
+}
+
+.try {
+  margin: 14px 0 0;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--r-inset);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.footer {
+  margin-top: 16px;
+}
+
+.caption {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}

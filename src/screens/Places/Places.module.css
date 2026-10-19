@@ -1,0 +1,361 @@
+/* S21 Places list and S22 Place detail (design/README.md patterns: 16px card margins, 8px gaps). Tokens only. */
+
+.screen {
+  padding-bottom: 48px;
+}
+
+.block {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+/* ---------- S21 list ---------- */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.controls > :first-child {
+  align-self: stretch;
+}
+
+.sortRow {
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.window {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 12px var(--pad-card-x) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.cards > li {
+  animation: km-up 280ms var(--ease) both;
+}
+
+.newRow {
+  padding: 12px var(--pad-card-x) 0;
+}
+
+.note {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ---------- S22 summary ---------- */
+
+.summary {
+  padding: 8px var(--pad-text-x) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.visits {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* The money tile gets a little more room, so "RM 122.00" stays on one line at 360px. */
+div.tiles {
+  padding: 14px var(--pad-card-x) 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+}
+
+.listWrap {
+  margin: 0 var(--pad-card-x);
+}
+
+.sectionNote {
+  margin: 0;
+  padding: 0 var(--pad-text-x);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.sectionNote + .listWrap,
+.listWrap + .sectionNote {
+  margin-top: 8px;
+}
+
+/* A row inside a C35/C36 list that holds its own control (oil level, tray toggle). */
+.controlRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 56px;
+  padding: 10px 0;
+}
+
+.controlLabel {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.controlSub {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.emptyRow {
+  padding: 14px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.dishRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 0;
+}
+
+.dishName {
+  font-weight: 600;
+}
+
+.dishDetail {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.inlineAction {
+  display: flex;
+  justify-content: flex-start;
+  padding: 2px var(--pad-card-x) 0;
+}
+
+/* An inline link ("All pots"): --accent-text 600, as S11's "+ Add item"; 44px tall to tap. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* "+ Add a tray dish" (C21 AddItemRow): its text lines up with the section headings. */
+.addRow {
+  padding: 4px 12px 0;
+}
+
+/* Location row inside the Details group. */
+.locationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 14px 0;
+}
+
+.locationText {
+  min-width: 0;
+}
+
+.locationLabel {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.locationSub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.locationRow button {
+  flex: none;
+}
+
+.danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: 24px var(--pad-card-x) 0;
+}
+
+button.deleteButton {
+  color: var(--danger);
+}
+
+.missing {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+/* ---------- Sheets ---------- */
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.sheetNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 17px;
+  font-weight: 600;
+  outline: none;
+}
+
+.input:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.input::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.inputInvalid,
+.inputInvalid:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.priceWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.priceWrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.priceWrap.inputInvalid {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.pricePrefix {
+  flex: none;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.priceInput {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.toggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.toggleText {
+  min-width: 0;
+}
+
+.toggleLabel {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.toggleSub,
+.toggleSubWarn {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.toggleSubWarn {
+  color: var(--amber-text);
+}
+
+.sheetSearch {
+  margin-top: 12px;
+}

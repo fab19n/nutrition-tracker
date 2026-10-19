@@ -1,0 +1,433 @@
+/* Setup S01–S07. Colours are tokens only; sizes follow design/README.md roles. */
+
+/* The shell already pads the top (status bar), so a short step never scrolls. */
+.flow {
+  min-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 8px));
+}
+
+/* ---------- S01 Welcome ---------- */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 8px));
+}
+
+.welcomeTop {
+  flex: 1;
+  padding: 48px var(--pad-text-x) 0;
+  animation: km-up var(--dur-enter) var(--ease) both;
+}
+
+/* The app icon from 6a: hero numeral over a two-segment bar. */
+.appIcon {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-card);
+  /* README Assets: a --bg tile (the ring and shadow keep it apart from the page). */
+  background: var(--bg);
+  box-shadow: var(--shadow), inset 0 0 0 1px var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.appNumber {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: var(--text);
+}
+
+.appBar {
+  width: 42px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) 0 62%, var(--accent-soft) 62% 100%);
+}
+
+/* The "Hero number, sheet" role: 48px/800/−0.03em. */
+.appName {
+  margin: 20px 0 0;
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.tagline {
+  margin: 8px 0 0;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.points {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.point {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.pointIcon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.install {
+  padding: 24px 16px 0;
+}
+
+.welcomeFooter {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 12px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+}
+
+.welcomeNote {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Fields (S02, S19 profile sheet) ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.inputWrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.inputInvalid,
+.inputInvalid:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.input::placeholder,
+.placeInput::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.unit {
+  flex: none;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.fieldHint,
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fieldHint {
+  color: var(--muted);
+}
+
+.fieldError {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ---------- Stepper (S04, S19) ---------- */
+
+/* The − value + controls move to their own line when the label gets too narrow (130% text). */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.stepperText {
+  display: flex;
+  flex: 1 1 120px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stepperLabel {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stepperSub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stepperControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.stepperButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--card2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepperButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stepperValue {
+  min-width: 72px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.stepperUnit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ---------- S04 live result ---------- */
+
+.result {
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--accent-text);
+}
+
+.resultLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.resultLine b {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.resultNote {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ---------- S05 regulars ---------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Bigger than context chips: these are the step's main input. */
+.chips .regular {
+  min-height: 40px;
+  padding: 9px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: normal;
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+
+.regularKcal {
+  margin-left: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.chips .addRegular {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--dash);
+  color: var(--accent-text);
+}
+
+.caption {
+  margin: 0;
+  padding: 12px 4px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- S06 places ---------- */
+
+.placeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.placeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.iconButton {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 44px hit area. */
+.iconButton::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.placeInput {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-inset);
+  background: var(--card2);
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+}
+
+.placeInput:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  border-radius: var(--r-card);
+  border: 2px dashed var(--dash);
+  color: var(--accent-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---------- S07 info row ---------- */
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.infoIcon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.infoText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.infoLabel {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.infoSub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}

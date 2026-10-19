@@ -1,0 +1,73 @@
+/* S18 Plan a makan day (prototype: design/Kira Makan.dc.html). */
+.title {
+  padding: 0 4px;
+}
+
+.placeholder {
+  margin-top: 12px;
+  height: 200px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+/* Day chips stretch to equal widths, gap 6px. */
+.chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.chips > * {
+  flex: 1;
+}
+
+.weekdays {
+  margin-top: 8px;
+  flex-wrap: wrap;
+  animation: km-up var(--dur-sheet) var(--ease) both;
+}
+
+.weekdays > * {
+  flex: 0 0 auto;
+}
+
+.room {
+  margin-top: 12px;
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 16px 18px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.roomLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.roomValue {
+  white-space: nowrap;
+}
+
+.unit {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.caption {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.confirm {
+  margin-top: 12px;
+}
+
+.remove {
+  margin-top: 4px;
+}

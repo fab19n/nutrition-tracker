@@ -1,0 +1,57 @@
+/* S08 Today: spacing from the prototype (design/Kira Makan.dc.html). */
+.screen {
+  /* Clear of the bottom nav, which sits above the home-indicator safe area. */
+  padding-bottom: calc(var(--content-pad-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Check-in banner: 12px under the TopBar. */
+.banner {
+  margin: 12px var(--pad-card-x) 0;
+  animation: km-up var(--dur-sheet) var(--ease) both;
+}
+
+/* Hero card: 14px under the row above. */
+.hero {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.placeholder {
+  margin: 14px var(--pad-card-x) 0;
+  height: 228px;
+  border-radius: var(--r-hero);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+.macros {
+  padding: var(--gap-stack) var(--pad-card-x) 0;
+}
+
+.focus {
+  margin: var(--gap-stack) var(--pad-card-x) 0;
+}
+
+.meals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: var(--gap-stack) var(--pad-card-x) 0;
+}
+
+.empty {
+  margin: var(--gap-stack) var(--pad-card-x) 0;
+}
+
+.nudge {
+  margin: 0;
+  padding: 14px 24px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-align: center;
+}
+
+.sleep {
+  padding: 14px var(--pad-card-x) 0;
+}

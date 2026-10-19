@@ -1,0 +1,116 @@
+/* S23 Usuals (design_handoff.md §7.3): cards at 16px sides, 8px apart; headings via SectionHeading. */
+
+.screen {
+  padding-bottom: 40px;
+}
+
+.stack {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--pad-card-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.inset {
+  padding: 0 var(--pad-card-x);
+}
+
+/* "+ New Usual": a dashed card under the list (like an empty slot). */
+.newButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--gap-stack);
+  padding: 14px;
+  border: 2px dashed var(--dash);
+  border-radius: var(--r-card);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* ---------- Editor sheet (Edit / New Usual) ---------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 17px;
+  font-weight: 600;
+  outline: none;
+}
+
+.input:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.input::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.itemsHeading {
+  margin: 6px 4px 0;
+}
+
+.editorItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.editorEmpty {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.editorTotal {
+  margin: 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.editorTotal b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.editorHint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}

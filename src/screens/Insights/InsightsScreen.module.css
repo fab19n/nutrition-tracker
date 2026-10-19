@@ -1,0 +1,144 @@
+.screen {
+  /* Clear of the bottom nav, which sits above the home-indicator safe area. */
+  padding-bottom: calc(var(--content-pad-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+.caption {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.loading {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.tiles {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.inset {
+  margin: 0 var(--pad-card-x);
+}
+
+/* "Your weekly review is ready": the dark --nav card. */
+.review {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 2 * var(--pad-card-x));
+  min-height: 44px;
+  margin: 8px var(--pad-card-x) 0;
+  padding: 12px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--nav);
+  color: var(--nav-active);
+  text-align: left;
+}
+
+.reviewSeen {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.reviewLabel {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.reviewSeen .reviewLabel {
+  opacity: 1;
+  color: var(--muted);
+}
+
+.reviewTitle {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: 0 var(--pad-card-x);
+}
+
+.quiet {
+  margin: 0;
+  padding: 0 var(--pad-text-x);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Days 1–6. */
+.early {
+  margin: 8px var(--pad-card-x) 0;
+  padding: 14px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.earlyTitle {
+  margin: 0;
+}
+
+.earlyBody {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* By Place, under the category bars. */
+.places {
+  margin: var(--gap-stack) var(--pad-card-x) 0;
+  padding: 12px var(--pad-card-x) 4px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.cardLabel {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.placeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.placeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.placeRow + .placeRow {
+  border-top: 1px solid var(--line);
+}
+
+.placeName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.placeNumbers {
+  flex: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.placeNumbers b {
+  color: var(--text);
+}

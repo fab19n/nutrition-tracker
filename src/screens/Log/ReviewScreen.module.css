@@ -1,0 +1,108 @@
+/* S11 Review (design/Kira Makan.dc.html › S11). The floating RangeTotal needs the footer padding. */
+.screen {
+  /* Clear of the floating footer, which grows with its "After this" line and larger text. */
+  padding-bottom: max(calc(var(--content-pad-footer) + env(safe-area-inset-bottom, 0px)), calc(var(--footer-space, 0px) + 16px));
+}
+
+.chips {
+  padding: 12px var(--pad-card-x) 0;
+}
+
+.quote {
+  margin: 12px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: 10px var(--pad-card-x) 0;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Price and "Also save as a Usual" rows */
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.rowLabel {
+  color: var(--muted);
+}
+
+.optional {
+  font-size: 12px;
+}
+
+.price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.rm {
+  color: var(--muted);
+}
+
+/* 16px: iOS zooms into smaller inputs, and a standalone PWA then stays zoomed. */
+.priceInput {
+  width: 80px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--card2);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.priceInput::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 1;
+}
+
+.priceInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.deleteRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.delete {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.prompt {
+  margin-top: 4px;
+}

@@ -1,0 +1,204 @@
+/* S14 Entry detail: follows the S11 Review and S17 row patterns (design/README.md). */
+
+.screen {
+  padding-bottom: 40px;
+}
+
+.loading,
+.missing {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.photo {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.fullPhoto {
+  display: block;
+  width: 100%;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--card2);
+}
+
+.fullPhoto img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.card {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.photo + .card {
+  margin-top: 8px;
+}
+
+/* A check-in guess reads like its dashed ledger row. */
+.guessCard {
+  box-shadow: inset 0 0 0 1.5px var(--dash);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.name {
+  margin: 2px 0 0;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.quote {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  margin: 10px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.fact:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.fact dt {
+  color: var(--muted);
+}
+
+.fact dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ---------- Items ---------- */
+
+.itemsCard {
+  margin: 0 var(--pad-card-x);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.itemMain {
+  min-width: 0;
+}
+
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemName {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.itemDetail {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.itemKcal {
+  flex: none;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 0 10px;
+}
+
+.totalLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.totalValue {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.totalRange {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.history {
+  margin: 8px 0 0;
+  padding: 0 var(--pad-text-x);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ---------- Actions ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  padding: 16px var(--pad-card-x) 0;
+}
+
+/* minmax(0, 1fr): the labels wrap at large text instead of pushing the row past the gutter. */
+.secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-stack);
+}
+
+button.delete {
+  color: var(--danger);
+}
+
+/* Two buttons side by side at 360px wide. */
+.secondary button {
+  padding: 6px 12px;
+  min-width: 0;
+  height: auto;
+  min-height: 48px;
+  white-space: normal;
+}

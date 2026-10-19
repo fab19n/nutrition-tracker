@@ -1,0 +1,117 @@
+/* S24 Plate builder (design/Kira Makan.dc.html › S24). The floating RangeTotal needs room below. */
+.screen {
+  padding-bottom: max(calc(150px + env(safe-area-inset-bottom, 0px)), calc(var(--footer-space, 0px) + 16px));
+}
+
+.chips {
+  padding: 12px var(--pad-card-x) 0;
+}
+
+.card {
+  margin: 12px var(--pad-card-x) 0;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cardChips {
+  margin-top: 8px;
+}
+
+.hint {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* PROTEIN / VEGETABLES / TOFU AND EGG */
+.group {
+  margin: 0;
+  padding: 8px var(--pad-text-x) 6px;
+}
+
+.grid {
+  padding: 0 var(--pad-card-x);
+}
+
+.addRow {
+  padding: 6px var(--pad-card-x) 0;
+}
+
+.add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.extras {
+  display: flex;
+  gap: 8px;
+  margin: 8px var(--pad-card-x) 0;
+}
+
+.oil {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  text-align: left;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.price {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+/* 16px: iOS zooms into smaller inputs, and a standalone PWA then stays zoomed. */
+.priceInput {
+  width: 4em;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.priceInput::placeholder {
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 1;
+}
+
+.priceInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sheetBody {
+  margin-top: 12px;
+}
