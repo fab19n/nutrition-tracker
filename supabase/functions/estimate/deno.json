@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.135.0",
+    "@anthropic-ai/sdk/": "npm:/@anthropic-ai/sdk@0.135.0/",
+    "zod/v4": "npm:zod@4.6.7/v4"
+  }
+}
