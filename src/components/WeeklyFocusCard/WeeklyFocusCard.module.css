@@ -1,0 +1,35 @@
+/* C44: --accent-soft / --accent-text, radius 16px, padding 10px 14px, 13px. */
+.card {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--r-tile);
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.pressable {
+  width: 100%;
+  cursor: pointer;
+  min-height: 44px;
+  align-items: center;
+}
+
+.pressable:active {
+  transform: scale(0.995);
+}
+
+.text {
+  min-width: 0;
+}
+
+.progress {
+  flex: none;
+  font-weight: 700;
+  white-space: nowrap;
+}

@@ -1,0 +1,170 @@
+/* C51 WorkoutForm. Sits in a 16px card column; labels line up with 20px text (4px in). */
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Section heading role: 13px/700 uppercase --muted, 18px top / 8px bottom. */
+.label {
+  display: block;
+  padding: 18px 4px 8px;
+}
+
+/* Type picker: two rows of four tiles (QuickActionRow's tile). */
+.types {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 12px 4px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  transition: transform 120ms var(--ease), background-color 150ms var(--ease), color 150ms var(--ease);
+}
+
+.type:active {
+  transform: scale(0.98);
+}
+
+.typeSelected {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+.typeLabel {
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* Duration: − [60] min + on a card. */
+.duration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.durationInvalid {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.stepButton {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card2);
+  color: var(--text);
+}
+
+.stepButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.minutes {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.minutesInput {
+  width: 3.2ch;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  outline: none;
+}
+
+.minutesInput:focus {
+  border-bottom-color: var(--accent);
+}
+
+.minutesUnit {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.error {
+  margin: 0;
+  padding: 6px 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/* Intensity: portion chips (selected --accent / --on-accent, like the day chips), stretched to the column. */
+.intensity {
+  display: flex;
+  gap: 6px;
+}
+
+.intensity > [role='radio'] {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Live estimate (S04's live-result treatment). */
+.estimate {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.estimateLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.estimateKcal {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.helper {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}

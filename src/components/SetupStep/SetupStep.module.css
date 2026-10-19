@@ -1,0 +1,87 @@
+/* Full-screen step: the content grows so Next always sits in the thumb zone at the bottom. */
+.step {
+  display: flex;
+  flex-direction: column;
+  /* The shell already pads the top (status bar), so a short step never scrolls. */
+  min-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 8px));
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 4px 16px 0;
+}
+
+.back {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.back::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.stepLabel {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.progress {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px 0;
+}
+
+.segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background-color 200ms var(--ease);
+}
+
+.filled {
+  background: var(--accent);
+}
+
+.title {
+  margin: 0;
+  padding: 18px 20px 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.helper {
+  margin: 0;
+  padding: 6px 20px 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.content {
+  flex: 1;
+  padding: 16px 16px 0;
+}
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+}

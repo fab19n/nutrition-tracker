@@ -1,0 +1,50 @@
+.track {
+  display: inline-flex;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.seg {
+  position: relative;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.seg::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* Diary Day/Week */
+.nav {
+  background: var(--card);
+  padding: 3px;
+  font-size: 13px;
+}
+.nav .seg {
+  padding: 6px 14px;
+}
+.nav .active {
+  background: var(--nav);
+  color: var(--nav-active);
+}
+
+/* Weight range, View under */
+.inset {
+  background: var(--card2);
+  padding: 2px;
+  font-size: 11px;
+}
+.inset .seg {
+  padding: 4px 9px;
+}
+.inset .active {
+  background: var(--card);
+  color: var(--text);
+}

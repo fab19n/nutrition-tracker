@@ -1,0 +1,82 @@
+.footer {
+  padding: 14px 16px 14px 20px;
+  border-radius: var(--r-footer);
+  background: var(--nav);
+  color: var(--nav-active);
+}
+
+/* Pinned 22px above the bottom edge (plus the safe area), kept inside the centred app column. */
+.floating {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  max-width: calc(var(--app-max-width) - 20px);
+  margin: 0 auto;
+  animation: km-up 300ms var(--ease) both;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.caption {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* The numbers take the room the action leaves, so the total never wraps (130% text). */
+.numbers {
+  flex: 1;
+  min-width: 0;
+}
+
+.total {
+  white-space: nowrap;
+  font-size: clamp(20px, 7.2vw, 26px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.bar {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+  margin-top: 12px;
+}
+
+.segment {
+  flex-basis: 0;
+  min-width: 6px;
+  border-radius: 3px;
+  transition: flex-grow var(--dur-number) var(--ease);
+}
+
+.eaten {
+  background: var(--accent);
+  opacity: 0.45;
+}
+
+.fit {
+  background: var(--accent);
+}
+
+.over {
+  background: var(--amber);
+}
+
+.after {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* S24's Review action: 15px with 16px 20px padding (Review's Save is 16px, 16px 22px). */
+.top .plateAction {
+  padding: 16px 20px;
+  font-size: 15px;
+}

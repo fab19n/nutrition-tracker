@@ -1,0 +1,41 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 6px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 120ms var(--ease);
+}
+
+.tile:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.tile:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+}

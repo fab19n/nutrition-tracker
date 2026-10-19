@@ -1,0 +1,43 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-card);
+  padding: 12px var(--pad-card-x);
+}
+
+.row {
+  min-width: 0;
+}
+
+.text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.unlocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width var(--dur-number) var(--ease);
+}

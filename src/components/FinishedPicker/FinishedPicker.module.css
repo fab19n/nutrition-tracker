@@ -1,0 +1,44 @@
+.picker {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
+}
+
+.chosen {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chevron {
+  transition: transform 150ms var(--ease);
+}
+
+.open {
+  transform: rotate(180deg);
+}
+
+.panel {
+  animation: km-fade 200ms var(--ease) both;
+}
+
+.panel[hidden] {
+  display: none;
+}

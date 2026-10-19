@@ -1,0 +1,76 @@
+.card {
+  display: block;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  padding: 0 4px;
+}
+
+.timelineCard {
+  margin-top: 12px;
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.captions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.explanation {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.question {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 16px 4px 8px;
+}
+
+.consequence {
+  margin: 0;
+  padding: 12px 4px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  min-height: 40px;
+}
+
+.done {
+  margin-top: 10px;
+}
+
+.lightActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* The prototype keeps Done at full strength before an answer is picked (only the weekly review dims). */
+button.done[aria-disabled='true'] {
+  opacity: 1;
+}
+
+.consequence:focus {
+  outline: none;
+}

@@ -1,0 +1,83 @@
+.root {
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.track {
+  position: relative;
+  height: 16px;
+  border-radius: var(--r-bar);
+  background: var(--card2);
+}
+
+/* Room above the track for the gap label. */
+.withGap {
+  margin-top: 22px;
+}
+
+.window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-bar);
+  background: var(--accent-soft);
+}
+
+.dot {
+  position: absolute;
+  top: 50%;
+  border-radius: 50%;
+}
+
+.onTime {
+  background: var(--accent);
+}
+
+.late {
+  background: var(--amber);
+}
+
+.now {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+}
+
+.gap {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  border: 2px dashed var(--amber);
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.gapLabel {
+  position: absolute;
+  top: -6px;
+  transform: translate(-50%, -100%);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--amber-text);
+  white-space: nowrap;
+}
+
+.captions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}

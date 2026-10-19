@@ -1,0 +1,78 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--sheet);
+  animation: km-fade var(--dur-sheet) var(--ease) both;
+}
+
+/* Keeps the panel inside the centred app column on wide screens. */
+.column {
+  position: absolute;
+  inset: 0;
+  max-width: var(--app-max-width);
+  margin-inline: auto;
+  pointer-events: none;
+}
+
+.panel {
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Above the on-screen keyboard while one is open (set from the visual viewport). */
+  bottom: var(--kb, 0px);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  padding: 10px var(--pad-card-x) calc(34px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: km-up var(--dur-sheet) var(--ease) both;
+}
+
+.panel:focus {
+  outline: none;
+}
+
+/* The grab handle doubles as the close control: 40×4 bar, 14px gap below. */
+.handleButton,
+.handleStatic {
+  display: flex;
+  justify-content: center;
+  width: 64px;
+  height: 24px;
+  margin: -10px auto 4px;
+  padding-top: 10px;
+}
+
+.handleButton {
+  position: relative;
+}
+
+.handleButton::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20px;
+  bottom: 0;
+}
+
+.handle {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--dash);
+}
+
+.title {
+  margin: 0;
+  padding: 0 4px;
+}

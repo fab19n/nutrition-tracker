@@ -1,0 +1,52 @@
+.wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+button.pill:active {
+  transform: scale(0.98);
+}
+
+.icon {
+  color: var(--muted);
+  flex: none;
+}
+
+.tapped {
+  padding-right: 6px;
+  animation: km-fade 200ms var(--ease) both;
+}
+
+.tapped .icon {
+  color: var(--accent-text);
+}
+
+.undo {
+  position: relative;
+  padding: 6px 10px;
+  border-radius: var(--r-pill);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* ≈29px button + 2 × 8px = 45px tall hit area. */
+.undo::after {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
+}

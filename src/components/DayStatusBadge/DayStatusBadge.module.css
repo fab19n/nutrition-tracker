@@ -1,0 +1,32 @@
+/* Mini version of the WeekBars "not counted" bar, so the badge and the bar read as one thing. */
+.hatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  border: 1px solid var(--dash);
+  background: repeating-linear-gradient(135deg, var(--bar) 0 2px, transparent 2px 4px);
+}
+
+/*
+ * Overrides of the Pill primitive use an element-qualified selector so they win regardless of
+ * stylesheet order. Guess days echo the dashed guess rows; padding drops by the border width
+ * so the pill keeps its height.
+ */
+/* Week rows (prototype S13): 2px 9px, a pixel wider than the Pill's small size. */
+span.sm {
+  padding: 2px 9px;
+}
+
+span.guess {
+  border: 1px dashed var(--dash);
+  padding: 1px 8px;
+}
+
+span.md.guess {
+  padding: 2px 9px;
+}
+
+span.md {
+  gap: 6px;
+}

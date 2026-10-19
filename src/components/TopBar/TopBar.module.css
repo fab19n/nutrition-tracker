@@ -1,0 +1,137 @@
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px var(--pad-text-x) 0;
+}
+
+/* The date drops under the title when the trailing pill leaves no room (130% text). */
+.titleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 0;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Search / overflow: same 40px --card circle as the back button. */
+.iconButton {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  color: var(--text);
+}
+
+.iconButton::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.subTrailing {
+  flex: none;
+}
+
+.subTrailingAlone {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Sub-screen header */
+.sub {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px var(--pad-card-x) 0;
+}
+
+.back {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+}
+
+/* 44px hit area around the 40px circle. */
+.back::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.subRight {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Date switcher */
+.switcher {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.step::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.disabled {
+  color: var(--dash);
+  cursor: default;
+}
+
+.current {
+  text-align: center;
+  min-width: 0;
+}

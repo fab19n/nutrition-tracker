@@ -1,0 +1,70 @@
+.row {
+  position: relative;
+}
+
+/* Lift the row while its menu is open so the menu draws over the rows below. */
+.raised {
+  z-index: 5;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.name {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tag {
+  margin-left: 4px;
+  vertical-align: 2px;
+}
+
+.end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.kcal {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Uncertain: the range, a step softer than a confident estimate. */
+.kcalUncertain {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kcalPending {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.noteIcon {
+  flex: none;
+}
+
+.chips {
+  margin-top: 8px;
+}

@@ -1,0 +1,57 @@
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border-radius: var(--r-tile);
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.amber {
+  background: var(--amber-soft);
+  color: var(--amber-text);
+}
+
+.accent {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.neutral {
+  background: var(--card2);
+  color: var(--text);
+}
+
+.pressable {
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.pressable:active {
+  transform: scale(0.995);
+}
+
+.body {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  line-height: 0;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  font-weight: 700;
+}

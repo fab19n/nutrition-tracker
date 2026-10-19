@@ -1,0 +1,34 @@
+.list {
+  list-style: none;
+  margin: 0;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-card);
+  padding: 4px var(--pad-card-x);
+}
+
+.item + .item {
+  border-top: 1px solid var(--line);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.name {
+  min-width: 0;
+}
+
+.frequency {
+  color: var(--muted);
+}
+
+.kcal {
+  flex: none;
+  font-weight: 700;
+  white-space: nowrap;
+}

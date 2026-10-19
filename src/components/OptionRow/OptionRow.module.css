@@ -1,0 +1,80 @@
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group_md {
+  gap: 6px;
+}
+
+.group_lg {
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  text-align: left;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transition: box-shadow 150ms var(--ease);
+}
+
+.md {
+  border-radius: var(--r-tile);
+  padding: 13px 14px;
+}
+
+.lg {
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+}
+
+.selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.text {
+  display: block;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.md .label {
+  font-size: 15px;
+}
+
+.lg .label {
+  font-size: 16px;
+}
+
+.sub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.radio {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--dash);
+  background: transparent;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease);
+}
+
+.selected .radio {
+  border-color: var(--accent);
+  background: var(--accent);
+}

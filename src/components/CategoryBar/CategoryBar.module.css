@@ -1,0 +1,49 @@
+.list {
+  list-style: none;
+  margin: 0;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-card);
+  padding: 6px var(--pad-card-x);
+}
+
+.row {
+  padding: 9px 0;
+}
+
+.text {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.name {
+  font-weight: 500;
+}
+
+.highlighted .name {
+  font-weight: 700;
+}
+
+.pct {
+  font-weight: 600;
+}
+
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--bar);
+}
+
+.highlighted .fill {
+  background: var(--accent);
+}

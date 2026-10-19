@@ -1,0 +1,178 @@
+.root {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.enter {
+  animation: km-up 300ms var(--ease) both;
+}
+
+/* ---------- Sliding foreground ---------- */
+.slider {
+  position: relative;
+  z-index: 1;
+  background: var(--card);
+  border-radius: var(--r-card);
+  touch-action: pan-y;
+  transition: transform 200ms var(--ease);
+}
+
+.dragging {
+  transition: none;
+}
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  border-radius: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The root clips overflow, so keep the focus ring inside the card. */
+.main:focus-visible {
+  outline-offset: -3px;
+}
+
+.body {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Wraps like the prototype rather than truncating, so place and price stay readable at 130% text. */
+.meta {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+/* A long tag shrinks and wraps inside the row instead of running under the kcal. */
+.body .tags > * {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* Element-qualified so it wins over the Pill primitive's padding regardless of stylesheet order. */
+span.guessPill {
+  border: 1px dashed var(--dash);
+  padding: 1px 7px;
+}
+
+.end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.kcal {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sync {
+  display: inline-flex;
+  color: var(--muted);
+  line-height: 0;
+}
+
+/* Keyboard-only entry to the swipe actions: invisible until focused so the row matches the design. */
+.more {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  border-radius: 50%;
+  background: var(--card2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.more:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline-offset: -2px;
+}
+
+/* ---------- Guess entries: clearly different ---------- */
+.guess {
+  box-shadow: none;
+}
+
+.guess .slider {
+  background: var(--bg);
+  border: 2px dashed var(--dash);
+}
+
+.guess .main {
+  padding: 8px;
+}
+
+/* ---------- Actions behind the row ---------- */
+.actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  visibility: hidden;
+}
+
+.actions[data-revealed='true'] {
+  visibility: visible;
+}
+
+.action {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.action:focus-visible {
+  outline-offset: -3px;
+}
+
+.duplicate {
+  background: var(--card2);
+  color: var(--text);
+}
+
+.delete {
+  background: var(--danger);
+  color: var(--bg);
+}

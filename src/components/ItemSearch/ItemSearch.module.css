@@ -1,0 +1,48 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.customIcon {
+  flex: none;
+  color: var(--accent-text);
+}
+
+.customText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.customLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+
+.customDetail {
+  font-size: 12px;
+  color: var(--muted);
+}

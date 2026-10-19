@@ -1,0 +1,68 @@
+/* C36 LearnedDefaultRow: label 15/600 over the learned value, Change text button and a 44px Remove. */
+
+.list {
+  margin: 0;
+  padding: 4px 14px;
+  list-style: none;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 6px 0;
+}
+
+.text {
+  min-width: 0;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.value {
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  margin-right: -10px;
+}
+
+.change {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.remove {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}

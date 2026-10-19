@@ -1,0 +1,130 @@
+/* C38 PotCard: a standard card (design/README.md › Spacing, radius) with the MealRow's type scale. */
+
+.card {
+  position: relative;
+}
+
+/* Pressing the card (not its Log button) shows it's opening. */
+.pressable:has(.open:active) {
+  background: var(--card2);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-tile);
+  background: var(--card2);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* The name opens the pot; its hit area stretches over the whole card. */
+.open {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-card);
+}
+
+.open:focus-visible {
+  outline: none;
+}
+
+.open:focus-visible::after {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.left {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.status {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* One cell per serving: --accent still in the pot, --line eaten. Decorative; the text says it. */
+.meter {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+}
+
+.cell {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--line);
+}
+
+.full {
+  background: var(--accent);
+}
+
+.half {
+  background: linear-gradient(90deg, var(--accent) 50%, var(--line) 50%);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.kcal {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.kcal b {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Above the stretched name target. */
+.log {
+  position: relative;
+  z-index: 1;
+}
+
+.cleared .icon {
+  color: var(--muted);
+}
+
+.cleared .full,
+.cleared .half {
+  background: var(--dash);
+}

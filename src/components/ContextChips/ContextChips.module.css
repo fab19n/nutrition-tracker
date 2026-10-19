@@ -1,0 +1,21 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Long Place names truncate instead of pushing the row wider than the screen. */
+.place {
+  max-width: 100%;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suffix {
+  flex: none;
+  white-space: pre;
+}

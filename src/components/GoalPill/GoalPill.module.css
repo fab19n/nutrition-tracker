@@ -1,0 +1,27 @@
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--r-pill);
+  padding: 7px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 44px hit area around the ~31px pill. */
+.pill::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.pill:active {
+  transform: scale(0.98);
+}

@@ -1,0 +1,44 @@
+.base {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  min-width: 0;
+}
+
+.r_hero {
+  border-radius: var(--r-hero);
+}
+.r_lg {
+  border-radius: var(--r-card-lg);
+}
+.r_card {
+  border-radius: var(--r-card);
+}
+.r_tile {
+  border-radius: var(--r-tile);
+}
+
+.dashed {
+  background: transparent;
+  box-shadow: none;
+  border: 2px dashed var(--dash);
+}
+
+.ring_accent {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.ring_amber {
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+.ring_amberThin {
+  box-shadow: inset 0 0 0 1.5px var(--amber);
+}
+
+.pressable {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pressable:active {
+  transform: scale(0.995);
+}

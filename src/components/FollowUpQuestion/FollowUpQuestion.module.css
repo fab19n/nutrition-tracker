@@ -1,0 +1,42 @@
+.card {
+  padding: 12px 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.open {
+  box-shadow: inset 0 0 0 1.5px var(--amber);
+}
+
+/* README C21: the follow-up question line is 13px --muted. */
+.question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-top: 8px;
+}
+
+.skip {
+  position: relative;
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.skip::after {
+  content: '';
+  position: absolute;
+  inset: -7px -6px;
+}

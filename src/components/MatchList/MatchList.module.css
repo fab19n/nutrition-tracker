@@ -1,0 +1,38 @@
+.list {
+  margin: 0;
+  padding: 4px 14px;
+  list-style: none;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.item + .item {
+  border-top: 1px solid var(--line);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 0;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.text {
+  min-width: 0;
+}
+
+.detail {
+  color: var(--muted);
+}
+
+.kcal {
+  flex: none;
+  font-weight: 700;
+}

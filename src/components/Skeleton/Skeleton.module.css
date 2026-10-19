@@ -1,0 +1,66 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+/* The pulse is opacity only, so it stays under reduced motion (the global rule would turn it into a blink). */
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation-name: km-pulse !important;
+  }
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  width: var(--title-w, 120px);
+  max-width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--card2);
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--card2);
+}
+
+.chipA {
+  width: 52px;
+}
+
+.chipB {
+  width: 60px;
+}
+
+.kcal {
+  flex: none;
+  width: 40px;
+  height: 16px;
+  border-radius: var(--r-bar);
+  background: var(--card2);
+}

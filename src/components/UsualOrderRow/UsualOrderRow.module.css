@@ -1,0 +1,59 @@
+/* C35 UsualOrderRow: the S09 "At <Place>" row (14px name 600, 12px --muted detail, --card2 Log pill;
+   once logged, a 12px --accent-text "Logged today" line). */
+
+.list {
+  margin: 0;
+  padding: 4px 14px;
+  list-style: none;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 0;
+}
+
+.text {
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.row .log {
+  flex: none;
+  min-height: 0;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.logged {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-text);
+}

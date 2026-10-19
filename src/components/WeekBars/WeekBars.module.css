@@ -1,0 +1,107 @@
+.root {
+  min-width: 0;
+}
+
+.chart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+
+/* Dashed daily target line, drawn over the bars so it stays readable. */
+.target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px dashed var(--dash);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.bar {
+  position: relative;
+  min-height: 4px;
+  border-radius: var(--r-bar);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: height var(--dur-number) var(--ease);
+}
+
+.logged {
+  background: var(--bar);
+}
+
+.over {
+  background: var(--amber);
+}
+
+.today {
+  border: 2px solid var(--accent);
+}
+
+.fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--accent);
+  transition: height var(--dur-number) var(--ease);
+}
+
+.todayOver {
+  border-color: var(--amber);
+}
+
+.todayOver .fill {
+  background: var(--amber);
+}
+
+.planned {
+  border: 2px dashed var(--dash);
+}
+
+.makan {
+  border: 2px dashed var(--amber);
+}
+
+.notCounted {
+  background: repeating-linear-gradient(135deg, var(--bar) 0 4px, transparent 4px 8px);
+  border: 1.5px solid var(--dash);
+}
+
+/* No budget that day: a quiet solid bar for whatever was logged. */
+.paused {
+  background: var(--card2);
+}
+
+.letters {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+.letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.letterToday {
+  color: var(--text);
+}
+
+.letterAmber {
+  color: var(--amber-text);
+}
+
+.star {
+  flex: none;
+}

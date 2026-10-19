@@ -1,0 +1,64 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 6px 0 14px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.field:has(.input:focus-visible) {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  /* 16px so iOS Safari doesn't zoom the page on focus. */
+  font-size: 16px;
+  appearance: none;
+}
+
+.input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+/* The native clear "x" is replaced by our own button. */
+.input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.clear {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--muted);
+  position: relative;
+}
+
+.clear::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}

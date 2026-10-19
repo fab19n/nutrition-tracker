@@ -1,0 +1,65 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.svg {
+  display: block;
+  margin-top: 8px;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.dot {
+  fill: var(--dash);
+}
+
+.trend {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2;
+}
+
+.note {
+  font-size: 10px;
+  font-family: inherit;
+  fill: var(--amber-text);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.empty {
+  height: 110px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  border-radius: var(--r-inset);
+  background: var(--card2);
+}

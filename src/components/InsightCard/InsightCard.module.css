@@ -1,0 +1,156 @@
+.card {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-card);
+  padding: 14px var(--pad-card-x);
+  min-width: 0;
+}
+
+.headline {
+  margin: 0;
+}
+
+.evidence {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Inline text link: "See 11 drinks". */
+.link {
+  position: relative;
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.try {
+  margin: 8px 0 0;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: var(--r-inset);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.useful,
+.notForMe {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+/* 44px hit areas around the small pills. */
+.useful::after,
+.notForMe::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.useful {
+  background: var(--card2);
+  color: var(--text);
+  padding: 5px 10px;
+}
+
+.usefulOn {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.notForMe {
+  color: var(--muted);
+  padding: 5px 6px;
+}
+
+/* Dismissed: one line with Undo. */
+.dismissed {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--pad-card-x);
+  animation: km-up var(--dur-sheet) var(--ease) both;
+}
+
+.dismissedText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dismissedLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dismissedHeadline {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo {
+  position: relative;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+  padding: 6px 4px;
+}
+
+.undo::after {
+  content: '';
+  position: absolute;
+  inset: 50% -6px auto;
+  height: 44px;
+  transform: translateY(-50%);
+}

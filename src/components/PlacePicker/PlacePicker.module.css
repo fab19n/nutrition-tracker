@@ -1,0 +1,90 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sheet section headings are a step smaller than screen ones (prototype S09). */
+h3.heading {
+  margin: 0;
+  padding: 16px 4px 6px;
+  font-size: 12px;
+}
+
+.list {
+  padding: 0 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 0;
+  text-align: left;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.check {
+  flex: none;
+  color: var(--accent);
+}
+
+.create {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: 8px 4px;
+  font-size: 13px;
+  color: var(--muted);
+}

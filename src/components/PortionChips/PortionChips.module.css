@@ -1,0 +1,7 @@
+/* S24 plate chips: 7px 13px, 13px/600, on one row. */
+.plate button {
+  flex: none;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 600;
+}

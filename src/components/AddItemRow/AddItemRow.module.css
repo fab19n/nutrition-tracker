@@ -1,0 +1,30 @@
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.add {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.add::after {
+  content: '';
+  position: absolute;
+  inset: -6px -8px;
+}
+
+.right {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}

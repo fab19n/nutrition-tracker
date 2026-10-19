@@ -1,0 +1,57 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.sm {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.md {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.accent {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.amber {
+  background: var(--amber-soft);
+  color: var(--amber-text);
+}
+
+.neutral {
+  background: var(--card2);
+  color: var(--muted);
+}
+
+.outline {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 0 7px;
+}
+
+.outlineAmber {
+  background: transparent;
+  color: var(--amber-text);
+  border: 1px dashed var(--amber);
+  padding: 0 7px;
+}
+
+.icon {
+  display: inline-flex;
+  line-height: 0;
+}

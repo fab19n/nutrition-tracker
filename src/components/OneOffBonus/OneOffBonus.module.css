@@ -1,0 +1,93 @@
+/* C52 OneOffBonus: a standard card holding the "+ kcal today" form. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  animation: km-up var(--dur-sheet) var(--ease) both;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.optional {
+  font-weight: 400;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--r-inset);
+  background: var(--card2);
+}
+
+.inputWrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.invalid,
+.invalid:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.input::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* --text, not --muted: --muted on --card2 falls just under 4.5:1. */
+.affix {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.plus {
+  font-size: 17px;
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--danger);
+}

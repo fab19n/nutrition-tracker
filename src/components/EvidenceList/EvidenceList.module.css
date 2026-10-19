@@ -1,0 +1,81 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.summary {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Mini bars by day. */
+.bars {
+  margin-top: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-tile);
+  padding: 12px 14px 8px;
+}
+
+.chart {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  height: 48px;
+  align-items: end;
+}
+
+.col {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 6px;
+  background: var(--accent);
+}
+
+.empty {
+  background: var(--line);
+}
+
+.letters {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
+
+.emptyText {
+  margin: 16px 0 0;
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.group {
+  margin-top: 14px;
+}
+
+.day {
+  margin: 0;
+  padding: 0 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}

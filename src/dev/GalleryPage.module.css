@@ -1,0 +1,14 @@
+.page {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 16px 0 160px;
+  background: var(--bg);
+  min-height: 100dvh;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 20px 8px;
+}

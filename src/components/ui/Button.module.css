@@ -1,0 +1,94 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--r-pill);
+  font-weight: 700;
+  white-space: nowrap;
+  transition: transform 120ms var(--ease), opacity 120ms var(--ease);
+  -webkit-user-select: none;
+  user-select: none;
+  position: relative;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.full {
+  width: 100%;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.secondary {
+  background: var(--card2);
+  color: var(--text);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Text button sitting on the dark --nav surface (toast "Undo"). */
+.onNav {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.lg {
+  height: 52px;
+  font-size: 16px;
+  padding: 0 20px;
+}
+
+.md {
+  height: 48px;
+  font-size: 15px;
+  padding: 0 20px;
+}
+
+.pill {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  min-height: 40px;
+}
+
+.sm {
+  font-size: 13px;
+  padding: 9px 14px;
+  min-height: 36px;
+}
+
+/* Small buttons still get a 44px hit area. */
+.pill::after,
+.sm::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  min-height: 44px;
+}
+
+.footer {
+  font-size: 16px;
+  padding: 16px 22px;
+}
+
+.icon {
+  display: inline-flex;
+  line-height: 0;
+}

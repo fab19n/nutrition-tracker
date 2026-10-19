@@ -1,0 +1,119 @@
+/* C37 UsualCard: a standard card (20px radius) like MealRow and InsightCard. */
+
+.card {
+  position: relative;
+  min-width: 0;
+  padding: 14px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  animation: km-up var(--dur-enter) var(--ease) both;
+}
+
+/* Lift the card while its menu is open so the menu draws over the cards below. */
+.raised {
+  z-index: 5;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.name {
+  margin: 0;
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.items {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.numbers {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.kcal {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.details {
+  color: var(--muted);
+}
+
+.log {
+  flex: none;
+}
+
+/* Suggested Usual */
+
+.suggestion {
+  box-shadow: inset 0 0 0 1.5px var(--accent-soft), var(--shadow);
+}
+
+.suggestionBody {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.suggestionIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.suggestionText {
+  min-width: 0;
+}
+
+.question {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.question strong {
+  font-weight: 700;
+}
+
+.suggestionDetail {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
