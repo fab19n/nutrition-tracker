@@ -1,0 +1,134 @@
+/*
+ * Kira Makan design tokens — direction 6a "Kopitiam pandan".
+ * Source: design/README.md (Design Tokens). Values are final; do not tweak without a design change.
+ * Light is the default. Dark applies with data-theme="dark", or with the system setting
+ * when the user hasn't forced light (data-theme="light").
+ */
+
+:root {
+  --bg: #faf4ea;
+  --card: #ffffff;
+  --card2: #f5ecdd;
+  --chip: #f5ecdd;
+  --text: #2b1d12;
+  --muted: #7a6656;
+  --accent: #2f7a4f;
+  --on-accent: #ffffff;
+  --accent-soft: #e7f2ea;
+  --accent-text: #1f5c3a;
+  --amber: #d9951e;
+  --amber-soft: #fbebd0;
+  --amber-text: #7a4a0c;
+  --bar: #e6dccb;
+  --dash: #cdbfa8;
+  --line: #ede3d3;
+  --nav: #2b1d12;
+  --nav-text: #bfae9c;
+  --nav-active: #faf4ea;
+  --protein: #2f6db3;
+  --carbs: #d9951e;
+  --fat: #b5649a;
+  --thumb1: #eadbc4;
+  --thumb2: #f5ecdd;
+  --sheet: rgba(43, 29, 18, 0.45);
+  --shadow: 0 1px 2px rgba(43, 29, 18, 0.06);
+  --danger: #b4432c;
+
+  /* Radii */
+  --r-hero: 28px;
+  --r-card: 20px;
+  --r-card-lg: 24px;
+  --r-tile: 16px;
+  --r-inset: 12px;
+  --r-pill: 999px;
+  --r-bar: 8px;
+  --r-sheet: 32px;
+  --r-nav: 33px;
+  --r-footer: 30px;
+  --r-toast: 16px;
+
+  /* Spacing (4pt grid) */
+  --pad-card-x: 16px; /* side padding for cards */
+  --pad-text-x: 20px; /* side padding for text directly on the background */
+  --gap-stack: 8px;
+
+  /* Motion */
+  --dur-sheet: 250ms;
+  --dur-enter: 300ms;
+  --dur-number: 300ms;
+  --ease: ease;
+
+  /* Layout */
+  --nav-height: 66px;
+  --nav-bottom: 24px;
+  --content-pad-nav: 120px;
+  --content-pad-footer: 170px;
+  --app-max-width: 480px;
+  --toast-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #171310;
+  --card: #241e18;
+  --card2: #352c24;
+  --chip: #352c24;
+  --text: #f4ecdf;
+  --muted: #a89683;
+  --accent: #5fbf8a;
+  --on-accent: #0e2a1c;
+  --accent-soft: #17352a;
+  --accent-text: #5fbf8a;
+  --amber: #f2b24c;
+  --amber-soft: #3d2e12;
+  --amber-text: #f2b24c;
+  --bar: #3a3129;
+  --dash: #4a3f35;
+  --line: #352c24;
+  --nav: #f4ecdf;
+  --nav-text: #7a6656;
+  --nav-active: #2b1d12;
+  --protein: #6fa8ff;
+  --carbs: #f2b24c;
+  --fat: #e59acb;
+  --thumb1: #3a2f25;
+  --thumb2: #2e251d;
+  --sheet: rgba(0, 0, 0, 0.6);
+  --shadow: none;
+  --danger: #e5735c;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #171310;
+    --card: #241e18;
+    --card2: #352c24;
+    --chip: #352c24;
+    --text: #f4ecdf;
+    --muted: #a89683;
+    --accent: #5fbf8a;
+    --on-accent: #0e2a1c;
+    --accent-soft: #17352a;
+    --accent-text: #5fbf8a;
+    --amber: #f2b24c;
+    --amber-soft: #3d2e12;
+    --amber-text: #f2b24c;
+    --bar: #3a3129;
+    --dash: #4a3f35;
+    --line: #352c24;
+    --nav: #f4ecdf;
+    --nav-text: #7a6656;
+    --nav-active: #2b1d12;
+    --protein: #6fa8ff;
+    --carbs: #f2b24c;
+    --fat: #e59acb;
+    --thumb1: #3a2f25;
+    --thumb2: #2e251d;
+    --sheet: rgba(0, 0, 0, 0.6);
+    --shadow: none;
+    --danger: #e5735c;
+    color-scheme: dark;
+  }
+}

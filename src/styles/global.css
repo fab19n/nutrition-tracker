@@ -1,0 +1,117 @@
+@import '@fontsource-variable/bricolage-grotesque';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Typography roles (design/README.md › Typography) ---------- */
+.t-hero { font-size: 84px; font-weight: 800; letter-spacing: -0.05em; line-height: 0.95; }
+.t-hero-sheet { font-size: 48px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.t-metric-lg { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.t-metric { font-size: 22px; font-weight: 700; }
+.t-metric-sm { font-size: 20px; font-weight: 700; }
+.t-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.t-subtitle { font-size: 24px; font-weight: 700; }
+.t-sheet-title { font-size: 22px; font-weight: 700; }
+.t-card-headline { font-size: 19px; font-weight: 700; line-height: 1.25; }
+.t-item { font-size: 16px; font-weight: 600; }
+.t-insight { font-size: 16px; font-weight: 700; line-height: 1.3; }
+.t-body { font-size: 15px; font-weight: 400; }
+.t-meal-kcal { font-size: 17px; font-weight: 700; }
+.t-label { font-size: 13px; font-weight: 600; }
+.t-section {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-caption { font-size: 12px; }
+.t-tag { font-size: 11px; font-weight: 600; }
+.muted { color: var(--muted); }
+
+/* Visually hidden but readable by screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes km-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes km-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes km-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-name: km-fade !important;
+    transition-property: opacity !important;
+  }
+}
