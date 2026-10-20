@@ -81,6 +81,32 @@ describe('JSON backup', () => {
     expect(await target.meals.get('stale-meal')).toBeUndefined();
   });
 
+  it('replaces rows by key: rows the file lacks go, rows it has are overwritten', async () => {
+    await target.days.put({ logicalDay: '2020-01-06', status: 'complete' });
+    await target.weekPlans.put({ weekStart: '2020-01-06' });
+    await target.insightFeedback.put({ ruleId: 'old-rule', feedback: 'useful', at: '2026-10-11T14:00:00.000Z' });
+    await target.meals.put({ ...(await todayLunch(source)), name: 'Changed here' });
+
+    await importAll(target, await exportAll(source));
+    expect(await dumpTables(target)).toEqual(await dumpTables(source));
+  });
+
+  it('never writes the sync tables into a backup, and an import leaves them alone', async () => {
+    await source.syncOutbox.put({ table: 'meals', key: DEMO_IDS.meals.todayLunch, changedAt: 1, nonce: 'n1' });
+    await source.syncRevs.put({ table: 'meals', key: DEMO_IDS.meals.todayLunch, rev: 7, hash: 'abc' });
+    await source.syncMeta.put({ id: 'sync', lastSyncedAt: 1 });
+    const file = await exportAll(source, { includePhotos: true });
+    const backup = JSON.parse(await file.text()) as BackupFile;
+    expect(Object.keys(backup.tables).sort()).toEqual([...TABLE_NAMES].sort());
+
+    await target.syncMeta.put({ id: 'sync', lastSyncedAt: 2 });
+    const summary = await importAll(target, file);
+    expect(Object.keys(summary.counts).sort()).toEqual([...TABLE_NAMES].sort());
+    expect(await target.syncMeta.toArray()).toEqual([{ id: 'sync', lastSyncedAt: 2 }]);
+    expect(await target.syncRevs.count()).toBe(0);
+    expect(await target.syncOutbox.count()).toBe(0);
+  });
+
   it('rejects files that are not backups and changes nothing', async () => {
     const before = await target.meals.count();
     const attempt = (body: string) => importAll(target, new Blob([body], { type: 'application/json' }));

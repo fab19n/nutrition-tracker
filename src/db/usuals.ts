@@ -23,6 +23,7 @@ import { deleteUsual, getMeal, getUsual, listMealsInRange, listUsuals, putUsual 
 import { now } from '@/domain/clock';
 import { addDays } from '@/domain/day';
 import { mealMacros } from '@/domain/meal';
+import { clipText } from '@/domain/text';
 import type { Id, LogicalDay, LogMethod, MealItem, MealLog, MealSlot, Usual } from '@/domain/types';
 
 // ---------------------------------------------------------------------------
@@ -81,7 +82,7 @@ export const USUAL_NAME_MAX = 60;
 function cleanName(name: string): string {
   const clean = name.trim().replace(/\s+/g, ' ');
   if (!clean) throw new RangeError('A Usual needs a name');
-  return clean.length > USUAL_NAME_MAX ? clean.slice(0, USUAL_NAME_MAX).trimEnd() : clean;
+  return clipText(clean, USUAL_NAME_MAX);
 }
 
 /** Items as a Usual keeps them: no correction history or open questions (a new log starts fresh). */

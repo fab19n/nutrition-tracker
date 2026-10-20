@@ -26,6 +26,14 @@ function readStored(): ThemePreference | undefined {
   }
 }
 
+/**
+ * This device's theme: the last one saved here, or 'system'. The theme is per device, so a profile
+ * that arrives by sync takes this one (src/sync/rows.ts).
+ */
+export function readStoredTheme(): ThemePreference {
+  return readStored() ?? 'system';
+}
+
 function store(pref: ThemePreference): void {
   try {
     if (pref === 'system') window.localStorage.removeItem(STORAGE_KEY);

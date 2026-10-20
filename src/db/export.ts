@@ -164,7 +164,8 @@ function readPhoto(row: Record<string, unknown>, index: number): PhotoRecord {
 
 /**
  * Replaces everything with the backup's contents, in one transaction. When the backup left
- * photos out, the photos already on this device are kept.
+ * photos out, the photos already on this device are kept. Rows the file lacks are deleted by key
+ * rather than cleared, so with sync on the account follows the file too (clear() never syncs).
  */
 export async function importAll(db: KiraMakanDb, file: Blob): Promise<ImportSummary> {
   let parsed: unknown;
@@ -193,10 +194,18 @@ export async function importAll(db: KiraMakanDb, file: Blob): Promise<ImportSumm
   await db.transaction('rw', db.tables, async () => {
     for (const [table, list] of rows) {
       const target = db.table(table);
-      await target.clear();
-      if (table === 'photos') await db.photos.bulkPut(photos);
-      // Rows were checked for their key; their shape is trusted as this app's own export.
-      else await target.bulkPut(list);
+      if (table === 'photos') {
+        // Photos don't sync yet: they are simply replaced.
+        await target.clear();
+        await db.photos.bulkPut(photos);
+      } else {
+        const key = primaryKeyOf(table);
+        const inFile = new Set(list.map((row) => row[key]));
+        const gone = (await target.toCollection().primaryKeys()).filter((k) => !inFile.has(k));
+        if (gone.length > 0) await target.bulkDelete(gone);
+        // Rows were checked for their key; their shape is trusted as this app's own export.
+        await target.bulkPut(list);
+      }
       counts[table] = list.length;
     }
   });

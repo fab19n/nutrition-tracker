@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { loadDemoData, resetAll } from '@/db/actions';
@@ -9,6 +9,37 @@ import { resetUiState, useUiStore } from '@/state/ui';
 import DiaryDayScreen from './DiaryDayScreen';
 
 const SLOW = { timeout: 4000 };
+
+// The meal badge reads the sync engine's phase; the engine itself never runs in these tests.
+const syncEngine = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const current: { state: import('@/sync').EngineState } = { state: { phase: 'starting' } };
+  return {
+    current,
+    listeners,
+    set(state: import('@/sync').EngineState) {
+      current.state = state;
+      for (const listener of [...listeners]) listener();
+    },
+  };
+});
+vi.mock('@/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/sync')>()),
+  getEngineState: () => syncEngine.current.state,
+  subscribeEngine: (listener: () => void) => {
+    syncEngine.listeners.add(listener);
+    return () => syncEngine.listeners.delete(listener);
+  },
+}));
+
+/** This device synced with an account, and the meal is still queued to go there. */
+async function queueForSync(mealId: string) {
+  await db.syncMeta.put({
+    id: 'sync',
+    link: { userId: 'user-1', dataset: 'dataset-1', deviceId: 'device-1', cursor: 0, protocol: 1, linkedAt: 0 },
+  });
+  await db.syncOutbox.put({ table: 'meals', key: mealId, changedAt: 1, nonce: 'nonce-1' });
+}
 
 function Probe({ name }: { name: string }) {
   const location = useLocation();
@@ -45,6 +76,7 @@ function rowOf(name: string): HTMLElement {
 
 beforeEach(async () => {
   resetUiState();
+  syncEngine.current.state = { phase: 'starting' };
   await resetAll();
   await loadDemoData();
 });
@@ -236,5 +268,22 @@ describe('DiaryDayScreen (S12)', () => {
     const router = renderDiary();
     await user.click(await screen.findByRole('button', { name: /Weight · 8:05am/ }, SLOW));
     expect(router.state.location.pathname).toBe('/more/weight');
+  });
+
+  it('shows Waiting to sync on a meal still queued here while sync is stuck, not while it runs', async () => {
+    await queueForSync(DEMO_IDS.meals.todayLunch);
+    syncEngine.current.state = { phase: 'idle' };
+    renderDiary();
+
+    await screen.findByRole('button', { name: 'More actions for Economy rice' }, SLOW);
+    expect(screen.queryByText('Waiting to sync')).not.toBeInTheDocument();
+
+    act(() => syncEngine.set({ phase: 'needsSignIn' }));
+    expect(await within(rowOf('Economy rice')).findByText('Waiting to sync')).toBeInTheDocument();
+    // Breakfast isn't queued.
+    expect(within(rowOf('Roti canai + teh tarik')).queryByText('Waiting to sync')).not.toBeInTheDocument();
+
+    act(() => syncEngine.set({ phase: 'idle' }));
+    await waitFor(() => expect(screen.queryByText('Waiting to sync')).not.toBeInTheDocument());
   });
 });

@@ -1,0 +1,136 @@
+.card {
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--card2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.iconAttention {
+  color: var(--amber-text);
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pill {
+  flex: none;
+}
+
+.title {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.body {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width var(--dur-number) var(--ease);
+}
+
+/* Changes the account refused: they stay on this device, so amber, not --danger. */
+.extra {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--amber-text);
+}
+
+.facts {
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 14px;
+}
+
+.fact + .fact {
+  border-top: 1px solid var(--line);
+}
+
+.fact dt {
+  flex: none;
+  color: var(--muted);
+}
+
+/* An email can be longer than the row. */
+.fact dd {
+  margin: 0;
+  min-width: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* The title already says what's happening; a still icon beats a spinning one. */
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none !important;
+  }
+
+  .fill {
+    transition: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

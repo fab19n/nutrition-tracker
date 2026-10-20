@@ -1,4 +1,4 @@
-import { applyStoredTheme, applyTheme } from './theme';
+import { applyStoredTheme, applyTheme, readStoredTheme } from './theme';
 
 function addMeta(content: string, media?: string): HTMLMetaElement {
   const meta = document.createElement('meta');
@@ -58,5 +58,15 @@ describe('applyStoredTheme', () => {
     window.localStorage.setItem('km-theme', 'neon');
     applyStoredTheme();
     expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+});
+
+describe('readStoredTheme', () => {
+  it("returns this device's saved theme, or system when none is saved", () => {
+    expect(readStoredTheme()).toBe('system');
+    window.localStorage.setItem('km-theme', 'dark');
+    expect(readStoredTheme()).toBe('dark');
+    window.localStorage.setItem('km-theme', 'neon');
+    expect(readStoredTheme()).toBe('system');
   });
 });

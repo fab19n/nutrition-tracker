@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +6,10 @@ import { PATHS } from '@/app/paths';
 import type { SessionState } from '@/auth/session';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
+import type { OutboxEntry, SyncLink, SyncMeta } from '@/db/syncTypes';
 import { resetUiState, useUiStore } from '@/state/ui';
+import type { EngineState } from '@/sync';
+import { SyncError } from '@/sync/errors';
 import SettingsScreen from './SettingsScreen';
 
 /** Stands in for the Supabase session (src/auth/session.ts): unconfigured unless a test says so. */
@@ -25,10 +28,123 @@ vi.mock('@/auth/session', async (importOriginal) => ({
   signOut: () => auth.signOut(),
 }));
 
+/**
+ * Stands in for the sync engine (src/sync/index.ts): the card reads its state, and every action
+ * is a mock. `order` records how Delete everything runs around the wipe.
+ */
+const sync = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const current: { state: EngineState } = { state: { phase: 'starting' } };
+  const order: string[] = [];
+  const action = () => vi.fn<() => Promise<void>>(async () => {});
+  return {
+    current,
+    listeners,
+    order,
+    set(state: EngineState) {
+      current.state = state;
+      for (const listener of [...listeners]) listener();
+    },
+    stopSync: vi.fn<() => Promise<void>>(async () => {
+      order.push('stopSync');
+    }),
+    resumeSync: vi.fn<() => void>(() => {
+      order.push('resumeSync');
+    }),
+    flushSync: vi.fn<(timeoutMs: number) => Promise<void>>(async () => {}),
+    syncNow: action(),
+    useAccountData: action(),
+    keepThisDeviceData: action(),
+    notNow: action(),
+    turnSyncBackOn: action(),
+    switchToSignedInAccount: action(),
+    uploadAfterReset: action(),
+    turnOffAfterReset: action(),
+  };
+});
+
+vi.mock('@/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/sync')>()),
+  getEngineState: () => sync.current.state,
+  subscribeEngine: (listener: () => void) => {
+    sync.listeners.add(listener);
+    return () => sync.listeners.delete(listener);
+  },
+  stopSync: () => sync.stopSync(),
+  resumeSync: () => sync.resumeSync(),
+  flushSync: (timeoutMs: number) => sync.flushSync(timeoutMs),
+  syncNow: () => sync.syncNow(),
+  useAccountData: () => sync.useAccountData(),
+  keepThisDeviceData: () => sync.keepThisDeviceData(),
+  notNow: () => sync.notNow(),
+  turnSyncBackOn: () => sync.turnSyncBackOn(),
+  switchToSignedInAccount: () => sync.switchToSignedInAccount(),
+  uploadAfterReset: () => sync.uploadAfterReset(),
+  turnOffAfterReset: () => sync.turnOffAfterReset(),
+}));
+
+// The real wipe, recorded so a test can check it runs while sync is stopped.
+vi.mock('@/db/actions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/actions')>();
+  return {
+    ...actual,
+    resetAll: async () => {
+      sync.order.push('resetAll');
+      await actual.resetAll();
+      sync.order.push('resetAll done');
+    },
+  };
+});
+
 /** Where supabase-js keeps the deployed app's session (src/auth/supabase.ts storageKeyFor). */
 const STORAGE_KEY = 'kira-makan:sb-abcdefgh-auth';
 const EMAIL = 'fabian@example.com';
 const PASSWORD = 'correct horse battery staple';
+const USER_ID = 'user-1';
+const SIGNED_IN: SessionState = { status: 'signedIn', email: EMAIL, userId: USER_ID };
+const MINUTE = 60_000;
+
+const LINK: SyncLink = {
+  userId: USER_ID,
+  email: EMAIL,
+  dataset: 'dataset-1',
+  deviceId: 'device-1',
+  cursor: 0,
+  protocol: 1,
+  linkedAt: 0,
+};
+
+function queued(table: string, key: string, failedAt?: number): OutboxEntry {
+  return { table, key, changedAt: 1, nonce: `${table}-${key}`, ...(failedAt === undefined ? {} : { failedAt }) };
+}
+
+/** This phone's own diary: the demo's data, out of demo mode. */
+async function ownDiary(): Promise<void> {
+  await db.profile.update('me', { demoMode: false });
+}
+
+/** This phone's own diary, synced with an account, with these changes queued. */
+async function linkedPhone(meta: Partial<SyncMeta> = {}, entries: OutboxEntry[] = []): Promise<void> {
+  await ownDiary();
+  await db.syncMeta.put({ id: 'sync', link: LINK, ...meta });
+  await db.syncOutbox.bulkPut(entries);
+}
+
+/** A settings group's card and note, found by its heading. */
+function group(name: string): HTMLElement {
+  const section = screen.getByRole('heading', { level: 2, name }).closest('section');
+  if (!(section instanceof HTMLElement)) throw new Error(`No ${name} group`);
+  return section;
+}
+
+/** A promise the test settles by hand, to look at busy states. */
+function deferred() {
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 /** The deployed app: Supabase configured, with this session. */
 function deployed(state: SessionState): void {
@@ -41,7 +157,7 @@ function deployed(state: SessionState): void {
 const MODE_HELP = {
   auto: "Only when the offline estimator can't match everything you typed. Cheapest.",
   always: 'Every typed meal and photo goes to the AI.',
-  off: 'Offline estimates only. Nothing leaves your phone.',
+  off: "Offline estimates only. Meals aren't sent to the AI.",
 };
 
 function renderSettings() {
@@ -68,9 +184,26 @@ beforeEach(async () => {
   auth.state = { status: 'unconfigured' };
   auth.signIn.mockReset().mockResolvedValue(undefined);
   auth.signOut.mockReset().mockResolvedValue(undefined);
+  sync.current.state = { phase: 'starting' };
+  sync.stopSync.mockClear();
+  sync.resumeSync.mockClear();
+  sync.flushSync.mockReset().mockResolvedValue(undefined);
+  for (const mock of [
+    sync.syncNow,
+    sync.useAccountData,
+    sync.keepThisDeviceData,
+    sync.notNow,
+    sync.turnSyncBackOn,
+    sync.switchToSignedInAccount,
+    sync.uploadAfterReset,
+    sync.turnOffAfterReset,
+  ]) {
+    mock.mockReset().mockResolvedValue(undefined);
+  }
   await resetAll();
   resetUiState();
   await loadDemoData();
+  sync.order.length = 0;
 });
 
 afterEach(async () => {
@@ -106,7 +239,8 @@ describe('SettingsScreen (S19)', () => {
     expect(await screen.findByRole('button', { name: /^Age/ })).toHaveTextContent('30');
     expect(screen.getByRole('button', { name: /^Sex/ })).toHaveTextContent('Male');
     expect(screen.getByRole('button', { name: /^Height/ })).toHaveTextContent('172 cm');
-    expect(await screen.findByRole('button', { name: /^Weight/ })).toHaveTextContent('77.8 kg');
+    // The weigh-ins load on their own, after the profile.
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Weight/ })).toHaveTextContent('77.8 kg'));
     expect(screen.getByRole('button', { name: /^Daily minimum/ })).toHaveTextContent('1,400 kcal');
     expect(screen.getByText('Weeks start on Monday')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Day rollover/ })).toHaveTextContent('5am');
@@ -243,6 +377,72 @@ describe('SettingsScreen Delete everything and the account', () => {
     expect(useUiStore.getState().toast?.message).toBe('Everything on this phone is deleted');
   });
 
+  it('stops sync before the wipe and resumes it after', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    const user = userEvent.setup();
+    renderSettings();
+
+    await confirmDeleteEverything(user);
+
+    expect(await screen.findByRole('heading', { name: 'Setup screen' })).toBeInTheDocument();
+    expect(sync.order).toEqual(['stopSync', 'resetAll', 'resetAll done', 'resumeSync']);
+    // The wipe is this phone's alone: nothing queued for the account, nothing linked.
+    expect(await db.syncOutbox.count()).toBe(0);
+    expect(await db.syncMeta.count()).toBe(0);
+  });
+
+  it('when linked, says the account keeps its copy and warns about changes not yet synced', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({}, [queued('meals', 'm1'), queued('weights', 'w1'), queued('places', 'p1', 1)]);
+    sync.current.state = { phase: 'offline' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    const row = await screen.findByRole('button', { name: /^Delete everything/ });
+    await waitFor(() => expect(row).toHaveTextContent('Removes all data on this device. The copy in your account stays.'));
+    await user.click(row);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete everything?' });
+    expect(dialog).toHaveAccessibleDescription(
+      'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, ' +
+        "so signing in again brings it back. 3 changes haven't synced and will be lost.",
+    );
+  });
+
+  it('when linked with nothing queued, has no warning', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const row = await screen.findByRole('button', { name: /^Delete everything/ });
+    await waitFor(() => expect(row).toHaveTextContent('The copy in your account stays.'));
+    await user.click(row);
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, ' +
+        'so signing in again brings it back.',
+    );
+  });
+
+  it('before linking, the copy is unchanged', async () => {
+    deployed(SIGNED_IN);
+    await ownDiary();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const row = await screen.findByRole('button', { name: /^Delete everything/ });
+    // Give the sync tables' live query time to answer, then check the copy still says nothing more.
+    await act(async () => {
+      await db.syncMeta.get('sync');
+    });
+    expect(row).toHaveTextContent('Removes all data on this phone');
+    expect(row).not.toHaveTextContent('The copy in your account stays.');
+    await user.click(row);
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy.",
+    );
+  });
+
   it('still deletes everything and forgets the session when signing out fails', async () => {
     deployed({ status: 'signedIn', email: EMAIL });
     storeSignedInPhone();
@@ -339,67 +539,6 @@ describe('SettingsScreen AI estimates', () => {
     await waitFor(() => expect(screen.getByRole('radio', { name: /^Off/ })).toHaveAttribute('aria-checked', 'true'));
   });
 
-  it('signs in through the sheet when signed out', async () => {
-    deployed({ status: 'signedOut' });
-    const user = userEvent.setup();
-    renderSettings();
-
-    expect(await screen.findByText('Until you sign in, estimates stay offline.')).toBeInTheDocument();
-    expect(screen.queryByText('AI estimates run through the dev server.')).not.toBeInTheDocument();
-    const account = screen.getByRole('button', { name: /^Account/ });
-    expect(account).toHaveTextContent('Sign in for AI estimates');
-    await user.click(account);
-
-    const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
-    await user.type(within(sheet).getByLabelText('Password'), PASSWORD);
-    await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
-    expect(auth.signIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
-
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Sign in for AI estimates' })).not.toBeInTheDocument());
-    expect(useUiStore.getState().toast?.message).toBe('Signed in');
-  });
-
-  it('keeps the sheet open with the error when the password is wrong', async () => {
-    deployed({ status: 'signedOut' });
-    auth.signIn.mockRejectedValue(Object.assign(new Error('Wrong email or password.'), { kind: 'wrongPassword' }));
-    const user = userEvent.setup();
-    renderSettings();
-
-    await user.click(await screen.findByRole('button', { name: /^Account/ }));
-    const sheet = await screen.findByRole('dialog', { name: 'Sign in for AI estimates' });
-    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
-    await user.type(within(sheet).getByLabelText('Password'), 'wrong');
-    await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
-
-    expect(await within(sheet).findByRole('alert')).toHaveTextContent('Wrong email or password.');
-    expect(screen.getByRole('dialog', { name: 'Sign in for AI estimates' })).toBeInTheDocument();
-    expect(useUiStore.getState().toast).toBeNull();
-  });
-
-  it('shows who is signed in and signs out', async () => {
-    deployed({ status: 'signedIn', email: 'fabian@example.com' });
-    const user = userEvent.setup();
-    renderSettings();
-
-    expect(await screen.findByText('Signed in as fabian@example.com')).toBeInTheDocument();
-    expect(screen.queryByText('Until you sign in, estimates stay offline.')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Sign out' }));
-
-    expect(auth.signOut).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Signed out'));
-  });
-
-  it('says so when signing out fails', async () => {
-    deployed({ status: 'signedIn', email: 'fabian@example.com' });
-    auth.signOut.mockRejectedValue(new Error('nope'));
-    const user = userEvent.setup();
-    renderSettings();
-
-    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
-    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("Couldn't sign out. Try again."));
-    expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled();
-  });
 
   it('has no sign-in note when AI is off', async () => {
     deployed({ status: 'signedOut' });
@@ -409,5 +548,480 @@ describe('SettingsScreen AI estimates', () => {
     await waitFor(() => expect(screen.getByRole('radio', { name: /^Off/ })).toHaveAttribute('aria-checked', 'true'));
     expect(screen.queryByText('Until you sign in, estimates stay offline.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Account/ })).toBeInTheDocument();
+  });
+
+  it('keeps only the modes and the note once the Account row has moved to Account and sync', async () => {
+    deployed({ status: 'signedOut' });
+    renderSettings();
+
+    const ai = await screen.findByRole('radiogroup', { name: 'When to use AI' });
+    expect(group('AI estimates')).toContainElement(ai);
+    expect(within(group('AI estimates')).queryByText('Account')).not.toBeInTheDocument();
+    expect(within(group('AI estimates')).getByText('Until you sign in, estimates stay offline.')).toBeInTheDocument();
+    expect(within(group('Account and sync')).getByRole('button', { name: /^Account/ })).toBeInTheDocument();
+  });
+});
+
+describe('SettingsScreen Account and sync', () => {
+  it('is left out when Supabase is not set up', async () => {
+    vi.stubEnv('VITE_ESTIMATE_URL', '/api/estimate');
+    renderSettings();
+
+    expect(await screen.findByRole('radiogroup', { name: 'When to use AI' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Account and sync' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('comes first, with the sync card over the Account row', async () => {
+    deployed({ status: 'signedOut' });
+    renderSettings();
+
+    expect(await screen.findByRole('button', { name: /^Age/ })).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 });
+    expect(headings[0]).toHaveTextContent('Account and sync');
+    expect(headings[1]).toHaveTextContent('AI estimates');
+    // The demo profile: sync stays off whoever signs in.
+    const card = within(group('Account and sync')).getByRole('status');
+    expect(card).toHaveTextContent('Sync is off in demo mode');
+    expect(within(group('Account and sync')).getByText('Sample data never leaves this device.')).toBeInTheDocument();
+    expect(card.compareDocumentPosition(screen.getByRole('button', { name: /^Account/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('says sync is off while signed out, and the Account row signs in', async () => {
+    deployed({ status: 'signedOut' });
+    await ownDiary();
+    renderSettings();
+
+    await waitFor(() => expect(within(group('Account and sync')).getByRole('status')).toHaveTextContent('Sync is off'));
+    expect(
+      within(group('Account and sync')).getByText('Sign in to keep a copy of your diary in your account and use it on another device.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Account/ })).toHaveTextContent('Sign in to sync and use AI estimates');
+  });
+
+  it('signs in through the sheet when signed out', async () => {
+    deployed({ status: 'signedOut' });
+    const user = userEvent.setup();
+    renderSettings();
+
+    expect(await screen.findByText('Until you sign in, estimates stay offline.')).toBeInTheDocument();
+    expect(screen.queryByText('AI estimates run through the dev server.')).not.toBeInTheDocument();
+    const account = screen.getByRole('button', { name: /^Account/ });
+    expect(account).toHaveTextContent('Sign in to sync and use AI estimates');
+    await user.click(account);
+
+    const sheet = await screen.findByRole('dialog', { name: 'Sign in' });
+    expect(
+      within(sheet).getByText('Your account keeps a synced copy of your diary and unlocks AI estimates. Everything works offline without it.'),
+    ).toBeInTheDocument();
+    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
+    await user.type(within(sheet).getByLabelText('Password'), PASSWORD);
+    await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
+    expect(auth.signIn).toHaveBeenCalledWith(EMAIL, PASSWORD);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Sign in' })).not.toBeInTheDocument());
+    expect(useUiStore.getState().toast?.message).toBe('Signed in');
+    // Sync looks again at once, even while it waits on a session the account refused.
+    expect(sync.syncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the sheet open with the error when the password is wrong', async () => {
+    deployed({ status: 'signedOut' });
+    auth.signIn.mockRejectedValue(Object.assign(new Error('Wrong email or password.'), { kind: 'wrongPassword' }));
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: /^Account/ }));
+    const sheet = await screen.findByRole('dialog', { name: 'Sign in' });
+    await user.type(within(sheet).getByLabelText('Email'), EMAIL);
+    await user.type(within(sheet).getByLabelText('Password'), 'wrong');
+    await user.click(within(sheet).getByRole('button', { name: 'Sign in' }));
+
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent('Wrong email or password.');
+    expect(screen.getByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+    expect(useUiStore.getState().toast).toBeNull();
+  });
+
+  it('shows who is signed in, sends what is queued, then signs out', async () => {
+    deployed(SIGNED_IN);
+    const user = userEvent.setup();
+    renderSettings();
+
+    expect(await screen.findByText('Signed in as fabian@example.com')).toBeInTheDocument();
+    expect(screen.queryByText('Until you sign in, estimates stay offline.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+    expect(sync.flushSync).toHaveBeenCalledWith(5_000);
+    expect(sync.flushSync.mock.invocationCallOrder[0]).toBeLessThan(auth.signOut.mock.invocationCallOrder[0] ?? 0);
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Signed out'));
+  });
+
+  it("waits for the flush before signing out, and says what's still waiting", async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({ lastSyncedAt: Date.now() - 5 * MINUTE }, [queued('meals', 'm1'), queued('weights', 'w1'), queued('places', 'p1', 1)]);
+    sync.current.state = { phase: 'idle' };
+    const flushing = deferred();
+    sync.flushSync.mockReturnValueOnce(flushing.promise);
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(screen.getByRole('button', { name: 'Signing out…' })).toBeDisabled();
+    expect(auth.signOut).not.toHaveBeenCalled();
+    await act(async () => flushing.resolve());
+
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+    // Refused changes aren't counted: they wait for the next app start, not for a sign-in.
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Signed out. 2 changes wait on this device until you sign in.'));
+  });
+
+  it('says one change waits', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({}, [queued('meals', 'm1')]);
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Signed out. 1 change waits on this device until you sign in.'));
+  });
+
+  it('says so when signing out fails', async () => {
+    deployed(SIGNED_IN);
+    auth.signOut.mockRejectedValue(new Error('nope'));
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("Couldn't sign out. Try again."));
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled();
+  });
+
+  it('shows up to date, with the account and Sync now', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({ lastSyncedAt: Date.now() - 5 * MINUTE });
+    sync.current.state = { phase: 'idle' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    const card = await screen.findByRole('status');
+    await waitFor(() => expect(card).toHaveTextContent('Up to date'));
+    const syncCard = group('Account and sync');
+    expect(within(syncCard).getByText('Last synced 5 min ago')).toBeInTheDocument();
+    // The account it syncs with, as a fact on the card (the Account row says "Signed in as").
+    expect(within(syncCard).getByText(EMAIL).tagName).toBe('DD');
+    await user.click(within(syncCard).getByRole('button', { name: 'Sync now' }));
+    expect(sync.syncNow).toHaveBeenCalledTimes(1);
+    expect(useUiStore.getState().toast).toBeNull();
+  });
+
+  it('follows the engine', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({ lastSyncedAt: Date.now() - 5 * MINUTE });
+    sync.current.state = { phase: 'idle' };
+    renderSettings();
+
+    const card = await screen.findByRole('status');
+    await waitFor(() => expect(card).toHaveTextContent('Up to date'));
+    act(() => sync.set({ phase: 'uploading', progress: { done: 340, total: 1840 } }));
+    expect(card).toHaveTextContent('Backing up');
+    expect(screen.getByText('340 of 1,840 entries')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Backing up' })).toHaveAttribute('aria-valuenow', '340');
+
+    act(() => sync.set({ phase: 'error', error: 'unreachable', retryAt: Date.now() + 30_000 }));
+    expect(card).toHaveTextContent("Can't reach your account");
+    expect(screen.getByText('Your entries are safe on this device. Trying again in about a minute.')).toBeInTheDocument();
+
+    // The account answered, and said no: where to look.
+    act(() => sync.set({ phase: 'error', error: 'rejected', retryAt: Date.now() + 30_000 }));
+    expect(card).toHaveTextContent('Your account refused the last sync');
+    expect(
+      screen.getByText('Your entries are safe on this device. It keeps trying; if this stays, check Supabase › Logs (DEPLOY.md).'),
+    ).toBeInTheDocument();
+  });
+
+  it('asks a linked phone that is signed out to sign in, from the card too', async () => {
+    deployed({ status: 'signedOut' });
+    await linkedPhone({}, [queued('meals', 'm1'), queued('weights', 'w1')]);
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Sign in to keep syncing'));
+    expect(screen.getByText('2 changes wait on this device until you sign in.')).toBeInTheDocument();
+    await user.click(within(group('Account and sync')).getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('dialog', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('when the account refused the sign-in, offers Try again and Sign out instead', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({}, [queued('meals', 'm1')]);
+    sync.current.state = { phase: 'needsSignIn', error: 'needsSignIn' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Sign in again to keep syncing'));
+    const card = group('Account and sync');
+    expect(within(card).getByText("Your account didn't accept this sign-in. Try again, or sign out and in.")).toBeInTheDocument();
+    // The Account row still says who is signed in; the card has no Sign in of its own.
+    expect(within(card).queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Try again' }));
+    expect(sync.syncNow).toHaveBeenCalledTimes(1);
+
+    // The card's ghost Sign out, before the Account row's: through the flush, as the row's is.
+    await waitFor(() => expect(within(card).getAllByRole('button', { name: 'Sign out' })[0]).toBeEnabled());
+    await user.click(within(card).getAllByRole('button', { name: 'Sign out' })[0] as HTMLElement);
+    expect(sync.flushSync).toHaveBeenCalledWith(5_000);
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+  });
+
+  it('turns sync back on', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone({ paused: true });
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Sync is off on this device'));
+    await user.click(screen.getByRole('button', { name: 'Turn on sync' }));
+    expect(sync.turnSyncBackOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('after the account copy was deleted, uploads again or turns sync off', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    sync.current.state = { phase: 'cloudReset', error: 'cloudReset' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The copy in your account was deleted'));
+    await user.click(screen.getByRole('button', { name: "Upload this device's data" }));
+    expect(sync.uploadAfterReset).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Turn off sync' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Turn off sync' }));
+    expect(sync.turnOffAfterReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when turning sync off fails', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    sync.current.state = { phase: 'cloudReset', error: 'cloudReset' };
+    sync.turnOffAfterReset.mockRejectedValue(new SyncError('failed'));
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: 'Turn off sync' }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("Couldn't turn sync off. Try again."));
+  });
+
+  it('switches to the signed-in account after a confirm', async () => {
+    deployed({ status: 'signedIn', email: 'other@example.com', userId: 'user-2' });
+    await linkedPhone();
+    sync.current.state = { phase: 'otherAccount' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('This device syncs with another account'));
+    expect(screen.getByText(`Synced with ${EMAIL}. You're signed in as other@example.com.`)).toBeInTheDocument();
+    const card = group('Account and sync');
+    await user.click(within(card).getByRole('button', { name: 'Switch to this account' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Sync with this account?' });
+    expect(dialog).toHaveAccessibleDescription(`This device's data starts syncing with other@example.com. The copy in ${EMAIL} stays as it is.`);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Sync with this account?' })).not.toBeInTheDocument();
+    expect(sync.switchToSignedInAccount).not.toHaveBeenCalled();
+
+    await user.click(within(card).getByRole('button', { name: 'Switch to this account' }));
+    dialog = await screen.findByRole('dialog', { name: 'Sync with this account?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Switch' }));
+    expect(sync.switchToSignedInAccount).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Sync with this account?' })).not.toBeInTheDocument();
+  });
+
+  it('signs out from another account through the flush too', async () => {
+    deployed({ status: 'signedIn', email: 'other@example.com', userId: 'user-2' });
+    await linkedPhone();
+    sync.current.state = { phase: 'otherAccount' };
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('This device syncs with another account'));
+    const card = screen.getByRole('status').closest('section');
+    if (!(card instanceof HTMLElement)) throw new Error('No sync group');
+    // The card's ghost Sign out, before the Account row's.
+    await user.click(within(card).getAllByRole('button', { name: 'Sign out' })[0] as HTMLElement);
+    expect(sync.flushSync).toHaveBeenCalledWith(5_000);
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('SettingsScreen Which copy to keep?', () => {
+  /** The account has its own diary; this phone, 12 meals of its own. */
+  async function choosing(lastChangeAt = serverTime(Date.now() - 5 * MINUTE)) {
+    deployed(SIGNED_IN);
+    await ownDiary();
+    sync.current.state = {
+      phase: 'choose',
+      choice: { cloud: { dataset: 'dataset-2', head: 120, counts: { meals: 30, profile: 1, places: 4 }, lastChangeAt }, localMeals: 12 },
+    };
+  }
+
+  /** How Postgres sends a timestamptz: six fractional digits and an offset. */
+  function serverTime(ms: number): string {
+    return new Date(ms).toISOString().replace(/\.(\d{3})Z$/, '.$1456+00:00');
+  }
+
+  async function openSheet(user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> {
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Your account already has a diary'));
+    expect(screen.getByText('It came from another device. Choose which copy to keep.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose' }));
+    return screen.findByRole('dialog', { name: 'Which copy to keep?' });
+  }
+
+  it('shows what each copy holds', async () => {
+    await choosing();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const sheet = await openSheet(user);
+    expect(within(sheet).getByText("This device and your account each have a diary. They can't be merged, so pick one.")).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: "Use the account's data" })).toHaveAccessibleDescription(
+      '30 meals, last changed 5 min ago. Replaces the 12 meals on this device.',
+    );
+    expect(within(sheet).getByRole('button', { name: "Keep this device's data" })).toHaveAccessibleDescription(
+      '12 meals. Replaces the copy in your account, and your other devices follow.',
+    );
+    expect(within(sheet).getByRole('button', { name: 'Export a backup first' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+  });
+
+  it('leaves out the time when the account has none', async () => {
+    await choosing();
+    sync.current.state = {
+      phase: 'choose',
+      choice: { cloud: { dataset: 'dataset-2', head: 3, counts: { meals: 1, profile: 1 }, lastChangeAt: null }, localMeals: 0 },
+    };
+    const user = userEvent.setup();
+    renderSettings();
+
+    const sheet = await openSheet(user);
+    expect(within(sheet).getByRole('button', { name: "Use the account's data" })).toHaveAccessibleDescription(
+      '1 meal. Replaces the data on this device.',
+    );
+    expect(within(sheet).getByRole('button', { name: "Keep this device's data" })).toHaveAccessibleDescription(
+      'No meals. Replaces the copy in your account, and your other devices follow.',
+    );
+  });
+
+  it("uses the account's data after a confirm", async () => {
+    await choosing();
+    const restoring = deferred();
+    sync.useAccountData.mockReturnValue(restoring.promise);
+    const user = userEvent.setup();
+    renderSettings();
+
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: "Use the account's data" }));
+    let dialog = await screen.findByRole('alertdialog', { name: "Replace this device's data?" });
+    expect(dialog).toHaveAccessibleDescription(
+      "Everything on this device is replaced with your account's data. Entries only on this device are lost.",
+    );
+    // Cancel goes back to the sheet.
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Which copy to keep?' })).toBeInTheDocument();
+    expect(sync.useAccountData).not.toHaveBeenCalled();
+
+    await user.click(within(sheet).getByRole('button', { name: "Use the account's data" }));
+    dialog = await screen.findByRole('alertdialog', { name: "Replace this device's data?" });
+    await user.click(within(dialog).getByRole('button', { name: "Replace this device's data" }));
+    expect(sync.useAccountData).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument());
+    // While it downloads, the card's buttons wait.
+    expect(screen.getByRole('button', { name: 'Choose' })).toBeDisabled();
+
+    await act(async () => restoring.resolve());
+    expect(useUiStore.getState().toast?.message).toBe("Using your account's data");
+    expect(screen.getByRole('button', { name: 'Choose' })).toBeEnabled();
+  });
+
+  it("keeps this device's data after a confirm", async () => {
+    await choosing();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: "Keep this device's data" }));
+    const dialog = await screen.findByRole('alertdialog', { name: "Replace your account's data?" });
+    expect(dialog).toHaveAccessibleDescription(
+      "Your account gets this device's data. Entries only in your account are deleted, and your other devices follow on their next sync.",
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Replace account data' }));
+
+    expect(sync.keepThisDeviceData).toHaveBeenCalledTimes(1);
+    expect(sync.useAccountData).not.toHaveBeenCalled();
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("Uploading this device's data"));
+    expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument();
+  });
+
+  it('says so when a choice fails, and stays quiet when it was stopped', async () => {
+    await choosing();
+    sync.useAccountData.mockRejectedValueOnce(new SyncError('unreachable')).mockRejectedValueOnce(new SyncError('aborted'));
+    const user = userEvent.setup();
+    renderSettings();
+
+    let sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: "Use the account's data" }));
+    let dialog = await screen.findByRole('alertdialog', { name: "Replace this device's data?" });
+    await user.click(within(dialog).getByRole('button', { name: "Replace this device's data" }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("Couldn't get your account's data. Try again."));
+
+    act(() => useUiStore.getState().hideToast());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose' })).toBeEnabled());
+    sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: "Use the account's data" }));
+    dialog = await screen.findByRole('alertdialog', { name: "Replace this device's data?" });
+    await user.click(within(dialog).getByRole('button', { name: "Replace this device's data" }));
+    await waitFor(() => expect(sync.useAccountData).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Choose' })).toBeEnabled());
+    expect(useUiStore.getState().toast).toBeNull();
+  });
+
+  it('Not now turns sync off here', async () => {
+    await choosing();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
+    expect(sync.notNow).toHaveBeenCalledTimes(1);
+    expect(sync.useAccountData).not.toHaveBeenCalled();
+    expect(sync.keepThisDeviceData).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument());
+  });
+
+  it('can export a backup first', async () => {
+    await choosing();
+    const user = userEvent.setup();
+    const router = renderSettings();
+
+    const sheet = await openSheet(user);
+    await user.click(within(sheet).getByRole('button', { name: 'Export a backup first' }));
+    expect(router.state.location.pathname).toBe(PATHS.export);
+    expect(await screen.findByRole('heading', { name: 'Export screen' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument();
+  });
+
+  it('closes when the choice was made elsewhere, and stays closed', async () => {
+    await choosing();
+    const user = userEvent.setup();
+    renderSettings();
+
+    const choose = sync.current.state;
+    await openSheet(user);
+    act(() => sync.set({ phase: 'syncing' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument());
+    act(() => sync.set(choose));
+    expect(await screen.findByRole('button', { name: 'Choose' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Which copy to keep?' })).not.toBeInTheDocument();
   });
 });

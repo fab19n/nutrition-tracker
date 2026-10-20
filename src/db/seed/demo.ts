@@ -1,3 +1,4 @@
+import { markUncaptured } from '@/db/capture';
 import type { KiraMakanDb } from '@/db/db';
 import { DEMO_NOW_ISO } from '@/domain/clock';
 import { addDays } from '@/domain/day';
@@ -394,6 +395,8 @@ export function buildDemoWorld(): DemoWorld {
 export async function loadDemo(database: KiraMakanDb): Promise<DemoWorld> {
   const world = buildDemoWorld();
   await database.transaction('rw', database.tables, async () => {
+    // Sample data never syncs; clearing every table also drops this device's sync state.
+    markUncaptured();
     await Promise.all(database.tables.map((table) => table.clear()));
     await database.profile.put(world.profile);
     await database.goals.bulkPut(world.goals);

@@ -123,6 +123,13 @@ describe('create, edit, delete', () => {
     expect(await db.usuals.get(created.id)).toBeUndefined();
   });
 
+  it('cuts a long name to 60 characters without cutting an emoji in half', async () => {
+    const { usual: created } = await createUsualIn(db, { name: `${'a'.repeat(59)}🍜🍜 kopi`, items: [item('x', 'Mee', 500)] });
+    expect(created.name).toBe(`${'a'.repeat(59)}🍜`);
+    const { usual: emoji } = await createUsualIn(db, { name: '🍜'.repeat(60), items: [item('y', 'Mee', 500)] });
+    expect(emoji.name).toBe('🍜'.repeat(60));
+  });
+
   it('needs a name and at least one item', async () => {
     await expect(createUsualIn(db, { name: '  ', items: [item('i', 'Kopi', 80)] })).rejects.toThrow(RangeError);
     await expect(createUsualIn(db, { name: 'Kopi', items: [] })).rejects.toThrow(RangeError);

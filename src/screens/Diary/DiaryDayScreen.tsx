@@ -33,6 +33,7 @@ import type { TimingTagKind } from '@/domain/timing';
 import type { LogicalDay, MealLog, Workout } from '@/domain/types';
 import { useUiStore } from '@/state/ui';
 import { useInFlight } from '@/screens/inFlight';
+import { usePendingMealIds } from '@/sync/hooks';
 import {
   DIARY_VIEWS,
   INTENSITY_LABEL,
@@ -55,13 +56,15 @@ interface DiaryMealRowProps {
   tag: TimingTagKind | undefined;
   placeName: string | undefined;
   tz: string;
+  /** Still queued here while sync is stuck (usePendingMealIds). */
+  pending: boolean;
   onOpen: (meal: MealLog) => void;
   onDuplicate: (meal: MealLog) => void;
   onDelete: (meal: MealLog) => void;
 }
 
 /** One ledger row: MealRow with its photo thumbnail and price. */
-function DiaryMealRow({ meal, tag, placeName, tz, onOpen, onDuplicate, onDelete }: DiaryMealRowProps) {
+function DiaryMealRow({ meal, tag, placeName, tz, pending, onOpen, onDuplicate, onDelete }: DiaryMealRowProps) {
   const thumbUrl = usePhotoUrl(meal.photoId);
   return (
     <MealRow
@@ -74,7 +77,7 @@ function DiaryMealRow({ meal, tag, placeName, tz, onOpen, onDuplicate, onDelete 
       tag={meal.isGuess ? undefined : tag}
       thumbUrl={thumbUrl}
       finished={meal.finished}
-      pending={meal.syncState === 'pending'}
+      pending={pending}
       isGuess={meal.isGuess === true}
       animateIn={false}
       onPress={() => onOpen(meal)}
@@ -126,6 +129,7 @@ export default function DiaryDayScreen() {
   const workouts = useWorkouts(weekStartOf(day));
   const places = usePlaces();
   const checkIn = useCheckIn();
+  const pendingMealIds = usePendingMealIds();
 
   const placeNames = useMemo(() => new Map((places ?? []).map((p) => [p.id, p.name])), [places]);
 
@@ -288,6 +292,7 @@ export default function DiaryDayScreen() {
                     tag={summary.tags[meal.id]}
                     placeName={meal.placeId ? placeNames.get(meal.placeId) : undefined}
                     tz={tz}
+                    pending={pendingMealIds.has(meal.id)}
                     onOpen={openMeal}
                     onDuplicate={(m) => void duplicate(m)}
                     onDelete={(m) => void remove(m)}

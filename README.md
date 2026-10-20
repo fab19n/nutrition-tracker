@@ -1,6 +1,6 @@
 # Kira Makan
 
-A personal, goal-driven calorie tracker that works like an expense tracker: a weekly calorie budget that savings and makan days move around, Malaysian food (mamak, economy rice, home cooking) estimated as honest ranges, and a short morning check-in. It's a local-first PWA: your data stays on your phone, it works offline and needs no account. Optional AI estimates run through a Supabase Edge Function that calls Claude.
+A personal, goal-driven calorie tracker that works like an expense tracker: a weekly calorie budget that savings and makan days move around, Malaysian food (mamak, economy rice, home cooking) estimated as honest ranges, and a short morning check-in. It's a local-first PWA: your data lives on your phone, it works offline and needs no account. Signing in adds two optional extras: a synced copy of your diary in your own Supabase project, so a laptop can restore it and stay in step, and AI estimates through a Supabase Edge Function that calls Claude.
 
 ## Run it locally
 
@@ -35,8 +35,8 @@ npm run preview       # serve dist/ locally
 | [design_handoff.md](design_handoff.md) | Every component and screen, with all their states |
 | [design/](design/) | The final visual design: [design/README.md](design/README.md) (tokens, sizes) and the prototype |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the code is built: stack, layout, contracts, conventions, decisions |
-| [DEPLOY.md](DEPLOY.md) | Putting it on your phone: Vercel, Supabase sign-in, the AI estimate function, costs, troubleshooting |
+| [DEPLOY.md](DEPLOY.md) | Putting it on your phone: Vercel, Supabase sign-in and sync, the AI estimate function, a second device, costs, troubleshooting |
 
 ## Stack
 
-React 19, TypeScript, Vite and vite-plugin-pwa; Dexie (IndexedDB) for local data; Zustand for UI state; react-router. Sign-in for AI estimates uses Supabase Auth with email and password (no email is sent); the estimate function (`supabase/functions/estimate`) runs on Supabase Edge Functions and calls the Claude API with the key it keeps as a secret.
+React 19, TypeScript, Vite and vite-plugin-pwa; Dexie (IndexedDB) for local data, synced two ways with your Supabase Postgres database through the functions in `supabase/sync.sql` (`src/sync`); Zustand for UI state; react-router. Sign-in for sync and AI estimates uses Supabase Auth with email and password (no email is sent); the estimate function (`supabase/functions/estimate`) runs on Supabase Edge Functions and calls the Claude API with the key it keeps as a secret.

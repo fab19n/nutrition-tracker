@@ -12,6 +12,7 @@ import { WeightEntry } from '@/components/WeightEntry/WeightEntry';
 import { SetupStep } from '@/components/SetupStep/SetupStep';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsRow/SettingsRow';
 import { BackupStatus, type BackupState } from '@/components/BackupStatus/BackupStatus';
+import { SyncStatus } from '@/components/SyncStatus/SyncStatus';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { SkeletonList } from '@/components/Skeleton/Skeleton';
 import { PermissionPrimer } from '@/components/PermissionPrimer/PermissionPrimer';
@@ -19,6 +20,9 @@ import { InstallPrompt } from '@/components/InstallPrompt/InstallPrompt';
 import { ConfirmDialog, ConfirmDialogPanel } from '@/components/ConfirmDialog/ConfirmDialog';
 import { SleepTap } from '@/components/SleepTap/SleepTap';
 import type { CheckInChoice } from '@/db/selectors';
+import { DEMO_NOW_ISO } from '@/domain/clock';
+import { DEFAULT_TZ } from '@/domain/day';
+import { describeSync, type SyncView } from '@/sync/status';
 import { CHECK_IN_CAPTIONS, CheckInTimelineSample } from './checkInSample';
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,38 @@ const BACKUP_STATES: { state: BackupState; label: string }[] = [
   { state: 'connected', label: 'Connected' },
   { state: 'inProgress', label: 'In progress' },
   { state: 'failed', label: 'Failed (Retry)' },
+];
+
+/** The sync card's copy comes from describeSync, so each state here is the app's own. */
+const SYNC_NOW_MS = Date.parse(DEMO_NOW_ISO);
+const SYNC_LINKED: SyncView = {
+  phase: 'idle',
+  pending: 0,
+  failed: 0,
+  linked: true,
+  linkedEmail: 'you@example.com',
+  sessionEmail: 'you@example.com',
+  lastSyncedAt: SYNC_NOW_MS - 5 * 60_000,
+  now: SYNC_NOW_MS,
+};
+const SYNC_STATES: { label: string; view: Partial<SyncView> }[] = [
+  { label: 'Up to date', view: {} },
+  { label: 'Changes waiting', view: { pending: 3 } },
+  { label: 'Backing up (first upload)', view: { phase: 'uploading', pending: 1500, lastSyncedAt: undefined, progress: { done: 340, total: 1840 } } },
+  { label: 'Syncing', view: { phase: 'syncing' } },
+  { label: 'Checking your account', view: { phase: 'starting' } },
+  { label: 'Signed out', view: { phase: 'signedOut', linked: false, sessionEmail: undefined, lastSyncedAt: undefined } },
+  { label: 'Needs sign-in, 2 changes waiting', view: { phase: 'needsSignIn', pending: 2, sessionEmail: undefined } },
+  { label: 'Demo mode', view: { phase: 'demo', linked: false, lastSyncedAt: undefined } },
+  { label: 'Off on this phone', view: { phase: 'paused', linked: false, lastSyncedAt: undefined } },
+  { label: 'Offline, 1 change waiting', view: { phase: 'offline', pending: 1 } },
+  { label: 'Offline, nothing waiting', view: { phase: 'offline', lastSyncedAt: SYNC_NOW_MS - 26 * 60 * 60_000 } },
+  { label: "Can't reach the account, 1 change refused", view: { phase: 'error', pending: 4, failed: 1, retryAt: SYNC_NOW_MS + 30_000 } },
+  { label: 'Not set up on the server', view: { phase: 'notSetUp' } },
+  { label: 'Account already has a diary', view: { phase: 'choose', linked: false, lastSyncedAt: undefined } },
+  { label: 'Signed in to another account', view: { phase: 'otherAccount', sessionEmail: 'other@example.com' } },
+  { label: 'Account copy deleted', view: { phase: 'cloudReset' } },
+  { label: "Getting the account's data", view: { phase: 'restoring', linked: false, progress: { done: 600, total: 1840 } } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -430,6 +466,21 @@ function BackupStates() {
   );
 }
 
+function SyncStates() {
+  return (
+    <Group title="SyncStatus (Settings › Account and sync)">
+      {SYNC_STATES.map(({ label, view }) => {
+        const copy = describeSync({ ...SYNC_LINKED, ...view }, SYNC_NOW_MS, DEFAULT_TZ);
+        return (
+          <State key={label} label={`SyncStatus / ${label}`}>
+            <SyncStatus {...copy} actions={copy.actions.map((action) => ({ ...action, onPress: noop }))} />
+          </State>
+        );
+      })}
+    </Group>
+  );
+}
+
 function EmptyAndLoadingStates() {
   return (
     <>
@@ -614,7 +665,7 @@ function SleepStates() {
   );
 }
 
-/** /dev section: ledger, status and system components (C29–C33, C49–C50, C53–C61) in every state. */
+/** /dev section: ledger, status and system components (C29–C33, C49–C50, C53–C61, SyncStatus) in every state. */
 export function LedgerGallery() {
   return (
     <section style={css.section} aria-labelledby="ledger-gallery-title">
@@ -630,6 +681,7 @@ export function LedgerGallery() {
       <SetupStates />
       <SettingsStates />
       <BackupStates />
+      <SyncStates />
       <EmptyAndLoadingStates />
       <PrimerAndInstallStates />
       <ConfirmStates />

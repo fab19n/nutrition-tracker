@@ -35,6 +35,7 @@ import { mealMacros } from '@/domain/meal';
 import type { MealLog } from '@/domain/types';
 import { useUiStore } from '@/state/ui';
 import { useInFlight } from '@/screens/inFlight';
+import { usePendingMealIds } from '@/sync/hooks';
 import { TodayMealRow } from './TodayMealRow';
 import {
   checkInBanner,
@@ -76,6 +77,7 @@ export default function TodayScreen() {
   const places = usePlaces();
   const usualSleep = useUsualSleepMinutes(today);
   const hasAnyMeal = useHasAnyMeal();
+  const pendingMealIds = usePendingMealIds();
 
   const header = (
     <TopBar
@@ -226,6 +228,7 @@ export default function TodayScreen() {
                 placeName={meal.placeId ? placeName.get(meal.placeId) : undefined}
                 tag={summary.tags[meal.id]}
                 tz={tz}
+                pending={pendingMealIds.has(meal.id)}
                 onOpen={(m) => navigate(PATHS.entry(m.id))}
                 onDuplicate={(m) => void handleDuplicate(m)}
                 onDelete={(m) => void handleDelete(m)}

@@ -19,7 +19,8 @@ Treat `design/*.html` and `design/support.js` as reference documents only. Never
 
 - React 19 + TypeScript 7 (strict, `noUncheckedIndexedAccess`), Vite 8, `vite-plugin-pwa`.
 - Routing: `react-router` v8 (`createBrowserRouter`, `RouterProvider`, `Outlet`, `useNavigate`, `useSearchParams`).
-- Local-first storage: Dexie 4 (IndexedDB) + `dexie-react-hooks` (`useLiveQuery`). Supabase sync comes later behind the same repository functions.
+- Local-first storage: Dexie 4 (IndexedDB) + `dexie-react-hooks` (`useLiveQuery`). Sync is a Dexie DBCore middleware outbox (`src/db/capture.ts`) and an engine (`src/sync`) over the `sync_*` functions in `supabase/sync.sql` (§6.2). Screens and repository functions don't know about it.
+- Account: Supabase Auth (email and password), loaded lazily (`src/auth`). It protects sync and the AI estimate function; everything else works without it.
 - UI state: Zustand 5 (`src/state/ui.ts`).
 - Icons: `lucide-react` (outline family; `strokeWidth={2}`; 20px default, 16px in chips, 12px in tags). The design's unicode glyphs (⌖ ◔ ● ★ ◎ ▣ ↻ ◍ ‹ ›) are placeholders: replace with Lucide equivalents (MapPin, Clock, CircleCheck/Circle, Star, CircleDot/Utensils, Camera, Repeat, CookingPot, ChevronLeft/Right).
 - Font: `@fontsource-variable/bricolage-grotesque` (already imported in `src/styles/global.css`).
@@ -33,6 +34,7 @@ Commands: `npm run typecheck`, `npm test`, `npm run build`, `npm run dev`.
 ```
 src/
   app/            App, router, AppShell (phone column, safe areas, nav, sheet host, toast host)
+  auth/           Supabase client (the only value import of supabase-js) and the session
   components/
     ui/           Primitives: Button, Card, Chip/ChipGroup, Pill, Toggle, Segmented, SectionHeading  (done — reuse, don't fork)
     <Name>/       One folder per design component: <Name>.tsx + <Name>.module.css (+ <Name>.test.tsx when it has logic)
@@ -43,6 +45,7 @@ src/
   estimate/       Estimation service: types, local (catalogue) estimator, AI client stub
   screens/        One folder per screen, default export, named <Name>Screen.tsx
   state/          Zustand UI store (toast, sheets, review draft, log draft)
+  sync/           Two-way sync (§6.2): wire mapping, local transactions, remote, engine, status copy, hooks; testing/fakeServer
   styles/         tokens.css, global.css (typography utility classes .t-hero … .t-tag)
   dev/            Component gallery (/dev) for visual QA
 ```
@@ -95,6 +98,7 @@ fmtKcal(1800) → '1,800 kcal'     fmtApprox(560) → '~560'    fmtRange({low:75
 fmtKg(77.9) → '77.9 kg'          fmtKgDelta(-0.4) → '−0.4 kg'
 fmtRm(9.5) → 'RM 9.50'           fmtTime(instant, tz) → '10:40am' | '7:10pm' | '12:05am'
 fmtDayShort('2026-10-16') → 'Fri 16 Oct'   fmtWeekday → 'Fri'   fmtDayLetter → 'F'   fmtDayRange(mon, sun) → '12–18 Oct'
+fmtAgo(thenMs, nowMs, tz) → 'just now' | '5 min ago' | 'at 9:40pm' | 'yesterday at 9:40pm' | 'on Fri 16 Oct'   (real clock, calendar days)
 roundTo10(n), roundTo5(n)
 ```
 
@@ -231,18 +235,25 @@ export function analyseDay(meals: MealLog[], ctx: { baselines; tz?; rolloverHour
 
 ## 6. Data layer contracts (`src/db`)
 
-- `db.ts`: Dexie database `kira-makan`, version 1. Tables (primary key first):
-  `profile ('id')`, `goals ('id, status')`, `goalVersions ('id, goalId, effectiveFrom')`, `goalPeriods ('id, goalId, from')`,
-  `meals ('id, logicalDay, eatenAt, placeId, slot')`, `weights ('id, logicalDay, measuredAt')`, `workouts ('id, logicalDay')`,
-  `bonuses ('id, logicalDay')`, `days ('logicalDay, status')`, `weekPlans ('weekStart')`, `places ('id, name')`,
-  `usuals ('id, placeId')`, `pots ('id, expiresOn')`, `photos ('id')` (Blob + thumbnail Blob), `insightFeedback ('ruleId')`,
-  `suggestionEvents ('id, at')`, `personalItems ('id, catalogueId, placeId')`.
+- `db.ts`: Dexie database `kira-makan`, version 2.
+  - Version 1, the data tables (`SCHEMA_V1`, primary key first):
+    `profile ('id')`, `goals ('id, status')`, `goalVersions ('id, goalId, effectiveFrom')`, `goalPeriods ('id, goalId, from')`,
+    `meals ('id, logicalDay, eatenAt, placeId, slot')`, `weights ('id, logicalDay, measuredAt')`, `workouts ('id, logicalDay')`,
+    `bonuses ('id, logicalDay')`, `days ('logicalDay, status')`, `weekPlans ('weekStart')`, `places ('id, name')`,
+    `usuals ('id, placeId')`, `pots ('id, expiresOn')`, `photos ('id')` (Blob + thumbnail Blob), `insightFeedback ('ruleId')`,
+    `suggestionEvents ('id, at')`, `personalItems ('id, catalogueId, placeId')`.
+  - Version 2 adds the sync bookkeeping (`SYNC_STORES`, §6.2), with no upgrade function: `syncOutbox ('[table+key], changedAt')`,
+    `syncRevs ('[table+key]')`, `syncMeta ('id')` (one row, `id: 'sync'`). Row types are in `syncTypes.ts`.
+  - `SCHEMA_V1`, `TableName` and `TABLE_NAMES` list the 17 data tables only, so export and import never see the sync tables.
+    `db.tables` has 20, so every wipe (`clearAllTables`, setup, the demo load) clears the sync state with the data.
+  - `SYNC_TABLES` is every data table except `photos` (16). `createDb(name, { capture })` builds a database with capture
+    off unless asked; the `db` singleton captures only when Supabase is configured.
 - `repo/*.ts`: plain async CRUD per table (no React).
 - `actions.ts`: user intents, each a transaction: `saveMeal(draft)`, `updateMeal(id, patch)`, `deleteMeal(id) → undo()`, `confirmDay(day, choice)`, `addWeight(kg, at?)`, `planMakanDay(day | null)`, `setWeeklyFocus(weekStart, focus)`, `addWorkout(...)`, `addBonus(...)`, `logPotServing(potId, servings)`, `completeSetup(input)`, `loadDemoData()`, `resetAll()`.
 - `hooks.ts`: live-query hooks for screens (see §6.1). Hooks combine Dexie data with the engine; screens never call the engine for budget maths directly.
 - `seed/defaults.ts`: goal templates (Cut, Festive maintain, Lean bulk, Pause) with timing rules and suggestion weights.
 - `seed/demo.ts`: the design's sample world (design_handoff.md §9) anchored to the demo clock: week Mon 12 – Sun 18 Oct 2026, today Fri 16 Oct 7:10pm; last week 5–11 Oct for the weekly review; weights 3–16 Oct; Places, Usuals, the kari ayam pot, last week's futsal.
-- `export.ts`: full JSON export/import and CSV (meals, items, weights, workouts).
+- `export.ts`: full JSON export/import and CSV (meals, items, weights, workouts). Import deletes the rows missing from the file, then puts the file's rows (photos are cleared and put), so an import becomes the account's state on every device.
 
 ### 6.0 As built (read the code; these supersede the sketches below)
 
@@ -263,6 +274,80 @@ useWeekBudget(day?): { budget: WeekBudget; plan?: WeekPlan; goal; version } | un
 useWeightTrend(): { points: ...; latest?: ...; weekChangeKg: number | null } | undefined
 usePlaces(), usePlace(id), useUsuals(), usePots(), useWorkouts(weekStart), useWeekPlan(weekStart), useCheckIn()
 ```
+
+### 6.2 Sync contract
+
+One user with a phone and a laptop. Each device's IndexedDB stays its working copy; the account holds a copy of every synced row, and devices exchange changes with it. Screens never call sync, and nothing syncs until the device is signed in and linked.
+
+| File | Role |
+|---|---|
+| `supabase/sync.sql` | The server. `sync_accounts` (one per user: `dataset` id, `rev` counter; `on delete restrict` from `auth.users`) and `sync_rows` (one per `(user_id, tbl, row_key)`: jsonb `data` or a tombstone, `rev`, `changed_at`, `device_id`, `nonce`). RLS lets a user read only their own rows, nobody writes the tables directly, and nothing is granted to anon. All access goes through `sync_hello`, `sync_pull`, `sync_keys` and `sync_push`. It is pasted into the SQL Editor (DEPLOY.md steps 19–20) and kept out of `supabase/migrations`; `sync-selftest.sql` checks it and changes nothing. |
+| `src/db/capture.ts`, `src/db/syncTypes.ts` | The DBCore middleware that writes outbox markers, and `markUncaptured()`. Types of the bookkeeping rows (`OutboxEntry`, `RowRev`, `SyncMeta` with its `SyncLink`, `SyncErrorKind`). |
+| `src/sync/rows.ts` | Local row ↔ wire JSON, device-only fields, the content hash (`wireHash`, `isRealChange`). |
+| `src/sync/local.ts` | Every sync transaction: link, collect and acknowledge a push, apply a pulled page, restore, record status. |
+| `src/sync/remote.ts`, `errors.ts` | The four RPCs through supabase-js (type imports only; the client comes from `getSupabase()`), hand-written reply parsers, and `SyncError` with its kind. |
+| `src/sync/engine.ts`, `index.ts` | When to sync and what to do: gate, cycle, triggers, retry, the user's choices. `index.ts` builds the app's engine lazily and exports the wrappers (`startSync`, `stopSync`, `resumeSync`, `syncNow`, `flushSync`, `restoreFromAccount`, …). |
+| `src/sync/status.ts`, `hooks.ts` | `describeSync(view, nowMs, tz)`, the card copy for every phase; `useSyncView()` and `usePendingMealIds()` (the "Waiting to sync" badge, shown only while sync is stuck). |
+| UI | `components/SyncStatus` (presentational card), `screens/More/SyncGroup.tsx` ("Account and sync", first in Settings when Supabase is configured), `screens/Setup/RestoreSheet.tsx` (Welcome › Restore from your account). |
+| `src/sync/testing/fakeServer.ts` | `sync.sql` in memory, with the same rules and JSON, for tests. |
+
+**Capture** (the header of `capture.ts` is the reference)
+
+- Every read-write transaction that touches a synced table also opens `syncOutbox`, and each written key gets a marker `{ table, key, changedAt: Date.now(), nonce }` in the same transaction, so it commits or rolls back with the write. No call site changes.
+- The outbox is coalesced: one entry per `[table+key]`, replaced by every write (which keeps its `seenRev`, below). The push reads the row as it is then: present means put, missing means delete (a tombstone). Undo needs nothing special; it is a new write.
+- **`clear()` is local only.** `Table.clear()`, and any delete of a whole table (`toCollection().delete()`, `orderBy(…).delete()`), is never captured, so Delete everything, leaving demo, setup and the demo load never reach the account. A deletion that must reach other devices uses `delete`, `bulkDelete`, `where(index).equals(…).delete()` or a primary-key range.
+- **`markUncaptured()`** is the first line inside `db.transaction()` for writes that must not sync: applying pulls and push answers, restore, linking, the demo load. Nested transactions share it; outside a transaction it throws.
+- Nothing is captured while capture is off (Supabase not configured, or a `createDb()` database not given `{ capture: () => true }`), while the demo clock runs, for `photos`, or for the sync tables.
+- **String keys only.** Every synced table's primary key is a string property, never `++` auto-increment. A non-string key is never recorded.
+
+**Rows**
+
+- A row travels as its JSON (undefined fields drop), under its primary key value. Strings lose U+0000 and a lone UTF-16 surrogate becomes U+FFFD, since Postgres refuses both; the hash is taken over the same JSON.
+- **Device-only fields never sync:** the profile's `theme`, `useLocation` and `demoMode` (`DEVICE_PROFILE_FIELDS`), and a meal's `syncState` (deprecated). A row that arrives keeps this device's values; a fresh device takes its stored `km-theme` (or `'system'`) and `useLocation: false`. Sync never sets `demoMode`. Everything else syncs, `aiEstimates`, `keepPhotos`, `rolloverHour` and `timeZone` included. Preferences kept in localStorage (`km-theme`, Usual suggestion dismissals, the last export, the location primer) stay on the device too.
+- **New fields must be optional.** Sync writes whole rows, and an older app version that rewrites a row drops the fields it doesn't know, so every reader treats a missing field as its default.
+- **A new synced table means bumping `SYNC_PROTOCOL`** (`db.ts`). Each device then pulls from revision 0 once and picks up the rows it skipped (a pull skips tables this version doesn't know). Photos will join this way.
+- `syncRevs` keeps, per row, the account revision this device last saw or sent and the hash of that version. A write that changes nothing that syncs (a theme toggle, a `syncState` flip) never pushes, so it can't beat a real edit made on another device.
+
+**Conflicts** (settled by `sync_push`, per row, first match wins)
+
+1. A key new to the account applies.
+2. A retry of the same edit (same device and nonce) is answered `ok` and adds nothing.
+3. An edit made on the current copy applies: its `base` (the revision this device last had) equals the current revision, or the current copy came from this same device.
+4. Otherwise the later edit wins, by device time corrected for the device's clock offset, `least(at + (server now − sent at), server now)`; a tie goes to the larger device id. The loser is answered `lost` with the winner, which the device applies.
+
+- Whole rows win, with no field merge and no history: counters and derived fields (`Pot.servingsLeft`, `Usual.useCount`, a Place's learned defaults) and natural-key rows (`days`, `weekPlans`, `insightFeedback`, `profile`) included.
+- Tombstones are kept forever and follow the same rules: an edit made after a delete brings the row back, and an older edit loses to the delete.
+- The profile is never deleted by sync: the server answers `invalid` to a profile tombstone or a demo profile, and a pull skips a profile tombstone.
+- A row answered `invalid` is set aside (`failedAt`) until the next app start, so one bad row never blocks the queue. A push refused whole (`rejected`: 400 or 22xxx) is halved until the refused rows are found, and they are set aside the same way; when an empty push is refused too, the call itself is the problem and the cycle fails `rejected`.
+- References (`placeId`, `potId`, `goalId`, `photoId`) may point at rows that haven't arrived yet; screens already treat a missing row as none.
+
+**Revisions and the cursor**
+
+- `sync_push` hands out revisions under a row lock on the account, so they commit in order: a pull that has seen revision n has seen every revision below it.
+- The device's cursor moves only in the transaction that applied the rows (`applyPage`), or in the push acknowledgement when no one else wrote in between (`prevHead === cursor`) or when it goes back for a skipped revision (below).
+- Every sync transaction re-reads `syncMeta` inside it. A link that changed (a wipe, a sign-out, another tab) throws `SyncError('aborted')` and writes nothing; an answer from another dataset throws `cloudReset`. Correctness never rests on the Web Lock.
+- A pulled row that has a real pending change here is left for the push to settle. The change notes that revision (`seenRev`, kept through later edits); if it then comes to nothing (an undo), the acknowledgement moves the cursor back so the next pull fetches that revision again, and a change that changes nothing never beats the other device's edit.
+
+**Engine**
+
+- `App.tsx` calls `startSync()` at start-up and reloads the page on Dexie `versionchange`. Without Supabase configured the engine is inert. With a stored session it loads supabase-js after 1.5 s; without one, not until a sign-in.
+- Tasks (a cycle, a restore, a choice) run one at a time per tab, inside the `kira-makan-sync` Web Lock when the browser has one.
+- **Gate**, in order: configured, a profile, not demo, not paused, the session read, signed in, online, linked, linked to the signed-in user. Each stop has its phase (`unconfigured`, `noProfile`, `demo`, `paused`, `starting`, `signedOut` or `needsSignIn`, `offline`, `otherAccount`), and the Settings card describes it. Signed out with a session still stored (a refresh that failed on a bad connection) asks `getAuth()` anyway, so it reads as offline or unreachable rather than as a sign-out, on the card too.
+- **First link** (signed in, a real profile, no link) starts with `sync_hello`. An account with no live rows gets this device's data: every local row is queued (the profile first, then the goal tables, then the rest, and the push sends the oldest first) and uploaded (`uploading`, with progress). Just before that upload it looks once more (`sync_pull` from the head `sync_hello` saw); if another device got there first, it unlinks and asks. The look is durable: `linkEmptyAccount` stores the link with `checkPending`, nothing is pushed while it is set, and every cycle that finds it looks again first; an empty look clears it in a transaction that re-reads the link (`clearCheckPending`), and one with rows unlinks, keeping the data (`unlinkUnchecked`), and runs the link flow again. A look that fails, or a cycle stopped before it, fails the cycle as usual and leaves the flag set. An account with data waits for the user (`choose`): **Use the account's data** downloads everything and replaces this device's data in one transaction; **Keep this device's data** uploads this device's rows and a tombstone for every account row it lacks; **Not now** pauses sync on this device. Two diaries are never merged.
+- **Restore before setup** (Welcome › Restore from your account): with no profile, download everything into memory, then write it in one transaction with the profile in the same commit, so the app moves to Today on complete data. An account with no live rows gives "Nothing to restore yet"; one with rows but no profile yet (another device's first upload is part way) gives "Your diary is still uploading", with Try again. Neither writes anything.
+- **Cycle:** push (`collectPush` → `sync_push` → `ackPush`; up to 200 changes or about 512 KB a batch, 25 batches), then pull (`sync_pull`, 500 rows a page, 20 pages), for up to 3 rounds; then `idle`.
+- **Triggers:** a change (2 s debounce, 10 s at most), `online`, coming back to the app after 30 s, a session change (after a refused token, an auth event for the same session too: a refreshed token, the same user signing in again), Sync now (a sign-in from Settings runs it too), and a 5-minute poll while visible. Going hidden pushes what's queued. Session listeners run inside supabase-js's auth lock, so the engine defers its work with `setTimeout(0)` and never awaits Supabase there.
+- **Retry by kind** (`toSyncError` maps HTTP status and Postgres or PostgREST codes): `offline` waits for `online` or visible, plus a 2-minute probe; `unreachable`, `unavailable`, `rejected` and `failed` back off 10 s, 30 s, 2 min, 5 min, then every 15 min (±20 %); `needsSignIn` retries once straight away, then waits for a session change or a new token; `notSetUp` (the SQL isn't there) retries only on start, visible or Sync now; `cloudReset` and `otherAccount` wait for the user; `aborted` is silent.
+- **A refused token can't spin.** In a refusal streak (every token refused, say after the project's JWT signing keys changed, while each look refreshes the token and fires an auth event), an auth event for the same session runs a cycle only when `getAuth()` now gives another token than the one refused last (an in-memory short hash, never stored or logged): the first time at once, then at most once a minute, on the backoff (1, 1, 2, 5, then every 15 min). A cycle that goes through, another user, signing out or in, and Sync now end the streak.
+- **The card** (`describeSync`): `error` from `unreachable` or `unavailable` says it can't reach the account; from `rejected`, that the account refused the last sync, pointing at Supabase › Logs (DEPLOY.md); from `failed` (a local error, an answer this version can't place, another device linking at the same moment), "Sync stopped on a problem", blaming no one. `needsSignIn` while the session still reads signed in (a refused token) offers Try again and Sign out instead of Sign in. Sync copy says "this device", never "this phone": a laptop syncs too.
+- **Sign out** flushes the queue for up to 5 s first. The link, queue and cursor stay; signing in as the same user resumes, and another user gives `otherAccount`.
+- **Delete everything** stops the engine, wipes this device (data, queue, link), then resumes. The account copy stays, so signing in again and restoring brings it back. Wiping the account copy is a SQL step (DEPLOY.md); devices then show `cloudReset`.
+- **Demo never syncs**, by four guards: `loadDemo` is uncaptured and clears the sync tables, the demo clock skips capture, the gate refuses a demo profile, and `demoMode` is stripped on push, never applied on pull, and refused by the server.
+
+**Tests and server changes**
+
+- Tests drive the engine through `SyncEngineDeps` (a fake remote, session, timers and locks) and never call a live Supabase project. `fakeServer.ts` follows `sync.sql` and covers the same cases as `sync-selftest.sql`.
+- A server change ships as a new file to paste (`sync-002.sql`, …), mirrored in the fake server and the self-test. To change a function's arguments, drop the old signature first: `create or replace` with different arguments adds an overload.
 
 ## 7. Estimation (`src/estimate`)
 
@@ -313,7 +398,7 @@ Sheets open over the current tab via the `?sheet=` search param: `log` (S09), `b
 
 ## 9. Demo mode
 
-`profile.demoMode` pins the clock (`clock.ts`) to Fri 16 Oct 2026 7:10pm MYT and loads `seed/demo.ts`. It exists so the app can be compared screen by screen with the prototype. Real use starts from Setup (S01–S07). Settings can switch demo mode off and clear demo data.
+`profile.demoMode` pins the clock (`clock.ts`) to Fri 16 Oct 2026 7:10pm MYT and loads `seed/demo.ts`. It exists so the app can be compared screen by screen with the prototype. Real use starts from Setup (S01–S07), or from Welcome › Restore from your account on a device whose account already holds a diary. Settings can switch demo mode off and clear demo data. Demo data never syncs (§6.2).
 
 ## 10. Decisions taken during the build
 
@@ -328,3 +413,11 @@ Sheets open over the current tab via the `?sheet=` search param: `log` (S09), `b
 9. **What you type outranks where you are**: an anchor like "nasi kandar" in the text picks the nasi kandar pieces even at an economy-rice Place. A typed meal with several parts is named by its first part ("Nasi kandar ayam goreng"); otherwise the name comes from the items.
 10. **A pot gives what it has**: `logPotServing` clamps to the servings left and the meal records exactly what the pot gave; an empty pot or one past its clear day refuses with an error the caller shows.
 11. **Sign-in is email + password, typed in the app** (`src/auth/session.ts`, `SignInPanel`). It replaced emailed 6-digit codes: on new free Supabase projects the built-in mailer's templates can't be edited, so its email carries only a link, and an emailed link opens Safari instead of the installed iPhone app. Password sign-in sends no email, needs no SMTP, and works with password-manager autofill. A long random password from a password manager is what stops guessing. Supabase's per-IP token limit (password sign-ins share it with refreshes) and the estimate function's `ALLOWED_EMAILS` check back it up.
+12. **Two-way sync is whole-row, later-edit-wins, with a base revision** (§6.2). One generic row store in Supabase, an outbox written by a Dexie middleware, and a per-account revision cursor; no Realtime, no field merge, no CRDTs, no history. An edit made on the copy it last saw always applies, so edits made one after another on the phone, then the laptop, are never lost to clock skew; only two edits that never saw each other are settled by time, offset-corrected on the server, and the overwritten version is not kept. With one user this needs both devices offline and editing the same entry. Product decisions, confirmed by the owner:
+    - **Delete everything wipes only this device.** The account copy stays, and signing in and restoring brings it back. Wiping the account copy is a SQL step in DEPLOY.md, with no button in the app.
+    - **When this device and the account both hold data at first link, the app asks**: Use the account's data, Keep this device's data, or Not now, with a confirm before either replacement. Merging two separate setups would give two active goals, duplicate Places and a duplicate setup weigh-in.
+    - **The existing phone uploads automatically** the first time it links to an empty account; the Settings card shows the progress.
+    - **Theme, location permission and demo mode are per device.** Everything else in the profile syncs.
+    - **Sync timing:** about 2 s after a save, on opening the app or coming back to it, on reconnecting, and every 5 minutes while it's open. The laptop can lag the phone by up to 5 minutes while both are open.
+    - **Photos stay on the device for now.** A later step adds a private Storage bucket (`kira-photos/{uid}/{id}.jpg`) and a photo row in `SYNC_TABLES` behind a `SYNC_PROTOCOL` bump; `keepPhotos` will decide what uploads.
+    - **The account lives in the owner's Supabase project.** `sync_accounts` references `auth.users` with `on delete restrict`, so deleting the user can't silently erase the synced diary: a lost password is reset in place (DEPLOY.md).

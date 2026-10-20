@@ -4,13 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SIGN_IN_MESSAGES,
   SignInError,
+  ensureSessionStarted,
   getAccessToken,
+  getAuth,
   isAuthConfigured,
+  readSession,
   resetSessionForTests,
   signIn,
   signOut,
   toSignInError,
   useSession,
+  watchSession,
+  type SessionState,
 } from './session';
 import { resetSupabaseForTests } from './supabase';
 
@@ -55,14 +60,14 @@ function configure(): void {
   vi.stubEnv('VITE_SUPABASE_KEY', 'sb_publishable_test_key');
 }
 
-function sessionFor(opts: { token?: string; expiresInS?: number; email?: string } = {}): Session {
+function sessionFor(opts: { token?: string; expiresInS?: number; email?: string; userId?: string } = {}): Session {
   const session = {
     access_token: opts.token ?? TOKEN,
     refresh_token: 'refresh-token',
     token_type: 'bearer',
     expires_in: opts.expiresInS ?? 3600,
     expires_at: Math.floor(Date.now() / 1000) + (opts.expiresInS ?? 3600),
-    user: { id: 'user-1', email: opts.email ?? EMAIL, app_metadata: {}, user_metadata: {}, aud: 'authenticated', created_at: '' },
+    user: { id: opts.userId ?? 'user-1', email: opts.email ?? EMAIL, app_metadata: {}, user_metadata: {}, aud: 'authenticated', created_at: '' },
   };
   return session as Session;
 }
@@ -161,6 +166,83 @@ describe('useSession', () => {
     await act(async () => answer({ data: { session: sessionFor() }, error: null }));
 
     expect(screen.getByTestId('a')).toHaveTextContent('signedOut');
+  });
+});
+
+describe('readSession and watchSession', () => {
+  it('reads unconfigured without Supabase, and loading until the client starts', () => {
+    expect(readSession()).toEqual({ status: 'unconfigured' });
+    configure();
+    expect(readSession()).toEqual({ status: 'loading' });
+  });
+
+  it("watching doesn't start the client; ensureSessionStarted does, once", async () => {
+    configure();
+    signedInWith(sessionFor());
+    const listener = vi.fn<(state: SessionState) => void>();
+    const stop = watchSession(listener);
+    await act(async () => {});
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    expect(readSession()).toEqual({ status: 'loading' });
+
+    await ensureSessionStarted();
+    await ensureSessionStarted();
+
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(fake.auth.onAuthStateChange).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith({ status: 'signedIn', email: EMAIL, userId: 'user-1' });
+    expect(readSession()).toEqual({ status: 'signedIn', email: EMAIL, userId: 'user-1' });
+    stop();
+  });
+
+  it('tells a new user id apart, and passes on every auth event, the same session again included', async () => {
+    configure();
+    const seen: SessionState[] = [];
+    const stop = watchSession((state) => seen.push(state));
+    await ensureSessionStarted();
+
+    fake.emit('SIGNED_IN', sessionFor());
+    const before = readSession();
+    fake.emit('TOKEN_REFRESHED', sessionFor({ token: 'access-token-2' }));
+    expect(readSession()).toBe(before); // the same state: useSession doesn't render again
+    fake.emit('SIGNED_IN', sessionFor({ userId: 'user-2' }));
+    stop();
+    fake.emit('SIGNED_OUT', null);
+
+    expect(seen).toEqual([
+      { status: 'signedOut' },
+      { status: 'signedIn', email: EMAIL, userId: 'user-1' },
+      { status: 'signedIn', email: EMAIL, userId: 'user-1' },
+      { status: 'signedIn', email: EMAIL, userId: 'user-2' },
+    ]);
+    expect(readSession()).toEqual({ status: 'signedOut' });
+  });
+
+  it('passes on a sign-in again as the same user', async () => {
+    configure();
+    signedInWith(sessionFor());
+    await ensureSessionStarted();
+    const listener = vi.fn<(state: SessionState) => void>();
+    const stop = watchSession(listener);
+    fake.auth.signInWithPassword.mockResolvedValue({ data: { user: sessionFor().user, session: sessionFor() }, error: null });
+
+    await signIn(EMAIL, PASSWORD);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith({ status: 'signedIn', email: EMAIL, userId: 'user-1' });
+    stop();
+  });
+
+  it('gives useSession the user id too', async () => {
+    configure();
+    signedInWith(sessionFor({ userId: 'user-9' }));
+    function UserProbe() {
+      return <p data-testid="user">{useSession().userId ?? 'none'}</p>;
+    }
+    render(<UserProbe />);
+    await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('user-9'));
   });
 });
 
@@ -325,6 +407,62 @@ describe('getAccessToken', () => {
       throw new TypeError('Failed to fetch dynamically imported module');
     });
     await expect(getAccessToken()).rejects.toBeInstanceOf(TypeError);
+  });
+});
+
+describe('getAuth', () => {
+  it('is null without Supabase, and when signed out', async () => {
+    expect(await getAuth()).toBeNull();
+    expect(createClient).not.toHaveBeenCalled();
+    configure();
+    expect(await getAuth()).toBeNull();
+  });
+
+  it("returns the session's token, user id and email while it has more than a minute left", async () => {
+    configure();
+    signedInWith(sessionFor({ expiresInS: 600 }));
+    expect(await getAuth()).toEqual({ token: TOKEN, userId: 'user-1', email: EMAIL });
+    expect(fake.auth.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it('leaves the email out when the account has none', async () => {
+    configure();
+    signedInWith(sessionFor({ email: '' }));
+    expect(await getAuth()).toEqual({ token: TOKEN, userId: 'user-1' });
+  });
+
+  it('refreshes a token that runs out within 60 s and answers for the new session', async () => {
+    configure();
+    signedInWith(sessionFor({ expiresInS: 30 }));
+    fake.auth.refreshSession.mockResolvedValue({ data: { session: sessionFor({ token: 'access-token-2' }), user: null }, error: null });
+
+    expect(await getAuth()).toEqual({ token: 'access-token-2', userId: 'user-1', email: EMAIL });
+    expect(fake.auth.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the old session when a refresh fails before it runs out', async () => {
+    configure();
+    signedInWith(sessionFor({ expiresInS: 30 }));
+    fake.auth.refreshSession.mockResolvedValue({ data: { session: null, user: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) });
+    expect(await getAuth()).toEqual({ token: TOKEN, userId: 'user-1', email: EMAIL });
+  });
+
+  it('rejects, not null, when a run-out token cannot be refreshed on a bad connection', async () => {
+    configure();
+    window.localStorage.setItem(STORAGE_KEY, '{"access_token":"stale"}');
+    signedInWith(sessionFor({ expiresInS: -10 }));
+    const offline = new AuthRetryableFetchError('Failed to fetch', 0);
+    fake.auth.refreshSession.mockResolvedValue({ data: { session: null, user: null }, error: offline });
+    await expect(getAuth()).rejects.toBe(offline);
+  });
+
+  it('is null when the server refused the refresh token and the session is gone', async () => {
+    configure();
+    fake.auth.getSession.mockResolvedValue({
+      data: { session: null },
+      error: new AuthApiError('Invalid Refresh Token: Refresh Token Not Found', 400, 'refresh_token_not_found'),
+    });
+    expect(await getAuth()).toBeNull();
   });
 });
 

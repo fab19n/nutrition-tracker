@@ -1,0 +1,42 @@
+/* Settings › Account and sync: the sync card over the Account row, and the choose sheet. Tokens only. */
+
+/* The card lines up with the SettingsGroup card under it. */
+.status {
+  margin: 0 16px 8px;
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* A choice: its button, then what it does. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choiceSub {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Export a backup first · Not now */
+.later {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

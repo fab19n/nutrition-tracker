@@ -578,6 +578,9 @@ describe('reviewed phrases', () => {
     expect(long.unmatched.length).toBeGreaterThan(0);
     const token = run('q'.repeat(100_000));
     expect(token.items.every((i) => i.name.length <= 60)).toBe(true);
+    // Characters outside the BMP count as one each and are never cut in half.
+    expect(run('𠀀'.repeat(31)).items.map((i) => i.name)).toEqual(['𠀀'.repeat(31)]);
+    expect(run('𠀀'.repeat(70)).items.map((i) => i.name)).toEqual([`${'𠀀'.repeat(59)}…`]);
     const many = run(Array.from({ length: 80 }, () => 'teh tarik').join(', '));
     expect(many.items).toHaveLength(60);
   });

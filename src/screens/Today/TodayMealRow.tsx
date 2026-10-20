@@ -11,13 +11,15 @@ export interface TodayMealRowProps {
   placeName?: string;
   tag?: TimingTagKind;
   tz: string;
+  /** Still queued here while sync is stuck (usePendingMealIds): shows "Waiting to sync". */
+  pending?: boolean;
   onOpen: (meal: MealLog) => void;
   onDuplicate: (meal: MealLog) => void;
   onDelete: (meal: MealLog) => void;
 }
 
 /** One of today's meals as a C29 MealRow: "Breakfast · 10:40am · Nasi kandar near home", "~560". */
-export function TodayMealRow({ meal, placeName, tag, tz, onOpen, onDuplicate, onDelete }: TodayMealRowProps) {
+export function TodayMealRow({ meal, placeName, tag, tz, pending, onOpen, onDuplicate, onDelete }: TodayMealRowProps) {
   const thumbUrl = usePhotoThumbUrl(meal.photoId);
   const kcal = roundTo10(mealMacros(meal).kcal);
   return (
@@ -31,7 +33,7 @@ export function TodayMealRow({ meal, placeName, tag, tz, onOpen, onDuplicate, on
       thumbUrl={thumbUrl}
       finished={meal.finished}
       isGuess={meal.isGuess}
-      pending={meal.syncState === 'pending'}
+      pending={pending}
       onPress={() => onOpen(meal)}
       onDuplicate={() => onDuplicate(meal)}
       onDelete={() => onDelete(meal)}

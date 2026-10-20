@@ -115,6 +115,21 @@ describe('with the demo world', () => {
     expect(Math.round(mealMacros(saved).kcal)).toBe(600);
   });
 
+  it('saving an edit of a meal deleted meanwhile (on another device) brings it back under its own id', async () => {
+    const id = DEMO_EXPECTED.today.lunch.id;
+    await db.meals.delete(id);
+    const count = await db.meals.count();
+    const { meal, undo } = await actions.saveMeal(
+      draft([item('e1', 'Economy rice', 600)], { editingMealId: id, eatenAt: '2026-10-16T06:15:00.000Z', method: 'plate', name: 'Economy rice' }),
+    );
+    expect(meal).toMatchObject({ id, name: 'Economy rice', logicalDay: TODAY, slot: 'lunch' });
+    expect(await db.meals.count()).toBe(count + 1);
+    expect(await db.meals.get(id)).toEqual(meal);
+
+    await undo();
+    expect(await db.meals.get(id)).toBeUndefined();
+  });
+
   it('an edit that only carries items keeps the meal’s day, time, slot, name, Place and price', async () => {
     const id = 'meal-2026-10-13-lunch';
     const before = (await db.meals.get(id))!;
@@ -603,6 +618,11 @@ describe('mealNameFromText', () => {
     expect(mealNameFromText('')).toBeUndefined();
     expect(mealNameFromText(undefined)).toBeUndefined();
     expect(mealNameFromText('a'.repeat(60))).toHaveLength(48);
+  });
+
+  it('never cuts an emoji in half (the account refuses half of one)', () => {
+    expect(mealNameFromText(`${'a'.repeat(46)}🍜🍜🍜 malam`)).toBe(`A${'a'.repeat(45)}🍜…`);
+    expect(mealNameFromText(`${'🍜'.repeat(30)}, teh`)).toBe('🍜'.repeat(30));
   });
 
   it('is used when a text meal is saved without a name', async () => {

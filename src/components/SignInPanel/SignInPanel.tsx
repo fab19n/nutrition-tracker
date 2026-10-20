@@ -12,11 +12,14 @@ export interface SignInPanelProps {
   /** Called once signed in. */
   onSignedIn?: () => void;
   initialEmail?: string;
+  /** The line above the fields: what signing in is for here ("Sign in with the account your diary syncs to."). */
+  lead?: string;
 }
 
 type Field = 'email' | 'password';
 
 const FALLBACK_ERROR = "Couldn't sign in right now. Try again.";
+const DEFAULT_LEAD = 'Your account keeps a synced copy of your diary and unlocks AI estimates. Everything works offline without it.';
 
 function messageOf(error: unknown): string {
   return error instanceof Error && error.message ? error.message : FALLBACK_ERROR;
@@ -33,7 +36,7 @@ function fieldOf(error: unknown): Field {
  * instead of the installed iPhone app. The fields carry the autofill hints iOS and password
  * managers need to fill the saved password. Errors show inline under the field they belong to.
  */
-export function SignInPanel({ signIn, onSignedIn, initialEmail = '' }: SignInPanelProps) {
+export function SignInPanel({ signIn, onSignedIn, initialEmail = '', lead = DEFAULT_LEAD }: SignInPanelProps) {
   const id = useId();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -95,7 +98,7 @@ export function SignInPanel({ signIn, onSignedIn, initialEmail = '' }: SignInPan
 
   return (
     <form className={styles.panel} noValidate aria-busy={busy} onSubmit={submit}>
-      <p className={styles.lead}>Only AI estimates need this. Everything else works without an account.</p>
+      <p className={styles.lead}>{lead}</p>
       <div className={styles.field}>
         <label htmlFor={`${id}-email`} className={styles.label}>
           Email

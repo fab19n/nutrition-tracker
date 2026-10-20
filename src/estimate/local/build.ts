@@ -6,6 +6,7 @@
 import { aliasChip } from '@/data/aliasChips';
 import { defaultVariantOf } from '@/data/catalogue';
 import { itemFromCatalogue } from '@/domain/meal';
+import { clipText } from '@/domain/text';
 import type { CatalogueItem, Macros, MealItem, PersonalItem, Place, Variant } from '@/domain/types';
 import { QUESTION_MIN_KCAL } from '../types';
 import type { Mention } from './attach';
@@ -197,8 +198,7 @@ function attachedMacros(ref: ItemRef): Macros | undefined {
 
 /** "Nasi kerabu" stays as typed; a whole paragraph is cut short with an ellipsis. */
 function guessName(phrase: string): string {
-  const name = sentenceCase(phrase);
-  return name.length <= MAX_GUESS_NAME_LENGTH ? name : `${name.slice(0, MAX_GUESS_NAME_LENGTH - 1).trimEnd()}…`;
+  return clipText(sentenceCase(phrase), MAX_GUESS_NAME_LENGTH, '…');
 }
 
 function buildGuess(mention: Mention, ref: Extract<ItemRef, { kind: 'guess' }>, ctx: BuildContext): BuiltItem {

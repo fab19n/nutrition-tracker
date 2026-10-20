@@ -10,6 +10,8 @@ import styles from './Setup.module.css';
 export interface WelcomeScreenProps {
   onStart: () => void;
   onExplore: () => void;
+  /** "Restore from your account". Without it (no Supabase configured) there's no restore button. */
+  onRestore?: () => void;
   /** The sample week is loading. */
   exploring: boolean;
 }
@@ -20,8 +22,11 @@ const POINTS = [
   { icon: <CalendarDays size={18} strokeWidth={2} />, text: 'A weekly budget with room for weekend makan' },
 ] as const;
 
-/** S01 Welcome and install: app name, one line, Get started, the sample week, and C59 InstallPrompt in the browser. */
-export function WelcomeScreen({ onStart, onExplore, exploring }: WelcomeScreenProps) {
+/**
+ * S01 Welcome and install: app name, one line, Get started, restore from the account (deployed
+ * app only), the sample week, and C59 InstallPrompt in the browser.
+ */
+export function WelcomeScreen({ onStart, onExplore, onRestore, exploring }: WelcomeScreenProps) {
   const pwa = usePwaInstall();
   const [installDismissed, setInstallDismissed] = useState(false);
   // Installed already: no prompt. Android/desktop only once the browser offers its install event.
@@ -63,6 +68,11 @@ export function WelcomeScreen({ onStart, onExplore, exploring }: WelcomeScreenPr
         <Button onClick={onStart} disabled={exploring}>
           Get started
         </Button>
+        {onRestore ? (
+          <Button variant="ghost" size="lg" onClick={onRestore} disabled={exploring}>
+            Restore from your account
+          </Button>
+        ) : null}
         <Button variant="ghost" size="lg" onClick={onExplore} disabled={exploring} aria-busy={exploring || undefined}>
           {exploring ? 'Loading the sample week…' : 'Explore with sample data'}
         </Button>

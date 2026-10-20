@@ -116,7 +116,7 @@ export function ShellError() {
     <div className={styles.app}>
       <main className={styles.error}>
         <h1 className="t-subtitle">Something went wrong</h1>
-        <p className="t-body muted">Your entries stay on this phone. Reload to try again.</p>
+        <p className="t-body muted">Your entries are saved on this device. Reload to try again.</p>
         <Button onClick={() => window.location.reload()}>Reload</Button>
       </main>
     </div>

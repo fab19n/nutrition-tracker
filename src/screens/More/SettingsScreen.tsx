@@ -13,6 +13,7 @@ import { SubScreenHeader } from '@/components/TopBar/TopBar';
 import { Button } from '@/components/ui/Button';
 import { ChipGroup } from '@/components/ui/Chip';
 import { resetAll, setDemoMode } from '@/db/actions';
+import { db } from '@/db/db';
 import { useProfile, useWeightTrend } from '@/db/hooks';
 import {
   AI_ESTIMATE_MODES,
@@ -34,7 +35,11 @@ import { fieldError, parseNumber } from '@/screens/Setup/fields';
 import { NumberField } from '@/screens/Setup/NumberField';
 import { Stepper } from '@/screens/Setup/Stepper';
 import { resetUiState, useUiStore } from '@/state/ui';
+import { flushSync, resumeSync, stopSync, syncNow } from '@/sync';
+import { useSyncView } from '@/sync/hooks';
+import { pendingSummary, readMeta } from '@/sync/local';
 import setupStyles from '@/screens/Setup/Setup.module.css';
+import { SyncGroup } from './SyncGroup';
 import styles from './SettingsScreen.module.css';
 
 type SheetKind = 'profile' | 'minimum' | 'rollover';
@@ -52,7 +57,7 @@ const TARGET_NOTE = 'Your target changes through a suggestion you approve.';
 const AI_MODE_COPY: Record<AiEstimateMode, { label: string; sub: string }> = {
   auto: { label: 'When needed', sub: "Only when the offline estimator can't match everything you typed. Cheapest." },
   always: { label: 'Always', sub: 'Every typed meal and photo goes to the AI.' },
-  off: { label: 'Off', sub: 'Offline estimates only. Nothing leaves your phone.' },
+  off: { label: 'Off', sub: "Offline estimates only. Meals aren't sent to the AI." },
 };
 
 function hourLabel(hour: number): string {
@@ -61,6 +66,23 @@ function hourLabel(hour: number): string {
 
 /** How long Delete everything waits for Supabase to end the session before forgetting it anyway. */
 const SIGN_OUT_WAIT_MS = 3_000;
+/** How long Sign out waits for what's queued to reach the account. */
+const SIGN_OUT_FLUSH_MS = 5_000;
+
+/** '1 change', '12 changes'. */
+function changes(n: number): string {
+  return `${fmtInt(n)} ${n === 1 ? 'change' : 'changes'}`;
+}
+
+/** Changes queued for the account this device syncs with; 0 when it isn't linked, or can't tell. */
+async function changesWaiting(): Promise<number> {
+  try {
+    const [meta, summary] = await Promise.all([readMeta(db), pendingSummary(db)]);
+    return meta.link ? summary.pending : 0;
+  } catch {
+    return 0;
+  }
+}
 
 /**
  * Delete everything signs this phone out too, so no token, email or user record stays behind.
@@ -262,7 +284,7 @@ function AccountRow({ session, signingOut, onSignIn, onSignOut }: AccountRowProp
     );
   }
   if (session.status === 'loading') return <SettingsRow label="Account" sub="Checking sign-in…" />;
-  return <SettingsRow label="Account" sub="Sign in for AI estimates" value="Sign in" onPress={onSignIn} />;
+  return <SettingsRow label="Account" sub="Sign in to sync and use AI estimates" value="Sign in" onPress={onSignIn} />;
 }
 
 const SHEET_TITLE: Record<SheetKind, string> = {
@@ -272,7 +294,7 @@ const SHEET_TITLE: Record<SheetKind, string> = {
 };
 
 /**
- * S19 Settings: AI estimates (account and when to use AI), profile, budget, day, appearance,
+ * S19 Settings: account and sync, AI estimates (when to use AI), profile, budget, day, appearance,
  * privacy, data, demo, about and Delete everything.
  */
 export default function SettingsScreen() {
@@ -281,6 +303,7 @@ export default function SettingsScreen() {
   const profile = useProfile();
   const weight = useWeightTrend();
   const session = useSession();
+  const syncView = useSyncView();
   const showToast = useUiStore((s) => s.showToast);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -288,8 +311,8 @@ export default function SettingsScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastExport] = useState(readLastExport);
 
-  // Sign-in only guards the AI function, so the account row exists only when Supabase is set up.
-  // Without Supabase, AI calls go straight to the endpoint (the Vite dev server in local dev).
+  // Sign-in serves sync and guards the AI function, so Account and sync exists only when Supabase
+  // is set up. Without Supabase, AI calls go straight to the endpoint (the Vite dev server in local dev).
   const authConfigured = isAuthConfigured();
   const aiReachable = authConfigured || readEstimateUrl() !== undefined;
   const aiMode = aiEstimateModeOf(profile);
@@ -320,8 +343,11 @@ export default function SettingsScreen() {
   const leaveAccount = async () => {
     setSigningOut(true);
     try {
+      // What's queued goes to the account first; whatever is left waits here for the next sign-in.
+      await flushSync(SIGN_OUT_FLUSH_MS);
       await signOut();
-      showToast('Signed out');
+      const waiting = await changesWaiting();
+      showToast(waiting > 0 ? `Signed out. ${changes(waiting)} ${waiting === 1 ? 'waits' : 'wait'} on this device until you sign in.` : 'Signed out');
     } catch {
       showToast("Couldn't sign out. Try again.");
     } finally {
@@ -337,7 +363,13 @@ export default function SettingsScreen() {
 
   const deleteEverything = async () => {
     setConfirmDelete(false);
-    await Promise.all([resetAll(), forgetAccount()]);
+    // Sync stands still while this phone is wiped, and a wipe is never sent: the account's copy stays.
+    await stopSync();
+    try {
+      await Promise.all([resetAll(), forgetAccount()]);
+    } finally {
+      resumeSync();
+    }
     resetUiState();
     clearLastExport();
     navigate(PATHS.setup, { replace: true });
@@ -348,6 +380,14 @@ export default function SettingsScreen() {
   const exportSub = lastExport
     ? `Last export ${fmtDayShort(logicalDayOf(lastExport.at, profile?.timeZone, 0))}`
     : 'Full backup or spreadsheet files';
+  // Failed changes haven't reached the account either: they go too.
+  const unsynced = syncView.pending + syncView.failed;
+  // Once linked the copy is about sync, so it says "device" (a laptop syncs too); before, "phone" as elsewhere.
+  const deleteSub = syncView.linked ? 'Removes all data on this device. The copy in your account stays.' : 'Removes all data on this phone';
+  const deleteBody = syncView.linked
+    ? 'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, so signing in again brings it back.' +
+      (unsynced > 0 ? ` ${changes(unsynced)} ${unsynced === 1 ? "hasn't" : "haven't"} synced and will be lost.` : '')
+    : "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy.";
 
   return (
     <div className={styles.subScreen}>
@@ -355,16 +395,25 @@ export default function SettingsScreen() {
 
       {profile ? (
         <div className={styles.settingsBody}>
+          {authConfigured ? (
+            <SyncGroup
+              view={syncView}
+              tz={profile.timeZone}
+              signingOut={signingOut}
+              onSignIn={() => setSignInOpen(true)}
+              onSignOut={() => void leaveAccount()}
+            >
+              <AccountRow
+                session={session}
+                signingOut={signingOut}
+                onSignIn={() => setSignInOpen(true)}
+                onSignOut={() => void leaveAccount()}
+              />
+            </SyncGroup>
+          ) : null}
+
           {aiReachable ? (
             <SettingsGroup title="AI estimates" note={aiNote}>
-              {authConfigured ? (
-                <AccountRow
-                  session={session}
-                  signingOut={signingOut}
-                  onSignIn={() => setSignInOpen(true)}
-                  onSignOut={() => void leaveAccount()}
-                />
-              ) : null}
               <AiModeChooser
                 value={aiMode}
                 onChange={(mode) => {
@@ -457,7 +506,7 @@ export default function SettingsScreen() {
 
           <div className={styles.dangerZone}>
             <SettingsGroup>
-              <SettingsRow label="Delete everything" sub="Removes all data on this phone" destructive onPress={() => setConfirmDelete(true)} />
+              <SettingsRow label="Delete everything" sub={deleteSub} destructive onPress={() => setConfirmDelete(true)} />
             </SettingsGroup>
           </div>
         </div>
@@ -487,12 +536,14 @@ export default function SettingsScreen() {
       </BottomSheet>
 
       <BottomSheet open={signInOpen && authConfigured} onClose={() => setSignInOpen(false)}>
-        <SheetTitle>Sign in for AI estimates</SheetTitle>
+        <SheetTitle>Sign in</SheetTitle>
         <SignInPanel
           signIn={signIn}
           onSignedIn={() => {
             setSignInOpen(false);
             showToast('Signed in');
+            // The session change runs a cycle too; this one also runs while sync waits on a refused session.
+            void syncNow();
           }}
         />
       </BottomSheet>
@@ -500,7 +551,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         open={confirmDelete}
         title="Delete everything?"
-        body="Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy."
+        body={deleteBody}
         confirmLabel="Delete everything"
         destructive
         requireTyping="DELETE"

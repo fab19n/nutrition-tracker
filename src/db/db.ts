@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { readSupabaseConfig } from '@/auth/supabase';
 import type {
   DayRecord,
   Goal,
@@ -19,6 +20,8 @@ import type {
   WeightLog,
   Workout,
 } from '@/domain/types';
+import { createCaptureMiddleware } from './capture';
+import type { OutboxEntry, RowRev, SyncMeta } from './syncTypes';
 
 export const DB_NAME = 'kira-makan';
 
@@ -76,6 +79,24 @@ export type TableName = keyof TableRows;
 
 export const TABLE_NAMES = Object.keys(SCHEMA_V1) as TableName[];
 
+/** Every data table except photos (a later step). All keys are strings. */
+export type SyncTable = Exclude<TableName, 'photos'>;
+export const SYNC_TABLES = TABLE_NAMES.filter((t): t is SyncTable => t !== 'photos');
+/** Version a device has synced against; bump it (and the cursor goes back to 0 once) when a table starts syncing. */
+export const SYNC_PROTOCOL = 1;
+
+/** Sync bookkeeping (ARCHITECTURE §6.2): never exported, never captured, cleared by every wipe. */
+export const SYNC_STORES = {
+  syncOutbox: '[table+key], changedAt',
+  syncRevs: '[table+key]',
+  syncMeta: 'id',
+} as const;
+
+export interface DbOptions {
+  /** Record changes for sync. Off unless the app is deployed with Supabase. */
+  capture?: () => boolean;
+}
+
 export class KiraMakanDb extends Dexie {
   declare profile: Table<Profile, Profile['id']>;
   declare goals: Table<Goal, Id>;
@@ -94,21 +115,29 @@ export class KiraMakanDb extends Dexie {
   declare insightFeedback: Table<InsightFeedback, InsightFeedback['ruleId']>;
   declare suggestionEvents: Table<SuggestionEvent, Id>;
   declare personalItems: Table<PersonalItem, Id>;
+  declare syncOutbox: Table<OutboxEntry, [string, string]>;
+  declare syncRevs: Table<RowRev, [string, string]>;
+  declare syncMeta: Table<SyncMeta, 'sync'>;
 
-  constructor(name: string = DB_NAME) {
+  constructor(name: string = DB_NAME, options: DbOptions = {}) {
     super(name);
+    this.use(createCaptureMiddleware({ tables: new Set<string>(SYNC_TABLES), enabled: options.capture ?? (() => false) }));
     this.version(1).stores(SCHEMA_V1);
+    this.version(2).stores(SYNC_STORES); // no upgrade function: existing rows are queued when the device links
   }
 }
 
-/** Factory for tests and tools; the app uses the `db` singleton. */
-export function createDb(name: string = DB_NAME): KiraMakanDb {
-  return new KiraMakanDb(name);
+/** Factory for tests and tools (capture off unless asked for); the app uses the `db` singleton. */
+export function createDb(name: string = DB_NAME, options?: DbOptions): KiraMakanDb {
+  return new KiraMakanDb(name, options);
 }
 
-export const db = createDb();
+export const db = createDb(DB_NAME, { capture: () => readSupabaseConfig() !== null });
 
-/** Empties every table in one transaction (used by demo load, import and "delete everything"). */
+/**
+ * Empties every table, sync bookkeeping included, in one transaction ("Delete everything",
+ * leaving demo). clear() is never captured, so a wipe stays on this device.
+ */
 export async function clearAllTables(database: KiraMakanDb): Promise<void> {
   await database.transaction('rw', database.tables, async () => {
     await Promise.all(database.tables.map((table) => table.clear()));

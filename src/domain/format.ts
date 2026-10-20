@@ -2,7 +2,7 @@
  * Every number, time and date the UI shows goes through these (design_handoff §10.2).
  * Negative numbers use the true minus sign (U+2212) and ranges use an en dash (U+2013).
  */
-import { DEFAULT_TZ, MINUTES_PER_DAY, dayParts, daysBetween, weekdayIndex, zonedParts } from './day';
+import { DEFAULT_TZ, MINUTES_PER_DAY, dayParts, daysBetween, logicalDayOf, weekdayIndex, zonedParts } from './day';
 import type { Instant, KcalRange, LogicalDay } from './types';
 
 const MINUS = '−';
@@ -12,6 +12,9 @@ const PLACEHOLDER = '—';
 const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 // Fixed English labels: ICU prints "Sept" for en-GB, the design uses "Sep".
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 
 const groupedInt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const money = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -142,6 +145,25 @@ export function fmtDayRange(start: LogicalDay, end: LogicalDay): string {
     return `${a.day}${EN_DASH}${b.day} ${monthShort(b.month)}`;
   }
   return `${a.day} ${monthShort(a.month)}${EN_DASH}${b.day} ${monthShort(b.month)}`;
+}
+
+/**
+ * How long ago `thenMs` was, for "Last synced …": 'just now' (under a minute, or a little ahead of
+ * `nowMs`), '5 min ago' (under an hour), 'at 9:40pm' (earlier today), 'yesterday at 9:40pm', else
+ * 'on Fri 16 Oct'. Both times are on the real clock (Date.now(), never the demo one), and days are
+ * calendar days in `tz`: the rollover hour is for meals, not for this.
+ */
+export function fmtAgo(thenMs: number, nowMs: number, tz: string = DEFAULT_TZ): string {
+  if (!Number.isFinite(thenMs) || !Number.isFinite(nowMs)) return PLACEHOLDER;
+  const elapsed = nowMs - thenMs;
+  if (elapsed < MS_PER_MINUTE) return 'just now';
+  if (elapsed < MS_PER_HOUR) return `${Math.floor(elapsed / MS_PER_MINUTE)} min ago`;
+  const then = new Date(thenMs);
+  const thenDay = logicalDayOf(then, tz, 0);
+  const days = daysBetween(thenDay, logicalDayOf(new Date(nowMs), tz, 0));
+  if (days === 0) return `at ${fmtTime(then, tz)}`;
+  if (days === 1) return `yesterday at ${fmtTime(then, tz)}`;
+  return `on ${fmtDayShort(thenDay)}`;
 }
 
 /** 'Today', 'Yesterday', 'Tomorrow', the weekday within the surrounding week, else 'Fri 16 Oct'. */

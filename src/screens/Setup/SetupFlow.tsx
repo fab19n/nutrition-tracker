@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { PATHS } from '@/app/paths';
+import { isAuthConfigured } from '@/auth/session';
 import { loadDemoData } from '@/db/actions';
 import { useHasProfile } from '@/db/hooks';
 import { finishSetup } from '@/db/settings';
@@ -13,6 +14,7 @@ import { initialDraft, pickedRegulars, toSetupInput, type SetupDraft, type StepP
 import { GoalStep } from './GoalStep';
 import { PlacesStep } from './PlacesStep';
 import { RegularsStep } from './RegularsStep';
+import { RestoreSheet } from './RestoreSheet';
 import { WelcomeScreen } from './WelcomeScreen';
 import styles from './Setup.module.css';
 
@@ -22,6 +24,8 @@ const STEPS = 6;
 /**
  * S01–S07 first run (plan §16.1). Answers stay in memory until Done, which runs completeSetup and
  * saves the regulars as Usuals, then opens Today. With a profile already there, /setup goes to Today.
+ * The deployed app (Supabase configured) can restore the account's diary from Welcome instead:
+ * the restored profile lands with everything else, and the same redirect opens Today.
  */
 export default function SetupFlow() {
   const hasProfile = useHasProfile();
@@ -30,6 +34,7 @@ export default function SetupFlow() {
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<SetupDraft>(initialDraft);
   const [busy, setBusy] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
@@ -49,6 +54,8 @@ export default function SetupFlow() {
   }, [step]);
 
   const goTo = (next: number) => setStep(Math.min(Math.max(next, 0), STEPS));
+  // Restore needs the account; without Supabase (local dev) Welcome is as before.
+  const canRestore = isAuthConfigured();
 
   const explore = async () => {
     setBusy(true);
@@ -95,13 +102,30 @@ export default function SetupFlow() {
 
   return (
     <div ref={rootRef} className={styles.flow}>
-      {step === 0 ? <WelcomeScreen onStart={() => goTo(1)} onExplore={() => void explore()} exploring={busy} /> : null}
+      {step === 0 ? (
+        <WelcomeScreen
+          onStart={() => goTo(1)}
+          onExplore={() => void explore()}
+          onRestore={canRestore ? () => setRestoreOpen(true) : undefined}
+          exploring={busy}
+        />
+      ) : null}
       {step === 1 ? <AboutStep {...props} /> : null}
       {step === 2 ? <ActivityStep {...props} /> : null}
       {step === 3 ? <GoalStep {...props} /> : null}
       {step === 4 ? <RegularsStep {...props} /> : null}
       {step === 5 ? <PlacesStep {...props} /> : null}
       {step === 6 ? <DayStep {...props} onNext={() => void finish()} busy={busy} /> : null}
+      {canRestore ? (
+        <RestoreSheet
+          open={restoreOpen && step === 0}
+          onClose={() => setRestoreOpen(false)}
+          onSetUp={() => {
+            setRestoreOpen(false);
+            goTo(1);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

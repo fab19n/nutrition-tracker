@@ -328,6 +328,11 @@ export interface MealLog {
   fromPot?: { potId: Id; servings: number };
   createdAt: Instant;
   updatedAt: Instant;
+  /**
+   * @deprecated Still written, but nothing reads it: sync keeps its own queue (the syncOutbox
+   * table), and the "Waiting to sync" badge comes from there (usePendingMealIds in
+   * src/sync/hooks.ts). Sync never sends this field, so each device keeps its own value.
+   */
   syncState: SyncState;
 }
 

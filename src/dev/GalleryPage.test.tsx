@@ -32,6 +32,7 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByText('C29 MealRow / Today · Late for you')).toBeInTheDocument();
     expect(screen.getByText('C49 CheckInCard / Nothing picked (interactive)')).toBeInTheDocument();
     expect(screen.getByText('C61 SleepTap / Shown')).toBeInTheDocument();
+    expect(screen.getByText('SyncStatus / Up to date')).toBeInTheDocument();
     // Suggestions and insights (C40–C43)
     expect(screen.getByRole('heading', { level: 2, name: 'Suggestions and insights' })).toBeInTheDocument();
     expect(screen.getByText('C41 InsightCard / Marked useful')).toBeInTheDocument();

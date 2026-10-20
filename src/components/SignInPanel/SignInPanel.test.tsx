@@ -51,8 +51,16 @@ describe('SignInPanel', () => {
     expect(password).toHaveAttribute('type', 'password');
     expect(password).toHaveAttribute('autocomplete', 'current-password');
     expect(password.closest('form')).toBe(email.closest('form'));
-    expect(screen.getByText('Only AI estimates need this. Everything else works without an account.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Your account keeps a synced copy of your diary and unlocks AI estimates. Everything works offline without it.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('You stay signed in on this phone.')).toBeInTheDocument();
+  });
+
+  it('says what signing in is for when given a lead', () => {
+    setup({ lead: 'Sign in with the account your diary syncs to.' });
+    expect(screen.getByText('Sign in with the account your diary syncs to.')).toBeInTheDocument();
+    expect(screen.queryByText(/unlocks AI estimates/)).not.toBeInTheDocument();
   });
 
   it('starts on the password when the email is known', () => {

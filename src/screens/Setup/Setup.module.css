@@ -116,6 +116,39 @@
   color: var(--muted);
 }
 
+/* ---------- S01 Restore from your account (sheet) ---------- */
+
+.restoreBody {
+  margin: 8px 0 0;
+  padding: 0 4px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* The Settings sync card's bar (SyncStatus), on the sheet's background. */
+.restoreTrack {
+  height: 6px;
+  margin: 16px 4px 0;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.restoreFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width var(--dur-number) var(--ease);
+}
+
+.restoreActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 20px;
+}
+
 /* ---------- Fields (S02, S19 profile sheet) ---------- */
 
 .stack {

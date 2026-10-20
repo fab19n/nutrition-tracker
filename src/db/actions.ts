@@ -37,6 +37,7 @@ import { isDemoClock, now, setDemoClock } from '@/domain/clock';
 import { compareDays, logicalDayOf, weekStartOf } from '@/domain/day';
 import { itemFromCatalogue, scaleMacros, sumMacros } from '@/domain/meal';
 import { dailyTargetFor, defaultMacroTargets, startingMaintenance } from '@/domain/targets';
+import { clipText } from '@/domain/text';
 import { suggestSlot } from '@/domain/timing';
 import { netWorkoutKcal } from '@/domain/workout';
 import type {
@@ -139,7 +140,7 @@ const TEXT_PARTS = /[,+;\n|]/;
 export function mealNameFromText(text: string | undefined): string | undefined {
   const first = text?.split(TEXT_PARTS)[0]?.replace(/\s+/g, ' ').trim();
   if (!first) return undefined;
-  const capped = first.length > 48 ? `${first.slice(0, 47).trimEnd()}…` : first;
+  const capped = clipText(first, 48, '…');
   return capped.charAt(0).toUpperCase() + capped.slice(1);
 }
 
@@ -319,7 +320,8 @@ async function saveMealIn(db: KiraMakanDb, draft: ReviewDraft): Promise<SavedMea
 
     const eatenAt = meta.eatenAt ?? stamp;
     const meal: MealLog = withoutUndefined({
-      id: newId(),
+      // An edit of a meal that was deleted meanwhile (on another device) saves it again under its own id.
+      id: meta.editingMealId ?? newId(),
       eatenAt,
       logicalDay: dayOf(eatenAt, settings),
       slot: meta.slot ?? suggestSlot(eatenAt, settings.tz, settings.rolloverHour),

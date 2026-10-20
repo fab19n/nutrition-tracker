@@ -10,3 +10,6 @@ coverage/
 Thumbs.db
 *.log
 .vite/
+# Supabase CLI: this PC's link to the project (npx supabase link)
+supabase/.temp/
+supabase/.branches/

@@ -1,4 +1,5 @@
 import {
+  fmtAgo,
   fmtApprox,
   fmtClock,
   fmtDayLetter,
@@ -135,5 +136,51 @@ describe('days', () => {
     expect(fmtRelativeDay('2026-10-17', today)).toBe('Tomorrow');
     expect(fmtRelativeDay('2026-10-13', today)).toBe('Tue');
     expect(fmtRelativeDay('2026-10-05', today)).toBe('Mon 5 Oct');
+  });
+});
+
+describe('fmtAgo', () => {
+  /** Fri 16 Oct 2026, 7:10pm in Kuala Lumpur. */
+  const now = Date.parse('2026-10-16T11:10:00.000Z');
+  const minutes = (n: number) => n * 60_000;
+
+  it('says just now under a minute, and for a time a little ahead', () => {
+    expect(fmtAgo(now, now)).toBe('just now');
+    expect(fmtAgo(now - 59_999, now)).toBe('just now');
+    expect(fmtAgo(now + minutes(3), now)).toBe('just now');
+  });
+
+  it('counts minutes under an hour', () => {
+    expect(fmtAgo(now - minutes(1), now)).toBe('1 min ago');
+    expect(fmtAgo(now - minutes(5) - 30_000, now)).toBe('5 min ago');
+    expect(fmtAgo(now - minutes(59) - 59_000, now)).toBe('59 min ago');
+  });
+
+  it('gives the time earlier today and yesterday', () => {
+    expect(fmtAgo(now - minutes(60), now)).toBe('at 6:10pm');
+    expect(fmtAgo(Date.parse('2026-10-16T01:30:00.000Z'), now)).toBe('at 9:30am');
+    // Today is the calendar day: 12:10am is today even before the 5am rollover.
+    expect(fmtAgo(Date.parse('2026-10-15T16:10:00.000Z'), now)).toBe('at 12:10am');
+    expect(fmtAgo(Date.parse('2026-10-15T15:59:00.000Z'), now)).toBe('yesterday at 11:59pm');
+    expect(fmtAgo(Date.parse('2026-10-15T13:40:00.000Z'), now)).toBe('yesterday at 9:40pm');
+  });
+
+  it('gives the date before that', () => {
+    expect(fmtAgo(Date.parse('2026-10-14T13:40:00.000Z'), now)).toBe('on Wed 14 Oct');
+    expect(fmtAgo(Date.parse('2026-09-03T02:00:00.000Z'), now)).toBe('on Thu 3 Sep');
+  });
+
+  it('uses the given zone for the day and time', () => {
+    // 12:10pm in London (BST); 2:40am there that morning is today.
+    const at = Date.parse('2026-10-16T01:40:00.000Z');
+    expect(fmtAgo(at, now, 'Europe/London')).toBe('at 2:40am');
+    // 11:59pm on the 15th in London is 6:59am on the 16th in Kuala Lumpur.
+    const lateNight = Date.parse('2026-10-15T22:59:00.000Z');
+    expect(fmtAgo(lateNight, now, 'Europe/London')).toBe('yesterday at 11:59pm');
+    expect(fmtAgo(lateNight, now)).toBe('at 6:59am');
+  });
+
+  it('shows a placeholder for a time that is not a number', () => {
+    expect(fmtAgo(Number.NaN, now)).toBe('—');
   });
 });

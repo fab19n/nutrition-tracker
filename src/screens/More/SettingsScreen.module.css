@@ -29,7 +29,7 @@
   color: var(--muted);
 }
 
-/* AI estimates: the account row and the When needed / Always / Off radio list. */
+/* Account and sync: the account row. AI estimates: the When needed / Always / Off radio list. */
 .accountRow {
   display: flex;
   align-items: center;

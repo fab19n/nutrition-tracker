@@ -45,6 +45,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
+      // Tests run without Supabase whatever .env.local says, as in CI: no sign-in, no sync capture.
+      // A test that needs it stubs both with vi.stubEnv.
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_KEY: '' },
     },
   };
 });

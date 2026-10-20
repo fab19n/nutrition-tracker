@@ -1,19 +1,25 @@
 /**
- * Sign-in for the AI estimate function. Sign-in exists only to protect that function: the rest
- * of the app works offline without an account, and without Supabase configured (local dev) AI
- * calls go to the dev endpoint without a token.
+ * Sign-in for this phone's account. The account keeps the synced copy of the diary (src/sync,
+ * ARCHITECTURE.md §6.2) and protects the AI estimate function (§7). Everything else works offline
+ * without an account, and without Supabase configured (local dev) there is no sign-in and no sync,
+ * and AI calls go to the dev endpoint without a token.
  *
  * - isAuthConfigured(): true when VITE_SUPABASE_URL and VITE_SUPABASE_KEY are set (deployed app).
- * - getAccessToken(): the signed-in user's access token, refreshed first when it runs out within
- *   60 s; null when signed out or unconfigured. Rejects when the session can't be checked (a
- *   refresh that failed on a bad connection), so callers report the connection, not a sign-out.
- * - useSession(): live session state for the UI, from one shared subscription.
+ * - getAuth(): the signed-in user's access token, user id and email, the token refreshed first
+ *   when it runs out within 60 s; null when signed out or unconfigured. Rejects when the session
+ *   can't be checked (a refresh that failed on a bad connection), so callers report the
+ *   connection, not a sign-out. Sync sends this token and checks the id against the device's link.
+ * - getAccessToken(): getAuth()'s token alone, for the AI estimate call.
+ * - useSession(): live session state for the UI, from one shared subscription. It starts the client.
+ * - readSession(), watchSession(listener): the same state for code outside React (the sync
+ *   engine). Watching is passive: it never loads supabase-js. ensureSessionStarted() does, once.
  * - signIn(email, password): the account's email and password, typed in the app. No email is
  *   sent, so there's no mailer to set up: new free Supabase projects can't edit the built-in
  *   mailer's template (it sends only a link), and an emailed link opens Safari instead of the
  *   installed iPhone app. Accounts are never created here; sign-ups are off in Supabase and the
  *   server allow-lists emails as well.
- * - signOut(): forgets this phone's session.
+ * - signOut(): forgets this phone's session. The diary stays on this phone, and the copy in the
+ *   account stays as it is.
  *
  * Errors are SignInError with copy the UI shows as is. Nothing here logs or stores passwords or
  * tokens; supabase-js keeps the session.
@@ -26,6 +32,15 @@ export type SessionStatus = 'unconfigured' | 'loading' | 'signedOut' | 'signedIn
 
 export interface SessionState {
   status: SessionStatus;
+  email?: string;
+  /** The signed-in user's id (auth.users.id): what the sync link is checked against. */
+  userId?: string;
+}
+
+/** What a call to Supabase needs: the token to send, and whose it is. */
+export interface AuthInfo {
+  token: string;
+  userId: string;
   email?: string;
 }
 
@@ -165,20 +180,23 @@ let heardFromAuth = false;
 let stopListening: (() => void) | null = null;
 const listeners = new Set<() => void>();
 
-function readState(): SessionState {
+/** The session state now, without starting the client (loading until something starts it). */
+export function readSession(): SessionState {
   return state ?? (isAuthConfigured() ? LOADING : UNCONFIGURED);
 }
 
-function setState(next: SessionState): void {
-  if (state && state.status === next.status && state.email === next.email) return;
-  state = next;
+/** `event`: an auth event, passed on even when the state is the same (a refreshed token, a sign-in again). */
+function setState(next: SessionState, event = false): void {
+  const same = state !== null && state.status === next.status && state.email === next.email && state.userId === next.userId;
+  if (same && !event) return;
+  if (!same) state = next;
   for (const listener of [...listeners]) listener();
 }
 
 function stateFor(session: Session | null): SessionState {
   if (!session) return SIGNED_OUT;
-  const email = session.user.email;
-  return email ? { status: 'signedIn', email } : { status: 'signedIn' };
+  const { id: userId, email } = session.user;
+  return email ? { status: 'signedIn', email, userId } : { status: 'signedIn', userId };
 }
 
 /** Starts listening to Supabase Auth once. Never rejects. */
@@ -199,7 +217,7 @@ function start(): Promise<void> {
     }
     const { data } = client.auth.onAuthStateChange((_event, session) => {
       heardFromAuth = true;
-      setState(stateFor(session));
+      setState(stateFor(session), true);
     });
     stopListening = () => data.subscription.unsubscribe();
     try {
@@ -217,6 +235,27 @@ function subscribe(listener: () => void): () => void {
   void start();
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/** Starts listening to Supabase Auth (loading supabase-js) unless it already is. Never rejects. */
+export function ensureSessionStarted(): Promise<void> {
+  return start();
+}
+
+/**
+ * Calls `listener` with the state after every change and every auth event (a refreshed token, or
+ * a sign-in again as the same user, passes on the same state), until the returned function is
+ * called. Passive: it never starts the client, so supabase-js stays unloaded until a sign-in,
+ * ensureSessionStarted() or a screen showing the session loads it. A listener can run inside
+ * supabase-js's onAuthStateChange, where awaiting another Supabase call waits on the auth lock
+ * that event holds: defer that work (setTimeout 0).
+ */
+export function watchSession(listener: (state: SessionState) => void): () => void {
+  const notify = () => listener(readSession());
+  listeners.add(notify);
+  return () => {
+    listeners.delete(notify);
   };
 }
 
@@ -239,7 +278,7 @@ export function isAuthConfigured(): boolean {
 
 /** Live session state; every caller shares one subscription. */
 export function useSession(): SessionState {
-  return useSyncExternalStore(subscribe, readState, readState);
+  return useSyncExternalStore(subscribe, readSession, readSession);
 }
 
 function expiresWithin(session: Session, ms: number): boolean {
@@ -257,7 +296,13 @@ function throwUnlessSignedOut(error: unknown): null {
   return null;
 }
 
-export async function getAccessToken(): Promise<string | null> {
+function authFor(session: Session): AuthInfo {
+  const { id: userId, email } = session.user;
+  return email ? { token: session.access_token, userId, email } : { token: session.access_token, userId };
+}
+
+/** The signed-in user's token (refreshed when it runs out within 60 s), id and email. See the header. */
+export async function getAuth(): Promise<AuthInfo | null> {
   if (!isAuthConfigured()) return null;
   // supabase-js not loading, or getSession throwing, rejects too: the session couldn't be checked.
   const client = await getSupabase();
@@ -266,12 +311,16 @@ export async function getAccessToken(): Promise<string | null> {
   const { data, error } = await client.auth.getSession();
   const session = data.session;
   if (!session) return throwUnlessSignedOut(error);
-  if (!expiresWithin(session, REFRESH_MARGIN_MS)) return session.access_token;
+  if (!expiresWithin(session, REFRESH_MARGIN_MS)) return authFor(session);
   const refreshed = await client.auth.refreshSession();
-  if (refreshed.data.session) return refreshed.data.session.access_token;
+  if (refreshed.data.session) return authFor(refreshed.data.session);
   // Couldn't refresh (offline): the old token still works until it runs out.
-  if (!expiresWithin(session, 0)) return session.access_token;
+  if (!expiresWithin(session, 0)) return authFor(session);
   return throwUnlessSignedOut(refreshed.error ?? new Error('The session ran out and could not be refreshed.'));
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  return (await getAuth())?.token ?? null;
 }
 
 async function requireClient(): Promise<SupabaseClient> {
@@ -304,7 +353,7 @@ export async function signIn(email: string, password: string): Promise<void> {
   }
   if (!session) throw new SignInError('unknown', SIGN_IN_MESSAGES.failed);
   heardFromAuth = true;
-  setState(stateFor(session));
+  setState(stateFor(session), true);
 }
 
 /** Forgets this phone's session (other devices stay signed in). Always ends signed out. */

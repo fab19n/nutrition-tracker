@@ -226,6 +226,19 @@ describe('S47 estimate failed', () => {
     expect(useUiStore.getState().reviewDraft?.meta.text).toBe('nasi goreng pattaya');
   });
 
+  it('starts your own kcal with the text cut to 60 characters, never half an emoji', async () => {
+    const user = userEvent.setup();
+    override.estimate = async () => {
+      throw new Error('server down');
+    };
+    useUiStore.getState().setReviewDraft(textDraft(`${'a'.repeat(59)}🍜🍜 malam`, context()));
+    renderLogRoutes(PATHS.estimating);
+
+    await user.click(await screen.findByRole('button', { name: 'Enter kcal yourself' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Enter kcal yourself' });
+    expect(within(sheet).getByLabelText('What was it?')).toHaveValue(`${'a'.repeat(59)}🍜`);
+  });
+
   it('fails in place when nothing in the text is food, and lets you pick from your library', async () => {
     const user = userEvent.setup();
     useUiStore.getState().setReviewDraft(textDraft('yesterday at the office', context()));

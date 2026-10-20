@@ -9,6 +9,7 @@ import { db } from '@/db/db';
 import { usePersonalItems, usePlace, useUsuals } from '@/db/hooks';
 import { discardPhoto, loadEstimateContext } from '@/db/logging';
 import { getPhoto, getProfile } from '@/db/repo';
+import { clipText } from '@/domain/text';
 import type { MealItem } from '@/domain/types';
 import { estimateMeal, needsAi } from '@/estimate/service';
 import type { EstimateRequest, EstimateResult } from '@/estimate/types';
@@ -235,7 +236,7 @@ function ManualFallback({ open, onClose, defaultName, onAdd }: { open: boolean; 
 function ManualForm({ defaultName, onAdd }: { defaultName: string; onAdd: (item: MealItem) => void }) {
   const nameId = useId();
   const kcalId = useId();
-  const [name, setName] = useState(defaultName.slice(0, 60));
+  const [name, setName] = useState(() => clipText(defaultName, 60));
   const [kcal, setKcal] = useState('');
   const value = Number(kcal);
   const valid = kcal.trim() !== '' && Number.isFinite(value) && value > 0 && value < 10000;

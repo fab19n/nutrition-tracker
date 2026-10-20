@@ -1,10 +1,11 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/db';
 import { deleteMeal, loadDemoData, resetAll, setWeeklyFocus } from '@/db/actions';
 import { putDayRecord } from '@/db/repo';
+import { DEMO_IDS } from '@/db/seed/demo';
 import { instantAt } from '@/domain/day';
 import { FOCUS_RULES } from '@/domain/focus';
 import { resetUiState, useUiStore } from '@/state/ui';
@@ -12,6 +13,37 @@ import TodayScreen from './TodayScreen';
 
 const WEEK = '2026-10-12';
 const YESTERDAY = '2026-10-15';
+
+// The meal badge reads the sync engine's phase; the engine itself never runs in these tests.
+const syncEngine = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const current: { state: import('@/sync').EngineState } = { state: { phase: 'starting' } };
+  return {
+    current,
+    listeners,
+    set(state: import('@/sync').EngineState) {
+      current.state = state;
+      for (const listener of [...listeners]) listener();
+    },
+  };
+});
+vi.mock('@/sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/sync')>()),
+  getEngineState: () => syncEngine.current.state,
+  subscribeEngine: (listener: () => void) => {
+    syncEngine.listeners.add(listener);
+    return () => syncEngine.listeners.delete(listener);
+  },
+}));
+
+/** This device synced with an account, and the meal is still queued to go there. */
+async function queueForSync(mealId: string) {
+  await db.syncMeta.put({
+    id: 'sync',
+    link: { userId: 'user-1', dataset: 'dataset-1', deviceId: 'device-1', cursor: 0, protocol: 1, linkedAt: 0 },
+  });
+  await db.syncOutbox.put({ table: 'meals', key: mealId, changedAt: 1, nonce: 'nonce-1' });
+}
 
 function renderToday() {
   const router = createMemoryRouter(
@@ -30,6 +62,7 @@ function renderToday() {
 describe('TodayScreen (S08)', () => {
   beforeEach(async () => {
     resetUiState();
+    syncEngine.current.state = { phase: 'starting' };
     await resetAll();
     await loadDemoData();
   });
@@ -173,5 +206,22 @@ describe('TodayScreen (S08)', () => {
     expect(screen.getByText('Nothing logged yet')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log a meal' }));
     expect(router.state.location.search).toBe('?sheet=log');
+  });
+
+  it('shows Waiting to sync on a meal still queued here while sync is stuck, not while it runs', async () => {
+    await queueForSync(DEMO_IDS.meals.todayBreakfast);
+    syncEngine.current.state = { phase: 'idle' };
+    renderToday();
+
+    const breakfast = await screen.findByRole('button', { name: /^Breakfast · 10:40am/ });
+    expect(screen.queryByText('Waiting to sync')).not.toBeInTheDocument();
+
+    act(() => syncEngine.set({ phase: 'offline' }));
+    expect(await within(breakfast).findByText('Waiting to sync')).toBeInTheDocument();
+    // Lunch isn't queued.
+    expect(screen.getAllByText('Waiting to sync')).toHaveLength(1);
+
+    act(() => syncEngine.set({ phase: 'syncing' }));
+    await waitFor(() => expect(screen.queryByText('Waiting to sync')).not.toBeInTheDocument());
   });
 });

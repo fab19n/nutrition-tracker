@@ -4,8 +4,10 @@
  * is no client and the app runs without an account.
  *
  * supabase-js is imported on first use, so it stays out of the app's first load (the service worker
- * still precaches its chunk for offline use). Sign-in only protects the AI estimate function
- * (ARCHITECTURE.md §7).
+ * still precaches its chunk for offline use). Nothing else imports a value from it: everywhere
+ * else takes the client from getSupabase(). It serves sign-in (./session), whose token also
+ * protects the AI estimate function (ARCHITECTURE.md §7), and the account's synced copy of the
+ * diary (src/sync/remote.ts over supabase/sync.sql, §6.2).
  */
 import type { SupabaseClient, SupportedStorage } from '@supabase/supabase-js';
 
