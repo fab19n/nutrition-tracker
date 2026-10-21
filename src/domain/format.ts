@@ -89,6 +89,17 @@ export function fmtKgDelta(kg: number): string {
   return `${fmtOneDecimal(kg, true)} kg`;
 }
 
+/**
+ * Paces and trend rates to the nearest 0.05 kg, where fmtKg's one decimal would turn the
+ * design's "0.25 kg a week" into "0.3": 0.2348 → '0.25 kg', 0.5 → '0.5 kg', 0.75 → '0.75 kg',
+ * −0.25 → '−0.25 kg', 1 → '1 kg', 0.01 → '0 kg'.
+ */
+export function fmtKgRate(kg: number): string {
+  if (!Number.isFinite(kg)) return `${PLACEHOLDER} kg`;
+  const rounded = noNegativeZero(Math.round(kg * 20) / 20);
+  return `${rounded < 0 ? MINUS : ''}${String(Math.abs(rounded))} kg`;
+}
+
 /** 9.5 → 'RM 9.50'. */
 export function fmtRm(rm: number): string {
   if (!Number.isFinite(rm)) return `RM ${PLACEHOLDER}`;
@@ -135,6 +146,19 @@ export function fmtDayLetter(day: LogicalDay): string {
 export function fmtDayShort(day: LogicalDay): string {
   const p = dayParts(day);
   return `${fmtWeekday(day)} ${p.day} ${monthShort(p.month)}`;
+}
+
+/** '2026-10-16' → '16 Oct 2026': no weekday, with the year, for things that can be over a year old. */
+export function fmtDateYear(day: LogicalDay): string {
+  const p = dayParts(day);
+  return `${p.day} ${monthShort(p.month)} ${p.year}`;
+}
+
+/** Whole days since: 0 → 'today', 1 → 'yesterday', 41 → '41 days ago'. */
+export function ageText(days: number): string {
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${fmtInt(days)} days ago`;
 }
 
 /** '2026-10-12', '2026-10-18' → '12–18 Oct'; across months '28 Sep–4 Oct'. */

@@ -1,4 +1,5 @@
 import type { KiraMakanDb } from '@/db/db';
+import { comparePeriods, periodOn } from '@/domain/goals';
 import type { Goal, GoalPeriod, GoalStatus, GoalVersion, Id, LogicalDay } from '@/domain/types';
 import { byKeys, type Patch } from './util';
 
@@ -77,8 +78,9 @@ export async function latestGoalVersion(db: KiraMakanDb, goalId: Id): Promise<Go
 // Periods: which goal applied when (`to` is exclusive)
 // ---------------------------------------------------------------------------
 
+/** Every period in the order they resolve (comparePeriods): by `from`, then booking time, then id. */
 export function listGoalPeriods(db: KiraMakanDb): Promise<GoalPeriod[]> {
-  return db.goalPeriods.orderBy('from').toArray();
+  return db.goalPeriods.toArray().then((periods) => periods.sort(comparePeriods));
 }
 
 export async function putGoalPeriod(db: KiraMakanDb, period: GoalPeriod): Promise<void> {
@@ -93,13 +95,10 @@ export async function deleteGoalPeriod(db: KiraMakanDb, id: Id): Promise<void> {
   await db.goalPeriods.delete(id);
 }
 
-function periodCovers(period: GoalPeriod, day: LogicalDay): boolean {
-  return period.from <= day && (period.to === undefined || day < period.to);
-}
-
+/** The period that applies on `day`: of those covering it, the one that sorts last (comparePeriods). */
 export async function goalPeriodOn(db: KiraMakanDb, day: LogicalDay): Promise<GoalPeriod | undefined> {
   const candidates = await db.goalPeriods.where('from').belowOrEqual(day).toArray();
-  return candidates.filter((p) => periodCovers(p, day)).sort(byKeys((p) => p.from)).at(-1);
+  return periodOn(candidates, day);
 }
 
 /** Periods that touch any day in [from, to] (both inclusive), oldest first. */

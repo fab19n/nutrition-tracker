@@ -7,13 +7,14 @@ import { SubScreenHeader } from '@/components/TopBar/TopBar';
 import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Pill';
 import { db } from '@/db/db';
-import { backupFilename, exportAll, exportCsv } from '@/db/export';
+import { exportCsv } from '@/db/export';
 import { useProfile, useToday } from '@/db/hooks';
 import { readLastExport, writeLastExport, type ExportKind, type LastExport } from '@/db/settings';
 import { now } from '@/domain/clock';
 import { logicalDayOf } from '@/domain/day';
 import { fmtDayShort, fmtInt, fmtTime } from '@/domain/format';
 import { useUiStore } from '@/state/ui';
+import { downloadFile, saveFullBackup } from './exportFiles';
 import styles from './ExportScreen.module.css';
 
 const OPTIONS: readonly (OptionItem & { id: ExportKind })[] = [
@@ -25,21 +26,6 @@ const KIND_LABEL: Record<ExportKind, string> = { json: 'Full backup', csv: 'Spre
 
 function isExportKind(id: string): id is ExportKind {
   return id === 'json' || id === 'csv';
-}
-
-/** Saves a file through a temporary object URL and an <a download>. */
-function download(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.rel = 'noopener';
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Give the browser a moment to start the download before the URL goes.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function lastExportLine(last: LastExport | null, tz: string | undefined): string {
@@ -63,17 +49,18 @@ export default function ExportScreen() {
   const runExport = async () => {
     setBusy(true);
     try {
+      let record: LastExport;
       if (kind === 'json') {
-        const filename = backupFilename(today);
-        download(await exportAll(db), filename);
-        showToast(`Backup done · ${filename}`);
+        const saved = await saveFullBackup(db, today);
+        record = saved.record;
+        showToast(`Backup done · ${saved.filename}`);
       } else {
         const files = await exportCsv(db);
-        for (const file of files) download(file.blob, file.filename);
+        for (const file of files) downloadFile(file.blob, file.filename);
         showToast(`${fmtInt(files.length)} spreadsheet files ready`);
+        record = { at: now().toISOString(), kind };
+        writeLastExport(record);
       }
-      const record: LastExport = { at: now().toISOString(), kind };
-      writeLastExport(record);
       setLast(record);
     } catch {
       showToast("Couldn't export right now. Try again.");

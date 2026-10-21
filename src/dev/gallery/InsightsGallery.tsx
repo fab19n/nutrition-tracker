@@ -3,6 +3,7 @@ import { EvidenceList, type EvidenceItem } from '@/components/EvidenceList/Evide
 import { InsightCard } from '@/components/InsightCard/InsightCard';
 import { RecurringList } from '@/components/RecurringRow/RecurringRow';
 import { SuggestionCard, SurpriseCard } from '@/components/SuggestionCard/SuggestionCard';
+import { TargetSuggestionCard, type TargetSuggestionCardProps } from '@/components/TargetSuggestionCard/TargetSuggestionCard';
 
 // ---------------------------------------------------------------------------
 // Sample data (design_handoff.md §9.7, §9.8)
@@ -32,6 +33,30 @@ const LONG_DAYS = {
   linkLabel: 'See 3 days',
   tryText: 'an earlier first meal on WFH days',
   meta: 'Early read · based on 9 days',
+};
+
+/** S37 sample (handoff S37): ~2,100 maintenance, 1,800 → 1,550 at 0.5 kg a week, or 1,825 at 0.25. */
+const TARGET: TargetSuggestionCardProps = {
+  meta: 'Based on 4 weeks',
+  headline: 'Your real maintenance looks like ~2,100, not 2,350',
+  working: 'You logged ~1,820 a day, and your trend dropped 0.25 kg a week.',
+  currentKcal: '1,800',
+  suggestedKcal: '1,550',
+  targetNote: 'At your 0.5 kg a week pace, never below your 1,400 minimum.',
+  startsNote: 'Starts tomorrow (Sat) if you approve.',
+  onApprove: noop,
+};
+
+const TARGET_FULL: Partial<TargetSuggestionCardProps> = {
+  variant: 'full',
+  workingRows: [
+    { label: 'Logged', value: '~1,820 a day' },
+    { label: 'Trend', value: '−0.25 kg a week ≈ +275 a day' },
+    { label: 'Maintenance', value: '~2,100 a day', strong: true },
+  ],
+  basis: 'From 28 complete days, Mon 28 Sep to Sun 25 Oct. Days with a guess, not counted or not confirmed are left out. Checked again on Mon 2 Nov.',
+  startsNote: 'Starts tomorrow (Sat). Today and earlier days keep their target.',
+  weekLine: 'This week: 5 days at 1,800 + 2 days at 1,550 = 12,100 kcal',
 };
 
 const EVIDENCE_ITEMS: EvidenceItem[] = [
@@ -159,6 +184,38 @@ function InsightStates() {
   );
 }
 
+function TargetStates() {
+  return (
+    <Group title="C45 TargetSuggestionCard">
+      <State label="C45 TargetSuggestionCard / Compact · waiting (Insights)">
+        <TargetSuggestionCard {...TARGET} onKeep={noop} onDetails={noop} />
+      </State>
+      <State label="C45 TargetSuggestionCard / Full · change pace instead">
+        <TargetSuggestionCard {...TARGET} {...TARGET_FULL} onKeep={noop} slowerPace={{ detail: '0.25 kg a week → 1,825 a day', onChoose: noop }} />
+      </State>
+      <State label="C45 TargetSuggestionCard / Full · held at your minimum">
+        <TargetSuggestionCard
+          {...TARGET}
+          {...TARGET_FULL}
+          suggestedKcal="1,600"
+          targetNote="At your 0.5 kg a week pace it would be 1,550, so it stays at your 1,600 minimum."
+          weekLine="This week: 5 days at 1,800 + 2 days at 1,600 = 12,200 kcal"
+          onKeep={noop}
+          slowerPace={{ detail: '0.25 kg a week → 1,825 a day', onChoose: noop }}
+        />
+      </State>
+      <State label="C45 TargetSuggestionCard / Full · kept">
+        <TargetSuggestionCard
+          {...TARGET}
+          {...TARGET_FULL}
+          keptNote="You kept 1,800 on Fri 30 Oct. The suggestion comes back on Fri 27 Nov, or sooner if your maintenance moves by more than 100 kcal."
+          slowerPace={{ detail: '0.25 kg a week → 1,825 a day', onChoose: noop }}
+        />
+      </State>
+    </Group>
+  );
+}
+
 function EvidenceStates() {
   return (
     <Group title="C42 EvidenceList">
@@ -191,7 +248,7 @@ function RecurringStates() {
   );
 }
 
-/** /dev section: suggestions and insights (C40–C43) in every state. */
+/** /dev section: suggestions and insights (C40–C43, C45) in every state. */
 export function InsightsGallery() {
   return (
     <section style={css.section} aria-labelledby="insights-gallery-title">
@@ -200,6 +257,7 @@ export function InsightsGallery() {
       </h2>
       <SuggestionStates />
       <InsightStates />
+      <TargetStates />
       <EvidenceStates />
       <RecurringStates />
     </section>

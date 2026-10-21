@@ -1,3 +1,5 @@
+import type { GoalTemplate } from '@/domain/types';
+
 /** Route paths (ARCHITECTURE.md §8). Build links with these, never with string literals. */
 export const PATHS = {
   today: '/',
@@ -6,10 +8,14 @@ export const PATHS = {
   entry: (id: string) => `/diary/entry/${encodeURIComponent(id)}`,
   insights: '/insights',
   weekly: '/insights/weekly',
+  /** S37 Target suggestion (and the target history). */
+  target: '/insights/target',
   more: '/more',
   weight: '/more/weight',
   settings: '/more/settings',
   export: '/more/export',
+  /** S39 Backups: sync state, Export now, Restore from a file. */
+  backups: '/more/backups',
   places: '/more/places',
   place: (id: string) => `/more/places/${encodeURIComponent(id)}`,
   usuals: '/more/usuals',
@@ -18,7 +24,13 @@ export const PATHS = {
   pot: (id: string) => `/more/pots/${encodeURIComponent(id)}`,
   activity: '/more/activity',
   workoutNew: '/more/activity/new',
-  /** Placeholder for screens planned in later phases (Goals, Reminders, Backups). */
+  /** S41 Goals library. */
+  goals: '/more/goals',
+  /** S43 New goal, with a template chip picked. */
+  goalNew: (template?: GoalTemplate) => (template ? `/more/goals/new?template=${template}` : '/more/goals/new'),
+  /** S42 Goal detail / edit. */
+  goal: (id: string) => `/more/goals/${encodeURIComponent(id)}`,
+  /** Placeholder for screens planned in later phases (Reminders). */
   soon: (what: string) => `/more/soon/${encodeURIComponent(what)}`,
   estimating: '/log/estimating',
   review: '/log/review',

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { MapPin, Scale, Utensils } from 'lucide-react';
+import { FileCheck, FileClock, FileDown, MapPin, Scale, Utensils } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MealRow } from '@/components/MealRow/MealRow';
 import { EmptySlot, MealSectionHeader } from '@/components/EmptySlot/EmptySlot';
@@ -12,6 +12,7 @@ import { WeightEntry } from '@/components/WeightEntry/WeightEntry';
 import { SetupStep } from '@/components/SetupStep/SetupStep';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsRow/SettingsRow';
 import { BackupStatus, type BackupState } from '@/components/BackupStatus/BackupStatus';
+import { BackupPreview } from '@/components/BackupPreview/BackupPreview';
 import { SyncStatus } from '@/components/SyncStatus/SyncStatus';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { SkeletonList } from '@/components/Skeleton/Skeleton';
@@ -19,9 +20,12 @@ import { PermissionPrimer } from '@/components/PermissionPrimer/PermissionPrimer
 import { InstallPrompt } from '@/components/InstallPrompt/InstallPrompt';
 import { ConfirmDialog, ConfirmDialogPanel } from '@/components/ConfirmDialog/ConfirmDialog';
 import { SleepTap } from '@/components/SleepTap/SleepTap';
+import type { BackupPreview as BackupFilePreview } from '@/db/export';
 import type { CheckInChoice } from '@/db/selectors';
+import type { BackupStatus as BackupFileStatus } from '@/domain/backup';
 import { DEMO_NOW_ISO } from '@/domain/clock';
 import { DEFAULT_TZ } from '@/domain/day';
+import { exportCardCopy, previewCard, type ExportCardCopy } from '@/screens/Backups/backupsModel';
 import { describeSync, type SyncView } from '@/sync/status';
 import { CHECK_IN_CAPTIONS, CheckInTimelineSample } from './checkInSample';
 
@@ -91,6 +95,52 @@ const SYNC_STATES: { label: string; view: Partial<SyncView> }[] = [
   { label: 'Signed in to another account', view: { phase: 'otherAccount', sessionEmail: 'other@example.com' } },
   { label: 'Account copy deleted', view: { phase: 'cloudReset' } },
   { label: "Getting the account's data", view: { phase: 'restoring', linked: false, progress: { done: 600, total: 1840 } } },
+];
+
+/** The backup-file card on Backups: its copy comes from exportCardCopy, so each state here is the app's own. */
+const FILE_STATES: { label: string; status: BackupFileStatus }[] = [
+  { label: 'Saved', status: { kind: 'exported', at: DEMO_NOW_ISO, day: '2026-10-16', days: 0, due: false } },
+  { label: 'Due', status: { kind: 'exported', at: '2026-09-01T11:10:00.000Z', day: '2026-09-01', days: 45, due: true } },
+  { label: 'None yet', status: { kind: 'never', diaryDays: 10, due: false } },
+];
+const FILE_ICONS: Record<ExportCardCopy['icon'], typeof FileCheck> = { check: FileCheck, down: FileDown, clock: FileClock };
+
+/** Restore from a backup file › the preview card, written by previewCard from a file's contents. */
+const PREVIEW_NOW = new Date('2026-11-19T04:00:00.000Z');
+const PREVIEW_COUNTS: BackupFilePreview['counts'] = {
+  profile: 1,
+  goals: 4,
+  goalVersions: 6,
+  goalPeriods: 3,
+  meals: 1240,
+  weights: 62,
+  workouts: 3,
+  bonuses: 1,
+  days: 180,
+  weekPlans: 20,
+  places: 12,
+  usuals: 4,
+  pots: 1,
+  photos: 0,
+  insightFeedback: 2,
+  suggestionEvents: 14,
+  personalItems: 3,
+};
+const PREVIEW_FILE: BackupFilePreview = {
+  exportedAt: DEMO_NOW_ISO,
+  photos: 'omitted',
+  counts: PREVIEW_COUNTS,
+  mealDays: { from: '2026-03-03', to: '2026-10-16' },
+  timeZone: DEFAULT_TZ,
+};
+const NO_MEALS: BackupFilePreview['counts'] = { ...PREVIEW_COUNTS, meals: 0, weights: 0, workouts: 0, places: 0, usuals: 0, pots: 0, goals: 0, bonuses: 0, days: 0, weekPlans: 0, insightFeedback: 0, suggestionEvents: 0, personalItems: 0 };
+const PREVIEW_STATES: { label: string; card: Parameters<typeof previewCard>[0] }[] = [
+  { label: 'Full', card: { fileName: 'kira-makan-backup-2026-10-16.json', preview: PREVIEW_FILE, comparison: null, word: 'phone', now: PREVIEW_NOW } },
+  { label: 'No meals', card: { fileName: 'kira-makan-backup-2026-10-16.json', preview: { ...PREVIEW_FILE, counts: NO_MEALS }, comparison: null, word: 'phone', now: PREVIEW_NOW } },
+  { label: 'Photos included', card: { fileName: 'kira-makan-backup-with-photos.json', preview: { ...PREVIEW_FILE, photos: 'included', counts: { ...PREVIEW_COUNTS, photos: 212 } }, comparison: null, word: 'phone', now: PREVIEW_NOW } },
+  { label: 'Amber note', card: { fileName: 'kira-makan-backup-2026-10-16.json', preview: PREVIEW_FILE, comparison: { meals: 1252, weights: 65, onlyHere: { meals: 12, weights: 3 } }, word: 'phone', now: PREVIEW_NOW } },
+  { label: 'Neutral note', card: { fileName: 'kira-makan-backup-2026-10-16.json', preview: PREVIEW_FILE, comparison: { meals: 1240, weights: 62, onlyHere: { meals: 0, weights: 0 } }, word: 'device', now: PREVIEW_NOW } },
+  { label: 'Date unknown', card: { fileName: 'a-very-long-file-name-that-keeps-going-and-going-until-it-no-longer-fits-in-the-card.json', preview: { ...PREVIEW_FILE, exportedAt: null }, comparison: null, word: 'phone', now: PREVIEW_NOW } },
 ];
 
 // ---------------------------------------------------------------------------
@@ -466,6 +516,33 @@ function BackupStates() {
   );
 }
 
+function FileBackupStates() {
+  return (
+    <Group title="Backups: the backup-file card and the preview (S39)">
+      {FILE_STATES.map(({ label, status }) => {
+        const copy = exportCardCopy(status, { tz: DEFAULT_TZ, linked: false });
+        return (
+          <State key={label} label={`SyncStatus / File backup (${label})`}>
+            <SyncStatus
+              tone={copy.tone}
+              pill={copy.pill}
+              title={copy.title}
+              detail={copy.detail}
+              icon={FILE_ICONS[copy.icon]}
+              actions={[{ id: 'export', label: 'Export now', variant: copy.action, onPress: noop }]}
+            />
+          </State>
+        );
+      })}
+      {PREVIEW_STATES.map(({ label, card }) => (
+        <State key={label} label={`BackupPreview / ${label}`}>
+          <BackupPreview {...previewCard(card)} />
+        </State>
+      ))}
+    </Group>
+  );
+}
+
 function SyncStates() {
   return (
     <Group title="SyncStatus (Settings › Account and sync)">
@@ -681,6 +758,7 @@ export function LedgerGallery() {
       <SetupStates />
       <SettingsStates />
       <BackupStates />
+      <FileBackupStates />
       <SyncStates />
       <EmptyAndLoadingStates />
       <PrimerAndInstallStates />

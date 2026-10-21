@@ -1,4 +1,4 @@
-import { computeWeekBudget, daysInRange, spreadShortfall, type BudgetDayInput } from './budget';
+import { computeWeekBudget, daysInRange, proratedWeek, spreadShortfall, switchedWeek, type BudgetDayInput } from './budget';
 import { weekDays } from './day';
 import type { DayStatusKind } from './types';
 
@@ -427,5 +427,103 @@ describe('daysInRange', () => {
 
   it('is 0 for no days', () => {
     expect(daysInRange([], 2100, 0.1)).toBe(0);
+  });
+});
+
+describe('proratedWeek', () => {
+  const week = weekDays('2026-10-26');
+  const targets = (values: (number | null)[]) => week.map((d, i) => ({ day: d, targetKcal: i < values.length ? (values[i] ?? null) : 1800 }));
+
+  it('keeps today and earlier days, and takes the new target from tomorrow (S37)', () => {
+    expect(proratedWeek(targets([]), '2026-10-30', 1550)).toEqual({
+      startsOn: '2026-10-31',
+      sameWeek: true,
+      groups: [
+        { days: 5, kcal: 1800 },
+        { days: 2, kcal: 1550 },
+      ],
+      totalKcal: 12100,
+    });
+  });
+
+  it('has no week line on a Sunday: the new target starts with the next week', () => {
+    expect(proratedWeek(targets([]), '2026-11-01', 1550)).toEqual({ startsOn: '2026-11-02', sameWeek: false, groups: [], totalKcal: 0 });
+  });
+
+  it('leaves paused days out and groups past targets in order', () => {
+    const days = targets([1800, 1800, 1800, 1800, 1700, null, 1800]);
+    expect(proratedWeek(days, '2026-10-30', 1550).groups).toEqual([
+      { days: 4, kcal: 1800 },
+      { days: 1, kcal: 1700 },
+      { days: 1, kcal: 1550 },
+    ]);
+    expect(proratedWeek(targets([1800, 1800, 1800, 1800, 1700]), '2026-10-30', 1550)).toMatchObject({
+      groups: [
+        { days: 4, kcal: 1800 },
+        { days: 1, kcal: 1700 },
+        { days: 2, kcal: 1550 },
+      ],
+      totalKcal: 4 * 1800 + 1700 + 2 * 1550,
+    });
+  });
+});
+
+describe('switchedWeek (S44)', () => {
+  // Mon 12 – Sun 18 Oct 2026, the demo week.
+  const week = weekDays('2026-10-12');
+  const all = (kcal: number | null) => week.map((day) => ({ day, targetKcal: kcal }));
+  const [mon, , wed, thu, fri, sat, sun] = week;
+
+  it('keeps today and earlier days and takes the new goal from tomorrow: 5 × 1,800 + 2 × 2,100', () => {
+    expect(switchedWeek(all(1800), '2026-10-16', () => 2100)).toEqual({
+      startsOn: '2026-10-17',
+      sameWeek: true,
+      groups: [
+        { days: 5, kcal: 1800 },
+        { days: 2, kcal: 2100 },
+      ],
+      totalKcal: 13200,
+      pausedDays: [],
+    });
+  });
+
+  it('names the days a pause leaves without a budget', () => {
+    expect(switchedWeek(all(1800), '2026-10-16', () => null)).toEqual({
+      startsOn: '2026-10-17',
+      sameWeek: true,
+      groups: [{ days: 5, kcal: 1800 }],
+      totalKcal: 9000,
+      pausedDays: ['2026-10-17', '2026-10-18'],
+    });
+  });
+
+  it('skips an earlier pause without breaking the group', () => {
+    const days = week.map((day) => ({ day, targetKcal: day === wed || day === thu || day === fri ? null : 1800 }));
+    expect(switchedWeek(days, '2026-10-16', () => 1800)).toMatchObject({
+      groups: [{ days: 4, kcal: 1800 }],
+      totalKcal: 7200,
+      pausedDays: [wed, thu, fri],
+    });
+    expect(mon).toBe('2026-10-12');
+  });
+
+  it('has no week line on a Sunday', () => {
+    expect(switchedWeek(all(1800), '2026-10-18', () => 2100)).toEqual({
+      startsOn: '2026-10-19',
+      sameWeek: false,
+      groups: [],
+      totalKcal: 0,
+      pausedDays: [],
+    });
+  });
+
+  it('pauses until Saturday inside the week', () => {
+    const until = sat ?? '';
+    expect(switchedWeek(all(1800), '2026-10-14', (day) => (day < until ? null : 1800))).toMatchObject({
+      groups: [{ days: 5, kcal: 1800 }],
+      totalKcal: 9000,
+      pausedDays: [thu, fri],
+    });
+    expect(sun).toBe('2026-10-18');
   });
 });

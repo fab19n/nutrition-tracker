@@ -227,10 +227,10 @@ Each component lists its **variants and states**. Design all of them.
 |---|---|---|---|
 | C53 | **SetupStep** | Progress indicator, question, input, Next, optional Skip | S02–S07 |
 | C54 | **SettingsRow** | Label, value, chevron or toggle; destructive version | Settings |
-| C55 | **BackupStatus** | Connected / not connected / failed, last backup, Back up now | S39 |
+| C55 | **BackupStatus** | Connected / not connected / failed, last backup, Back up now | The later Google Drive photo sync (not S39 as built) |
 | C56 | **EmptyState** | Illustration slot, headline, one line, action button | Many |
 | C57 | **SkeletonLoader** | Placeholder item rows for AI estimating and lists | S10, lists |
-| C58 | **PermissionPrimer** | A short explanation shown before the system prompt, for location, notifications and Google Drive | When first needed |
+| C58 | **PermissionPrimer** | A short explanation shown before the system prompt, for location, notifications and Google Drive (photo sync, later) | When first needed |
 | C59 | **InstallPrompt** | iOS (Share → Add to Home Screen) and Android (Install app) versions | S01 |
 | C60 | **ConfirmDialog** | Delete entry; delete everything (type "DELETE" to confirm) | Edit, Settings |
 | C61 | **SleepTap** | "Going to sleep" button with a moon icon; appears on Today in the evening, near your usual sleep time. States: hidden, shown, tapped ("Good night · 1:30am", with undo). Optional; the app works without it | S08 Today |
@@ -328,7 +328,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 
 #### S01 Welcome and install
 - **Purpose:** first open; get the app installed on the home screen.
-- **Layout:** app name and icon → one line: "A calorie budget that speaks Malaysian food" (Designer's call on wording) → Get started → InstallPrompt [C59] (iOS / Android versions).
+- **Layout:** app name and icon → one line: "A calorie budget that speaks Malaysian food" (Designer's call on wording) → Get started → Restore from your account (the deployed app only) → **Restore from a backup file** (a file picker; it needs no account) → Explore with sample data → InstallPrompt [C59] (iOS / Android versions). A backup file opens the same restore sheet as Backups: what is in it, **Restore this backup**, then Today with "Restored · N meals". No confirm and no export-first: nothing here can be lost.
 - **States:** in browser (show install prompt) · already installed (skip straight to setup).
 
 #### S02–S07 Setup (about 2 minutes) [C53]
@@ -534,8 +534,11 @@ Layouts run top to bottom. Component IDs are in brackets.
 - Morning check-in (on) · **Gap nudges** (locked until about day 14: "Switches on once the app knows your pattern") · Weekly review notification (Sunday night) · Quiet hours (from your sleep taps, or custom).
 
 #### S39 Backups
-- PermissionPrimer [C58] ("Saves a weekly copy to a folder in your Google Drive. The app can only see files it creates.") → Connect Google Drive → BackupStatus [C55]: Last backup Sun 9:00pm · Keeps last 12 · Back up now · Disconnect.
-- **States:** not connected · connected · failed ("Couldn't reach Google Drive. Retry") · in progress.
+- **What it is:** where a copy of the diary lives. Settings › Backups opens it. It is built on the two-way sync and the JSON export; Google Drive is not involved (C55 and C58 stay as the designs for the later Drive photo sync).
+- **Layout:** intro line → **Your account** (the sync card, same copy as Settings: Up to date · Syncing · Needs you · Offline · Off; Sync now and Try again run here, anything else is one **Open Settings**; an *Account and sync* row leads to Settings) → **Backup file** (a card with a file icon: *No export yet / None yet*, *Last export 3 days ago / Saved*, or *Due*; **Export now**; "The file goes to your downloads. Keep a copy somewhere off this phone."; *Other export options* leads to S20) → **Restore** ("Restore from a backup file" and **Choose a backup file**).
+- **Monthly nudge:** a full backup (JSON) older than 30 calendar days, or none for a diary that old, with at least one meal and never in demo mode, turns the card to *Due* with the primary button and says how long it has been and what to do ("It's been a while. A fresh file takes a few seconds."). The same sentence shows under the Settings › Backups row ("Last export 45 days ago. Time for a new one."). No banner, dot or toast; it goes away once a file is saved. A spreadsheet export doesn't count.
+- **Restore sheet:** reading → preview (file name, "Exported 16 Oct 2026, 7:10pm", how many days ago, the counts, the span of the meals, the photos line, and in amber what on this phone is not in the file and will be lost) → **Restore this backup** → (a diary being replaced) a confirm, which on a device that syncs needs REPLACE typed → restoring (not dismissible) → **Backup restored**. **Export this phone first** runs in place from the preview. Sample-week data restores without a confirm and leaves demo.
+- **States:** unconfigured (no account section) · signed out ("Until you sign in, your diary is only on this phone…") · demo · Needs you (Restore is disabled with the reason) · syncing the diary (Restore is disabled) · a file that can't be used (not JSON, not a backup, newer version, damaged, no diary, the sample week, too big, can't be read) · storage full · account unreachable.
 
 #### S40 Notifications (push designs)
 | Notification | Example text |
@@ -544,7 +547,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 | Morning check-in | "Quick check: was yesterday's log complete?" |
 | Weekly review | "Your week is ready: +350 kcal, trend −0.4 kg" |
 | Target suggestion | "New target suggestion based on 3 weeks of data" |
-| Backup failed | "Weekly backup couldn't reach Google Drive" |
+| Backup failed | "Weekly backup couldn't reach Google Drive" (for the later Drive photo sync; no scheduled backup exists now) |
 
 ---
 
@@ -594,7 +597,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 | F13 | **Cook a pot** | Log → Pot → New pot → type recipe → oil → servings → Save → Log 1 serving | |
 | F14 | **Log a workout** | More → Activity → Log workout → Save → Today's "left" goes up | |
 | F15 | **Weigh-in** | Weight → number pad → Save → trend updates | Under 5 s |
-| F16 | **Connect backups** | Settings → Backups → primer → Google consent → Connected | |
+| F16 | **Back up and restore** | Settings → Backups → Export now → file in downloads. On a fresh phone: Welcome → Restore from a backup file → preview → Restore this backup → Today | |
 
 **Minimum clickable prototype:** F02, F03, F07, F09 and F10.
 

@@ -24,6 +24,7 @@ import {
 } from '@/db/repo';
 import { GOAL_PRESETS } from '@/db/seed/defaults';
 import { getActiveGoal, getDaySummary, getProteinLeft, getWeekBudget, loadSettings, todayFor, type Settings } from '@/db/selectors';
+import { getTargetCheck } from '@/db/targetSuggestion';
 import type { BudgetDay } from '@/domain/budget';
 import { now as clockNow } from '@/domain/clock';
 import { DEFAULT_ROLLOVER_HOUR, DEFAULT_TZ, addDays, compareDays, weekDays, weekStartOf } from '@/domain/day';
@@ -44,6 +45,7 @@ import {
   recurringItems,
   reviewWeekStart,
   timingGrid,
+  TOP_INSIGHTS,
   unlockProgress,
   weekNumberOf,
   weekPeriod,
@@ -63,6 +65,7 @@ import {
 } from '@/domain/insights';
 import { DEFAULT_MAX_WINDOW_HOURS, suggestSlot } from '@/domain/timing';
 import { suggestMeals, type IdeasMode, type MealSuggestion, type SuggestionRole } from '@/domain/suggestions';
+import { paceOf } from '@/domain/targets';
 import { trendChange, weekTrendChange, weightTrend } from '@/domain/trend';
 import type { Id, InsightFeedback, Instant, LogicalDay, MealLog, MealSlot, SuggestionEvent } from '@/domain/types';
 import { normaliseName } from '@/data/catalogue';
@@ -108,7 +111,7 @@ async function loadInsightState(db: KiraMakanDb, opts: ReadOptions, pickPeriod: 
   const today = opts.today ?? todayFor(profile, at);
   const period = pickPeriod(today, profile.startedOn, at, settings);
   const from = earlierOf(addDays(today, -HISTORY_DAYS), period.from);
-  const [meals, records, workouts, weights, places, feedback, active, budgetView] = await Promise.all([
+  const [meals, records, workouts, weights, places, feedback, active, budgetView, target] = await Promise.all([
     listMealsInRange(db, from, today),
     listDayRecordsInRange(db, from, today),
     listWorkoutsInRange(db, from, today),
@@ -117,6 +120,7 @@ async function loadInsightState(db: KiraMakanDb, opts: ReadOptions, pickPeriod: 
     listInsightFeedback(db),
     getActiveGoal(db, today),
     period.kind === 'week' ? getWeekBudget(db, period.from, { today }) : Promise.resolve(undefined),
+    getTargetCheck(db, { today }),
   ]);
   const ctx = buildInsightContext({
     today,
@@ -129,6 +133,7 @@ async function loadInsightState(db: KiraMakanDb, opts: ReadOptions, pickPeriod: 
     places,
     ...(active ? { goal: active.goal, version: active.version } : {}),
     ...(budgetView ? { budget: budgetView.budget } : {}),
+    ...(target ? { maintenance: target.check } : {}),
   });
   return { settings, today, at, ctx, evaluation: evaluateInsights(ctx, { feedback }), feedback, meals };
 }
@@ -215,7 +220,7 @@ export async function getInsightsView(db: KiraMakanDb, opts: ReadOptions = {}): 
 
   const tiles: InsightsView['tiles'] = {
     trendChangeKg,
-    paceKgPerWeek: ctx.goal?.paceKgPerWeek ?? 0,
+    paceKgPerWeek: ctx.goal ? paceOf(ctx.goal, ctx.version) : 0,
     complete: { done: finishedDays.filter((d) => d.status === 'complete').length, of: finishedDays.length },
   };
   if (latest) tiles.latestTrendKg = latest.trendKg;
@@ -245,7 +250,11 @@ export async function getInsightsView(db: KiraMakanDb, opts: ReadOptions = {}): 
   const finishedThisWeek = timingGrid(weekRows.filter((d) => compareDays(d.day, today) < 0), gridOpts);
   const finishedWeek = timingGrid(ctx.historyDays.slice(-7), gridOpts);
 
-  const highlightCategory = evaluation.top.find((i) => i.category !== undefined)?.category;
+  // While a target suggestion waits, its card (C45) leads the screen, so the same finding isn't in the top 3 too.
+  const top = ctx.maintenance?.kind === 'suggestion'
+    ? evaluation.ranked.filter((i) => i.ruleId !== 'maintenanceEstimate').slice(0, TOP_INSIGHTS)
+    : evaluation.top;
+  const highlightCategory = top.find((i) => i.category !== undefined)?.category;
   const view: InsightsView = {
     today,
     dayNumber: ctx.dayNumber,
@@ -263,7 +272,7 @@ export async function getInsightsView(db: KiraMakanDb, opts: ReadOptions = {}): 
       sundayNight: isSundayNight(today, at, settings.tz, settings.rolloverHour),
       rangeLabel: fmtDayRange(reviewWeek, addDays(reviewWeek, 6)),
     },
-    top: early ? [] : evaluation.top,
+    top: early ? [] : top,
     feedback: Object.fromEntries(state.feedback.map((f) => [f.ruleId, f])),
     categories: categoryShares(periodMeals, ctx.places),
     places: placeTotals(periodMeals, ctx.places),
@@ -391,7 +400,7 @@ export async function getWeeklyReview(db: KiraMakanDb, weekStart: LogicalDay, op
     daysInUse: ctx.periodDays.length,
     completeDays: finishedDays.filter((d) => d.status === 'complete').length,
     notCountedDays: finishedDays.filter((d) => d.status === 'notCounted').map((d) => d.day),
-    trend: { changeKg: weekTrendChange(weightTrend(await listWeights(db)), monday), paceKgPerWeek: ctx.goal?.paceKgPerWeek ?? 0 },
+    trend: { changeKg: weekTrendChange(weightTrend(await listWeights(db)), monday), paceKgPerWeek: ctx.goal ? paceOf(ctx.goal, ctx.version) : 0 },
     top: evaluation.top,
     focusOptions: focusOptions(evaluation.ranked),
   };
@@ -546,8 +555,11 @@ export function useMealIdeas(): MealIdeasView | undefined {
 // Actions
 // ---------------------------------------------------------------------------
 
+/** Answers on an insight card ("Keep current" belongs to the target suggestion, src/db/targetSuggestion.ts). */
+type InsightAnswer = Exclude<InsightFeedback['feedback'], 'keepCurrent'>;
+
 /** "Useful" or "Not for me" (which pauses the rule for about 4 weeks). The undo puts back the previous answer. */
-async function recordFeedbackIn(db: KiraMakanDb, ruleId: string, feedback: InsightFeedback['feedback'], today?: LogicalDay): Promise<Undo> {
+async function recordFeedbackIn(db: KiraMakanDb, ruleId: string, feedback: InsightAnswer, today?: LogicalDay): Promise<Undo> {
   const settings = await loadSettings(db);
   const day = today ?? todayFor(settings.profile);
   const previous = await getInsightFeedback(db, ruleId);
@@ -582,7 +594,7 @@ async function recordSuggestionEventIn(
 
 export function createInsightsActions(db: KiraMakanDb) {
   return {
-    recordFeedback: (ruleId: string, feedback: InsightFeedback['feedback'], today?: LogicalDay) => recordFeedbackIn(db, ruleId, feedback, today),
+    recordFeedback: (ruleId: string, feedback: InsightAnswer, today?: LogicalDay) => recordFeedbackIn(db, ruleId, feedback, today),
     clearFeedback: (ruleId: string) => clearFeedbackIn(db, ruleId),
     recordSuggestionEvent: (role: SuggestionRole, name: string, outcome?: SuggestionEvent['outcome']) =>
       recordSuggestionEventIn(db, role, name, outcome),

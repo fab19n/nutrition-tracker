@@ -164,8 +164,9 @@ function buildGoalVersions(goals: Goal[]): GoalVersion[] {
   ): GoalVersion => ({ id, goalId, effectiveFrom, ...targets, reason: 'setup', createdAt: createdAt(goalId) });
 
   const { goals: g, goalVersions: v } = DEMO_IDS;
-  // Cut keeps the setup estimate (2,350) because the S35 suggestion isn't approved yet. Festive
-  // and Lean bulk were drafted on 10 and 12 Oct from the adaptive estimate it shows (~2,100):
+  // Cut keeps the setup estimate (2,350) because no S37 target suggestion has been approved (it
+  // unlocks after 21 complete days; the demo Friday is day 19, so S37 shows its 'unlocks' state).
+  // Festive and Lean bulk were drafted on 10 and 12 Oct from an adaptive estimate of ~2,100:
   // Festive maintains at 2,100, Lean bulk adds 200.
   return [
     version(v.cut, g.cut, STARTED_ON, { dailyKcal: 1800, proteinG: 110, carbsG: 180, fatG: 60, maintenanceKcal: 2350 }),

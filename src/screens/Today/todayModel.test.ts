@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { ActiveGoal } from '@/db/selectors';
 import { buildGoal } from '@/db/seed/defaults';
 import { computeWeekBudget, type BudgetDayInput } from '@/domain/budget';
+import { checkTarget } from '@/domain/maintenance';
 import { slotBaselines } from '@/domain/timing';
 import type { GoalTemplate, GoalVersion } from '@/domain/types';
 import { joinNames, shortfallLine, soFarRange, targetsBreakdown, targetsTotal, weekdayLong } from './budgetText';
 import {
   eatenCaption,
+  goalEndNotice,
   goalPillLabel,
   heroFigures,
   makanCaption,
@@ -14,8 +16,10 @@ import {
   nextWeekendDay,
   nudgeLine,
   sleepTapVisible,
+  targetNotice,
   weekBarsFor,
 } from './todayModel';
+import { buildMaintenanceWorld, MAINTENANCE_WORLD, targetCheckInput, type MaintenanceWorldOptions } from '@/test/maintenanceWorld';
 
 const WEEK = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'];
 const TODAY = '2026-10-16';
@@ -218,5 +222,59 @@ describe('budget sheet text', () => {
     expect(shortfallLine(week([1800, 1800, 1800, 1800, 3000]), 1400)).toBe(
       "Sat and Sun allowance: 1,400 each, never below your 1,400 minimum. 400 kcal can't fit into the days left. It isn't carried into next week.",
     );
+  });
+});
+
+describe('targetNotice (S40, in-app)', () => {
+  const check = (opts: MaintenanceWorldOptions = {}) => checkTarget(targetCheckInput(buildMaintenanceWorld(opts)));
+
+  it('tells about a waiting suggestion once per key', () => {
+    expect(targetNotice(check(), null)).toEqual({
+      key: MAINTENANCE_WORLD.expected.noticeKey,
+      lead: 'New target suggestion',
+      rest: 'based on 4 weeks of data.',
+    });
+    expect(targetNotice(check(), 'version-cut-setup:2026-10-19')?.key).toBe(MAINTENANCE_WORLD.expected.noticeKey);
+    expect(targetNotice(check(), MAINTENANCE_WORLD.expected.noticeKey)).toBeUndefined();
+  });
+
+  it('counts whole weeks of data', () => {
+    // 23 complete days in the 28 to yesterday.
+    const young = check({ startedOn: '2026-10-07', weighInsFrom: '2026-09-07' });
+    expect(young.kind === 'suggestion' ? young.estimate.daysUsed : 0).toBe(23);
+    expect(targetNotice(young, null)?.rest).toBe('based on 3 weeks of data.');
+  });
+
+  it('says nothing for a kept suggestion, an on-track target or no check yet', () => {
+    const input = targetCheckInput(buildMaintenanceWorld());
+    const kept = checkTarget({ ...input, kept: { keptOn: '2026-10-30', until: '2026-11-27', maintenanceKcal: 2100, versionId: 'version-cut-setup' } });
+    expect(kept.kind).toBe('kept');
+    expect(targetNotice(kept, null)).toBeUndefined();
+    expect(targetNotice(check({ maintenanceKcal: 2060 }), null)).toBeUndefined();
+    expect(targetNotice(undefined, null)).toBeUndefined();
+  });
+});
+
+describe('goalEndNotice', () => {
+  const cut = buildGoal('cut', { id: 'goal-cut', createdAt: NOW.toISOString(), status: 'active' });
+
+  it('says the goal reached its end date, once per key', () => {
+    const end = { goal: cut, state: { kind: 'date' as const, date: TODAY, reached: true as const, daysLeft: 0 }, key: 'goal-cut:date:2026-10-16' };
+    expect(goalEndNotice(end, null)).toEqual({
+      key: 'goal-cut:date:2026-10-16',
+      lead: 'Your Cut goal reached its end date.',
+      rest: 'Pick what comes next.',
+    });
+    expect(goalEndNotice(end, 'goal-cut:date:2026-10-16')).toBeUndefined();
+    expect(goalEndNotice(end, 'goal-cut:date:2026-10-09')).toBeDefined();
+  });
+
+  it('says the trend reached the weight', () => {
+    const end = { goal: cut, state: { kind: 'weight' as const, weightKg: 75, reached: true as const, trendKg: 74.9 }, key: 'goal-cut:weight:75' };
+    expect(goalEndNotice(end, null)?.lead).toBe('Your trend reached 75.0 kg.');
+  });
+
+  it('is undefined without a reached end', () => {
+    expect(goalEndNotice(undefined, null)).toBeUndefined();
   });
 });

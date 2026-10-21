@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
+import { switchGoal } from '@/db/goals';
 import { updatePot } from '@/db/repo';
+import { DEMO_IDS } from '@/db/seed/demo';
 import { resetUiState } from '@/state/ui';
 import MoreScreen from './MoreScreen';
 
@@ -24,6 +26,7 @@ function renderMore() {
       { path: '/more/usuals', element: <h1>Usuals screen</h1> },
       { path: '/more/pots', element: <h1>Pots screen</h1> },
       { path: '/more/activity', element: <h1>Activity screen</h1> },
+      { path: '/more/goals', element: <h1>Goals screen</h1> },
       { path: '/more/soon/:what', element: <SoonProbe /> },
     ],
     { initialEntries: [PATHS.more] },
@@ -56,6 +59,14 @@ describe('MoreScreen (S48)', () => {
     expect(within(saved).getByText('Lean bulk · Draft')).toBeInTheDocument();
     expect(screen.getByText('Demo')).toBeInTheDocument();
     expect(screen.getByText("Estimates are approximate. This app isn't medical advice.")).toBeInTheDocument();
+  });
+
+  it('shows the pace of the target in force (a "Change pace instead" version has its own)', async () => {
+    const cut = (await db.goalVersions.get(DEMO_IDS.goalVersions.cut))!;
+    await db.goalVersions.put({ ...cut, id: 'version-slower', effectiveFrom: '2026-10-16', dailyKcal: 1825, paceKgPerWeek: 0.25, reason: 'approvedSuggestion', createdAt: '2026-10-15T11:00:00.000Z' });
+    renderMore();
+    expect(await screen.findByText('−0.25 kg a week · protein 110g · min 1,400')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Cut · 1,825 a day' })).toBeInTheDocument();
   });
 
   it('gives each row a live sub-line', async () => {
@@ -105,10 +116,20 @@ describe('MoreScreen (S48)', () => {
       expect(router.state.location.pathname).toBe(path);
     }
 
-    // Goals (Phase 5) still goes to the placeholder.
+    // Goals opens the goal library (S41).
     await router.navigate(PATHS.more);
     await user.click(await screen.findByRole('button', { name: /^Goals/ }));
-    expect(await screen.findByRole('heading', { name: 'Soon: goals' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe(PATHS.soon('goals'));
+    expect(await screen.findByRole('heading', { name: 'Goals screen' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.goals);
+    expect(screen.queryByRole('heading', { name: /^Soon:/ })).toBeNull();
+  });
+
+  it('shows a booked switch on the goal card and the Goals row', async () => {
+    await switchGoal(DEMO_IDS.goals.festive);
+    renderMore();
+    expect(await screen.findByText('Cut active · Festive maintain from Sat')).toBeInTheDocument();
+    const chips = await screen.findByRole('list', { name: 'Saved goals' });
+    expect(within(chips).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Festive maintain · Starts Sat', 'Lean bulk · Draft']);
+    expect(screen.getByRole('heading', { level: 2, name: 'Cut · 1,800 a day' })).toBeInTheDocument();
   });
 });

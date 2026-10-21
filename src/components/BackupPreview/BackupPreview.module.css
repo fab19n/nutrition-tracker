@@ -1,0 +1,98 @@
+/* What a backup file holds (Backups › Restore). Tokens only. */
+
+.card {
+  background: var(--card);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+/* A long file name gets one line and an ellipsis, never a wider card. */
+.fileName {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exported {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.ago {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rows {
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 14px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.row dt {
+  min-width: 0;
+  color: var(--muted);
+}
+
+.row dd {
+  flex: none;
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.line {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.rows + .line {
+  margin-top: 8px;
+}
+
+.line + .line {
+  margin-top: 4px;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.noteIcon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.amber {
+  font-weight: 600;
+  color: var(--amber-text);
+}
+
+.neutral {
+  color: var(--muted);
+}

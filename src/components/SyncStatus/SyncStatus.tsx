@@ -29,6 +29,8 @@ export interface SyncStatusProps {
   /** Entries done of `total`: shown as a bar once the total is known. */
   progress?: { done: number; total: number };
   actions?: SyncStatusAction[];
+  /** Replaces the tone's icon, except while busy (a spinner says it is working). The backup-file card uses it. */
+  icon?: LucideIcon;
 }
 
 interface ToneSpec {
@@ -53,9 +55,11 @@ function progressPct(done: number, total: number): number {
  * Sync status card (Settings › Account and sync), modelled on C55 BackupStatus: an icon and pill
  * per tone, the state as the title, a line of detail, a progress bar while backing up, facts and
  * small buttons. Presentational: src/sync/status.ts writes the copy and the screen connects it.
+ * It is also the backup-file card on Backups, with its own icon (a file, not a cloud).
  */
-export function SyncStatus({ tone, pill, title, detail, extra, facts = [], progress, actions = [] }: SyncStatusProps) {
-  const { Icon, pill: pillTone } = TONES[tone];
+export function SyncStatus({ tone, pill, title, detail, extra, facts = [], progress, actions = [], icon }: SyncStatusProps) {
+  const { Icon: toneIcon, pill: pillTone } = TONES[tone];
+  const Icon = tone === 'busy' ? toneIcon : (icon ?? toneIcon);
   const showProgress = progress !== undefined && progress.total > 0;
 
   return (

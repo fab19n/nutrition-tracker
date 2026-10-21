@@ -26,6 +26,8 @@ import {
   useToday,
   useWeekBudget,
 } from '@/db/hooks';
+import { markGoalEndNoticeSeen, useGoalEnd, useGoalEndNoticeSeen } from '@/db/goals';
+import { markTargetNoticeSeen, useTargetNoticeSeen, useTargetView } from '@/db/targetSuggestion';
 import { useHasAnyMeal, useUsualSleepMinutes } from '@/db/today';
 import { now as clockNow } from '@/domain/clock';
 import { DEFAULT_ROLLOVER_HOUR, DEFAULT_TZ, addDays, minutesIntoLogicalDay, weekStartOf, zonedParts } from '@/domain/day';
@@ -40,6 +42,7 @@ import { TodayMealRow } from './TodayMealRow';
 import {
   checkInBanner,
   eatenCaption,
+  goalEndNotice,
   goalPillLabel,
   heroAriaLabel,
   heroFigures,
@@ -47,6 +50,7 @@ import {
   nextMainSlot,
   nudgeLine,
   sleepTapVisible,
+  targetNotice,
   weekBarsFor,
 } from './todayModel';
 import styles from './TodayScreen.module.css';
@@ -78,12 +82,16 @@ export default function TodayScreen() {
   const usualSleep = useUsualSleepMinutes(today);
   const hasAnyMeal = useHasAnyMeal();
   const pendingMealIds = usePendingMealIds();
+  const target = useTargetView();
+  const noticeSeen = useTargetNoticeSeen();
+  const goalEnd = useGoalEnd();
+  const goalEndSeen = useGoalEndNoticeSeen();
 
   const header = (
     <TopBar
       title="Today"
       subtitle={fmtDayShort(today)}
-      right={active ? <GoalPill label={goalPillLabel(active, today)} onPress={() => navigate(PATHS.soon('goals'))} /> : undefined}
+      right={active ? <GoalPill label={goalPillLabel(active, today)} onPress={() => navigate(PATHS.goals)} /> : undefined}
     />
   );
 
@@ -106,8 +114,12 @@ export default function TodayScreen() {
   const figures = heroFigures({ view, paused, proteinLeft, festive });
   const closesAt = summary.window.closesAt;
 
-  // Check-in banner
+  // Check-in banner; the target suggestion notice (S40) takes the slot only when no check-in waits
+  // (and only once the check-in has loaded, so the banners never swap places).
   const banner = checkIn ? checkInBanner(checkIn, today) : undefined;
+  const notice = checkIn && !banner ? targetNotice(target?.check, noticeSeen) : undefined;
+  // A reached goal end comes last: only when neither the check-in nor the target notice waits.
+  const endNotice = checkIn && !banner && !notice ? goalEndNotice(goalEnd, goalEndSeen) : undefined;
 
   // Weekly focus
   const focus = view.plan?.focus;
@@ -169,6 +181,32 @@ export default function TodayScreen() {
           <Banner tone={banner.tone} actionLabel="Check" onPress={() => open('checkin')}>
             <b>{banner.lead}</b>
             {banner.rest ? ` ${banner.rest}` : null}
+          </Banner>
+        </div>
+      ) : notice ? (
+        <div className={styles.banner}>
+          <Banner
+            tone="accent"
+            actionLabel="See"
+            onPress={() => {
+              markTargetNoticeSeen(notice.key);
+              navigate(PATHS.target);
+            }}
+          >
+            <b>{notice.lead}</b> {notice.rest}
+          </Banner>
+        </div>
+      ) : endNotice ? (
+        <div className={styles.banner}>
+          <Banner
+            tone="accent"
+            actionLabel="Goals"
+            onPress={() => {
+              markGoalEndNoticeSeen(endNotice.key);
+              navigate(PATHS.goals);
+            }}
+          >
+            <b>{endNotice.lead}</b> {endNotice.rest}
           </Banner>
         </div>
       ) : null}

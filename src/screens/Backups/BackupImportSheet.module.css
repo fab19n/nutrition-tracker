@@ -1,0 +1,85 @@
+/* Restore from a backup file: one sheet for reading, preview, restoring, done and the problems. Tokens only. */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.second {
+  margin-top: 8px;
+}
+
+/* The chosen file's name while it is read: one line, an ellipsis, never a wider sheet. */
+.fileName {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The file's own words for what is damaged ("meals row 12 has a bad items"). */
+.detail {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Restore this backup · Export this phone first · Cancel */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* In place of Export this phone first once the file is saved. */
+.saved {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+
+.saved svg {
+  flex: none;
+}
+
+/* Restoring: a bar with no end, as the time it takes isn't known. */
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.pulse {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: km-pulse 1.4s ease-in-out infinite;
+}
+
+/* An opacity pulse is gentle enough to stay; the global rule would turn it into a single blink. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation-name: km-pulse !important;
+  }
+}

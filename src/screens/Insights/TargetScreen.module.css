@@ -1,0 +1,111 @@
+/* S37 Target suggestion. Tokens only. */
+
+.screen {
+  padding-bottom: 48px;
+}
+
+.loading {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+/* The pending card, the C45 card and the status card. */
+.card {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.card + .card {
+  margin-top: 8px;
+}
+
+.headline {
+  margin: 0;
+}
+
+.body {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.week {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.progress {
+  margin-top: 10px;
+}
+
+.working {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.caption {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.action {
+  margin-top: 10px;
+}
+
+/* Target history. */
+.history {
+  margin: 0 var(--pad-card-x);
+  padding: 4px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.badge {
+  flex: none;
+}
+
+.sub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}

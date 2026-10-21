@@ -21,6 +21,7 @@ import {
 } from '@/db/repo';
 import { computeWeekBudget, daysInRange, type BudgetDayInput, type WeekBudget } from '@/domain/budget';
 import { analyseDay, typicalSlotKcal, type DayAnalysis } from '@/domain/checkin';
+import { periodOn as periodAppliesOn } from '@/domain/goals';
 import { now } from '@/domain/clock';
 import {
   DEFAULT_ROLLOVER_HOUR,
@@ -124,7 +125,7 @@ export interface ActiveGoal {
   paused: boolean;
 }
 
-type GoalTimeline = (day: LogicalDay) => ActiveGoal | undefined;
+export type GoalTimeline = (day: LogicalDay) => ActiveGoal | undefined;
 
 function byEffectiveFrom(a: GoalVersion, b: GoalVersion): number {
   return compareDays(a.effectiveFrom, b.effectiveFrom) || a.createdAt.localeCompare(b.createdAt);
@@ -133,6 +134,14 @@ function byEffectiveFrom(a: GoalVersion, b: GoalVersion): number {
 /** Loads the (small) goal tables once and resolves any number of days against them. */
 async function loadGoalTimeline(db: KiraMakanDb): Promise<GoalTimeline> {
   const [goals, periods, versions] = await Promise.all([listGoals(db), listGoalPeriods(db), db.goalVersions.toArray()]);
+  return goalTimelineOf(goals, periods, versions);
+}
+
+/**
+ * Resolves days against goal rows already read (the goal library reads them once): the period
+ * that applies (periodOn) and the goal's latest version with effectiveFrom ≤ day.
+ */
+export function goalTimelineOf(goals: readonly Goal[], periods: readonly GoalPeriod[], versions: readonly GoalVersion[]): GoalTimeline {
   const goalById = new Map(goals.map((g) => [g.id, g]));
   const versionsByGoal = new Map<Id, GoalVersion[]>();
   for (const version of [...versions].sort(byEffectiveFrom)) {
@@ -141,24 +150,29 @@ async function loadGoalTimeline(db: KiraMakanDb): Promise<GoalTimeline> {
     versionsByGoal.set(version.goalId, list);
   }
 
-  const periodOn = (day: LogicalDay): GoalPeriod | undefined =>
-    periods.filter((p) => p.from <= day && (p.to === undefined || day < p.to)).at(-1);
+  // Two periods from the same day (two devices booked a switch offline): the later booking wins.
+  const periodOn = (day: LogicalDay): GoalPeriod | undefined => periodAppliesOn(periods, day);
   const versionOn = (goalId: Id, day: LogicalDay): GoalVersion | undefined =>
     versionsByGoal.get(goalId)?.filter((v) => v.effectiveFrom <= day).at(-1);
 
-  return (day) => {
+  // A Pause has no versions of its own and carries the previous day's, which may itself be a
+  // Pause's carry (Pause after Pause): the carry follows the chain back to a budget goal.
+  // `from` strictly decreases at every step, so the recursion ends; memoised per day.
+  const memo = new Map<LogicalDay, ActiveGoal | undefined>();
+  const resolve = (day: LogicalDay): ActiveGoal | undefined => {
     const period = periodOn(day);
     const goal = period ? goalById.get(period.goalId) : undefined;
     if (!period || !goal) return undefined;
-    const dayBefore = addDays(period.from, -1);
-    const previous = periodOn(dayBefore);
     const version =
-      versionOn(goal.id, day) ??
-      (previous ? versionOn(previous.goalId, dayBefore) : undefined) ??
-      versionsByGoal.get(goal.id)?.[0];
+      versionOn(goal.id, day) ?? lookup(addDays(period.from, -1))?.version ?? versionsByGoal.get(goal.id)?.[0];
     if (!version) return undefined;
     return { goal, version, period, paused: goal.template === 'pause' };
   };
+  const lookup = (day: LogicalDay): ActiveGoal | undefined => {
+    if (!memo.has(day)) memo.set(day, resolve(day));
+    return memo.get(day);
+  };
+  return lookup;
 }
 
 /** The goal period covering `day` and the latest version with effectiveFrom ≤ day. */
@@ -229,11 +243,16 @@ export async function getDaySummary(db: KiraMakanDb, day: LogicalDay): Promise<D
   ]);
   const goal = timeline(day);
   const timed = meals.filter((m) => !m.isGuess);
-  const window = eatingWindow(timed, goal?.goal.timing ?? {}, { tz: settings.tz, rolloverHour: settings.rolloverHour });
+  const fullWindow = eatingWindow(timed, goal?.goal.timing ?? {}, { tz: settings.tz, rolloverHour: settings.rolloverHour });
   const baselines = slotBaselines(history, settings.tz, settings.rolloverHour);
   const tags: Record<Id, TimingTagKind> = {};
-  for (const meal of timed) {
-    tags[meal.id] = timingTag(meal, { baselines, window, tz: settings.tz, rolloverHour: settings.rolloverHour });
+  // A paused day has timing off (plan §6.2 Pause): no window to close and no timing tags.
+  const paused = goal?.paused === true;
+  const window: EatingWindow = paused ? { lengthHours: fullWindow.lengthHours, occasions: fullWindow.occasions } : fullWindow;
+  if (!paused) {
+    for (const meal of timed) {
+      tags[meal.id] = timingTag(meal, { baselines, window, tz: settings.tz, rolloverHour: settings.rolloverHour });
+    }
   }
   const macros = sumMacros(meals.map(mealMacros));
   const range = meals.reduce<KcalRange>((sum, m) => {
@@ -695,7 +714,7 @@ export async function getCheckIn(db: KiraMakanDb, opts: SelectorOptions & { day?
 const DEFAULT_FESTIVE_RANGE_PCT = 0.1;
 
 export interface FestiveDaysInRange {
-  /** Finished Festive-maintain days whose intake was within maintenance ± range. */
+  /** Finished Festive-maintain days whose intake was within the target ± range. */
   inRange: number;
   /** Finished Festive-maintain days in the range. */
   days: number;
@@ -727,11 +746,12 @@ export async function getFestiveDaysInRange(
     const active = timeline(day);
     if (active?.goal.template !== 'festive') continue;
     const rangePct = active.goal.rangePct ?? DEFAULT_FESTIVE_RANGE_PCT;
-    const maintenance = active.version.maintenanceKcal;
+    // Centred on the target (which a Festive goal sets at maintenance), so an edited target and its band agree.
+    const target = active.version.dailyKcal;
     result.days += 1;
-    result.inRange += daysInRange([{ eatenKcal: eaten.get(day) ?? 0, status: status.get(day) ?? null }], maintenance, rangePct);
-    result.lowKcal = roundTo10(maintenance * (1 - rangePct));
-    result.highKcal = roundTo10(maintenance * (1 + rangePct));
+    result.inRange += daysInRange([{ eatenKcal: eaten.get(day) ?? 0, status: status.get(day) ?? null }], target, rangePct);
+    result.lowKcal = roundTo10(target * (1 - rangePct));
+    result.highKcal = roundTo10(target * (1 + rangePct));
   }
   return result;
 }

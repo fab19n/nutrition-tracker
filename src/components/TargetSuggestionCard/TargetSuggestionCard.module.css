@@ -1,0 +1,244 @@
+/* C45 TargetSuggestionCard: a standard card (as InsightCard). Tokens only. */
+
+.card {
+  background: var(--card);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-card);
+  padding: 14px var(--pad-card-x);
+  min-width: 0;
+  animation: km-up var(--dur-enter) var(--ease) both;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Same as SuggestionCard's role label. */
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.headline {
+  margin: 6px 0 0;
+}
+
+.working {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Full: the working, one row per step. */
+.rows {
+  margin: 8px 0 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.row dt {
+  color: var(--muted);
+}
+
+.row dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.strong dt,
+.strong dd {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.basis {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Now → Suggested. */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-inset);
+  background: var(--card2);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sideLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.suggested {
+  color: var(--accent-text);
+}
+
+.unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.arrow {
+  color: var(--muted);
+}
+
+.note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.note + .note {
+  margin-top: 4px;
+}
+
+.week {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+/* Full, kept: where Keep current was. */
+.kept {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-inset);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.keptIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Compact (Insights): See the working · Keep current · Approve. Wraps at 360px with large text. */
+.compactActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.details {
+  position: relative;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* 44px hit area around the text link, as InsightCard's "See …". */
+.details::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.details:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Full (S37): Approve, Keep current, then Change pace instead. */
+.fullActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+  margin-top: 14px;
+}
+
+.slower {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: var(--r-tile);
+  background: var(--card2);
+  color: var(--text);
+  text-align: left;
+}
+
+.slower:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.slowerText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.slowerTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.slowerDetail {
+  font-size: 12px;
+  color: var(--muted);
+}

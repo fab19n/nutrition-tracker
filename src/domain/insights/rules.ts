@@ -5,9 +5,10 @@
  */
 import { byId } from '@/data/catalogue';
 import { addDays, compareDays, daysBetween, minutesIntoLogicalDay, weekStartOf, weekdayIndex } from '@/domain/day';
-import { fmtClock, fmtDayRange, fmtInt, fmtKg, roundTo10 } from '@/domain/format';
-import { adaptiveMaintenance, targetSuggestion } from '@/domain/maintenance';
+import { fmtClock, fmtDayRange, fmtInt, fmtKg, fmtKgRate, roundTo10 } from '@/domain/format';
+import { maintenanceWorking } from '@/domain/maintenance';
 import { mealMacros } from '@/domain/meal';
+import { paceOf } from '@/domain/targets';
 import { DEFAULT_MAX_WINDOW_HOURS, eatingWindow } from '@/domain/timing';
 import type { MealItem, MealLog, MealSlot } from '@/domain/types';
 import { categoryShares, isDrink, isHomeMeal, itemCategory, itemGroup, itemKcal, mealKcal, variantLabel } from './categories';
@@ -768,16 +769,16 @@ const weightTrendVsPlan: InsightRule = {
     if (!goal || goal.template === 'pause') return null;
     const slope = trendSlope(ctx);
     if (!slope) return null;
-    const plannedLoss = goal.paceKgPerWeek;
+    const plannedLoss = paceOf(goal, ctx.version);
     const actualLoss = -slope.kgPerWeek;
     const diff = actualLoss - plannedLoss;
     if (Math.abs(diff) < 0.15) return null;
     const headline =
       plannedLoss > 0
         ? actualLoss > 0
-          ? `Losing ${fmtKg(actualLoss)} a week vs ${fmtKg(plannedLoss)} planned`
-          : `Trend is up ${fmtKg(-actualLoss)} a week vs ${fmtKg(plannedLoss)} loss planned`
-        : `Trend moved ${fmtKg(Math.abs(actualLoss))} a week vs ${fmtKg(Math.abs(plannedLoss))} planned`;
+          ? `Losing ${fmtKg(actualLoss)} a week vs ${fmtKgRate(plannedLoss)} planned`
+          : `Trend is up ${fmtKg(-actualLoss)} a week vs ${fmtKgRate(plannedLoss)} loss planned`
+        : `Trend moved ${fmtKg(Math.abs(actualLoss))} a week vs ${fmtKgRate(Math.abs(plannedLoss))} planned`;
     return {
       headline,
       evidence: `Trend ${fmtKg(slope.startKg)} to ${fmtKg(slope.endKg)} over ${plural(slope.spanDays, 'day')}.`,
@@ -795,42 +796,35 @@ const weightTrendVsPlan: InsightRule = {
   },
 };
 
+/**
+ * Reads the shared target check (src/db/targetSuggestion), so the insight, the S37 card and the
+ * Today notice agree; it only has something to say while a suggestion waits (not kept).
+ */
 const maintenanceEstimate: InsightRule = {
   id: 'maintenanceEstimate',
   unlockDay: 21,
   solidDays: 21,
   minimumData: '21 days',
   compute(ctx) {
-    const { version, goal } = ctx;
-    if (!version || !goal) return null;
-    const adaptive = adaptiveMaintenance({
-      days: ctx.historyDays.map((d) => ({ day: d.day, eatenKcal: d.eatenKcal, workoutKcal: d.workoutKcal, status: d.status })),
-      trend: ctx.trend,
-    });
-    if (!adaptive) return null;
-    const delta = adaptive.maintenanceKcal - version.maintenanceKcal;
-    if (Math.abs(delta) <= 100) return null;
-    const suggestion = targetSuggestion(
-      { maintenanceKcal: version.maintenanceKcal, dailyKcal: version.dailyKcal },
-      adaptive,
-      goal,
-      0,
-    );
-    const moved = adaptive.trendKgPerWeek < 0 ? 'dropped' : 'rose';
+    const check = ctx.maintenance;
+    if (check?.kind !== 'suggestion') return null;
+    const { estimate, current } = check;
+    const { suggested } = check.proposal;
+    const withPace = current.template === 'cut' || current.template === 'custom';
     return {
-      headline: `Maintenance is about ${fmtInt(adaptive.maintenanceKcal)}, not ${fmtInt(version.maintenanceKcal)}`,
-      evidence: `You logged ~${fmtInt(roundTo10(adaptive.avgEatenKcal))} a day, and your trend ${moved} ${fmtKg(Math.abs(adaptive.trendKgPerWeek))} a week.`,
+      headline: `Maintenance is about ${fmtInt(estimate.maintenanceKcal)}, not ${fmtInt(current.maintenanceKcal)}`,
+      evidence: maintenanceWorking(estimate),
       linkLabel: '',
       evidenceMealIds: [],
       evidenceEntries: [],
-      summary: `${plural(adaptive.daysUsed, 'complete day')}`,
-      tryText: suggestion
-        ? `a daily target of ${fmtInt(suggestion.suggestedDailyKcal)} at your ${fmtKg(goal.paceKgPerWeek)} a week pace`
-        : 'keep the current target for now',
-      impactKcalPerWeek: roundTo10(Math.abs(delta) * 7),
-      confidence: 0.5 * clamp01(adaptive.daysUsed / 28),
+      summary: `${plural(estimate.daysUsed, 'complete day')}`,
+      tryText: withPace
+        ? `a daily target of ${fmtInt(suggested.dailyKcal)} at your ${fmtKgRate(suggested.paceKgPerWeek)} a week pace`
+        : `a daily target of ${fmtInt(suggested.dailyKcal)}`,
+      impactKcalPerWeek: roundTo10(Math.abs(estimate.maintenanceKcal - current.maintenanceKcal) * 7),
+      confidence: 0.5 * clamp01(estimate.daysUsed / 28),
       earlyRead: early(ctx, maintenanceEstimate.solidDays),
-      basisDays: adaptive.daysUsed,
+      basisDays: estimate.daysUsed,
       topic: 'maintenance',
     };
   },

@@ -259,6 +259,9 @@ function GoalPillSpecimens() {
           <GoalPill label="Paused until Mon" onPress={noop} />
         </div>
       </Specimen>
+      <Specimen caption="C03 GoalPill / A 40-character goal name: the pill shortens, the title stays" inset={false}>
+        <TopBar title="Today" subtitle="Fri 16 Oct" right={<GoalPill label={`Cut before the Raya open houses begin · ${fmtInt(TARGET)}`} onPress={noop} />} />
+      </Specimen>
     </Group>
   );
 }

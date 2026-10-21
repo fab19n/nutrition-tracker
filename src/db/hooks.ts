@@ -184,6 +184,11 @@ export function useMeal(id: Id | undefined): MealLog | undefined {
   return useLiveQuery(() => (id ? getMeal(db, id) : undefined), [id]);
 }
 
+/** How many meals are logged, all time (the backup nudge needs a diary worth saving). */
+export function useMealCount(): number | undefined {
+  return useLiveQuery(() => db.meals.count(), []);
+}
+
 /** Alphabetical. */
 export function usePlaces(): Place[] | undefined {
   return useLiveQuery(() => listPlaces(db), []);

@@ -94,7 +94,7 @@ export default function BudgetSheet(_props: { close: () => void }) {
 
       <p className={styles.explain}>
         {paused
-          ? 'Your budget is off for now. Logging is optional, and meals still count toward your trends.'
+          ? 'Your budget is off for now. Logging is optional, and these days stay out of trends.'
           : `Unspent calories from finished days are saved for later in the week. Each week starts fresh on Monday. No day goes below your ${fmtInt(dailyMinimumKcal)} minimum.`}
         {!paused && budget.pendingSavedKcal > 0 ? " Savings from a day you haven't confirmed are added once you confirm it." : null}
       </p>

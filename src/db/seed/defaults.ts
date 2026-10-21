@@ -5,7 +5,7 @@ export type BuiltInTemplate = Exclude<GoalTemplate, 'custom'>;
 
 export interface GoalPreset {
   name: string;
-  template: BuiltInTemplate;
+  template: GoalTemplate;
   heroMetric: HeroMetric;
   paceKgPerWeek: number;
   rangePct?: number;
@@ -62,6 +62,24 @@ export const GOAL_PRESETS: Record<BuiltInTemplate, GoalPreset> = {
 /** Display order in the goal library and in "New goal from template" (S43). */
 export const GOAL_PRESET_ORDER: readonly BuiltInTemplate[] = ['cut', 'festive', 'leanBulk', 'pause'];
 
+/** A custom goal (S43): set by a pace like Cut, with its own target, eating window and main number. */
+export const CUSTOM_PRESET: GoalPreset = {
+  name: 'Custom',
+  template: 'custom',
+  heroMetric: 'kcalLeft',
+  paceKgPerWeek: 0.5,
+  timing: { maxWindowHours: 12, minHoursBeforeSleep: 2, maxEatingOccasions: 5 },
+  suggestionWeights: BUDGET_FIRST,
+};
+
+/** The defaults of any template, Custom included. */
+export function presetFor(template: GoalTemplate): GoalPreset {
+  return template === 'custom' ? CUSTOM_PRESET : GOAL_PRESETS[template];
+}
+
+/** The template chips on S43, in order: Cut, Festive maintain, Lean bulk, Pause, Custom. */
+export const NEW_GOAL_TEMPLATES: readonly GoalTemplate[] = [...GOAL_PRESET_ORDER, 'custom'];
+
 export interface BuildGoalOptions {
   id: Id;
   createdAt: Instant;
@@ -71,8 +89,8 @@ export interface BuildGoalOptions {
 }
 
 /** A fresh Goal from a template. Nested objects are copied, so presets are never mutated. */
-export function buildGoal(template: BuiltInTemplate, options: BuildGoalOptions): Goal {
-  const preset = GOAL_PRESETS[template];
+export function buildGoal(template: GoalTemplate, options: BuildGoalOptions): Goal {
+  const preset = presetFor(template);
   const goal: Goal = {
     id: options.id,
     name: options.name ?? preset.name,

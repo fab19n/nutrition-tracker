@@ -460,7 +460,7 @@ Later: barcode scanning of packaged food via Open Food Facts.
 5. **Your 2–3 main Places** (Home, your mamak, your economy-rice stall).
 6. Day rollover (default 5am) and week start (Monday).
 
-Permissions are asked only when first needed: location (first time you open Log), notifications (around day 14, or when you turn on reminders) and Google Drive (when you turn on backups).
+Permissions are asked only when first needed: location (first time you open Log), notifications (around day 14, or when you turn on reminders) and Google Drive (when you turn on photo backup, a later step).
 
 ### 16.2 The first 3 weeks
 
@@ -491,7 +491,7 @@ Permissions are asked only when first needed: location (first time you open Log)
 | Backend | Supabase: Postgres, Auth, Storage, Edge Functions, scheduled jobs | Managed; relational data; row-level security |
 | AI | Claude API, called only from an Edge Function | The API key never sits on the phone |
 | Notifications | Web Push sent by scheduled jobs | Gap nudges and the weekly review |
-| Backups | Weekly scheduled job to Google Drive | A copy outside the main provider |
+| Backups | The synced account copy, plus an export file you keep and can restore from (Google Drive is for photos, later) | A copy outside the main provider |
 
 ### 17.3 Scheduled jobs
 
@@ -500,7 +500,7 @@ Permissions are asked only when first needed: location (first time you open Log)
 | Gap nudges | Every ~30 minutes |
 | Weekly review | Sunday night |
 | Maintenance recalculation | Weekly |
-| Google Drive backup | Weekly |
+| Backup file nudge | In the app, once a full backup is over 30 days old (no scheduled job; Google Drive is for photos, later) |
 | Expire old pots | Daily |
 
 ### 17.4 Time handling
@@ -556,7 +556,7 @@ Start with one modular app and managed services. Don't add microservices, Kubern
 - **Changing phones:** sign in on the new phone and everything is there.
 - **Offline:** logging works without signal and syncs when you're back online.
 - **Export:** a **JSON** file (complete, and can be imported back in) plus **CSV** files (meals, items, weights, workouts) for a spreadsheet. Photos are exported separately as a zip.
-- **Google Drive backup:** weekly, to a single app folder. The app asks only for access to **the files it creates** (the `drive.file` scope), not your whole Drive. The last 12 weekly backups are kept. Photos are left out of the weekly file to keep it small; a monthly photo zip can be added later.
+- **Backups:** the data is backed up by the synced copy in your account and by the export file. **More → Settings → Backups → Export now** saves a complete JSON file (no photos), and **Restore from a backup file** reads it back, on that screen or on the welcome screen of a fresh install, after showing what is in it; a restore replaces everything on the device (and, on a device that syncs, the account's copy too, which asks for a typed confirm). A quiet nudge appears once a full backup is over 30 days old. **Google Drive is for meal photos, as a later step** (the `drive.file` scope: only the files the app creates, never the whole Drive); there is no scheduled Drive backup of the data. This supersedes the weekly Google Drive backup of earlier drafts.
 - **Privacy:** row-level security on all tables; only meal text and photos go to the AI; no third-party analytics; a **"delete everything"** button.
 - **Not medical advice.** Estimates are approximate, the app doesn't diagnose anything, and timing insights don't claim that meal times alone cause weight gain.
 
@@ -606,7 +606,7 @@ The main change from v1: **AI estimation moves into Phase 1**, because without e
 - "What should I eat?" with 3 picks and Surprise me.
 - Adaptive maintenance with the approve card.
 - Gap nudges via web push.
-- Weekly Google Drive backup.
+- Backups screen: the export file with a monthly nudge, and restore from a file (the data backup is the synced copy plus that file; the weekly Google Drive backup of earlier drafts is superseded, and Drive is for photos, later).
 - **Done when:** suggestions fit the budget, and a target suggestion shows its working.
 
 ### Phase 5: More goals and polish
@@ -630,7 +630,7 @@ The main change from v1: **AI estimation moves into Phase 1**, because without e
 
 ### Next (Phases 4–5)
 
-- Suggestions, adaptive maintenance, gap nudges, Google Drive backup.
+- Suggestions, adaptive maintenance, gap nudges, backups (the export file and restore; Google Drive is for photos, later).
 - Festive maintain, Lean bulk and Pause goals with switching.
 
 ### Later
@@ -689,7 +689,7 @@ The main change from v1: **AI estimation moves into Phase 1**, because without e
 - Which workouts you usually do, so the MET table covers them.
 - Check MyFCD and SG FoodID terms of use before copying values.
 - Choose a Supabase plan (storage, scheduled jobs, backups).
-- Set up the Google OAuth app for Drive backups. Google apps left in "Testing" status issue refresh tokens that expire after about 7 days, which would break weekly backups; publishing the app with only the `drive.file` scope should avoid this. Verify during setup.
+- Later, with the Drive photo sync: set up the Google OAuth app. Google apps left in "Testing" status issue refresh tokens that expire after about 7 days, which would break a scheduled copy; publishing the app with only the `drive.file` scope should avoid this. Verify during setup. (The weekly Drive backup of the data this was first for is superseded by the synced copy and the export file.)
 
 ---
 
@@ -721,7 +721,7 @@ Decisions made in the brainstorm on 18–19 October 2026.
 | Insights | Feed plus Sunday review; top 3; numbers plus one suggestion; rule-based | User's choice |
 | Food data | Four layers; Claude drafts the catalogue; user checks the top 30 dishes | No open Malaysian dish dataset exists |
 | Goal templates | Cut, Festive maintain, Lean bulk, Pause | User's choice |
-| Backups | Weekly to Google Drive, plus manual export | A copy outside the main provider |
+| Backups | The synced account copy, plus a manual export file you can restore from (Google Drive is for photos, later) | A copy outside the main provider |
 
 ---
 

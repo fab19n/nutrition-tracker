@@ -14,10 +14,12 @@ const DiaryWeekScreen = lazy(() => import('@/screens/Diary/DiaryWeekScreen'));
 const EntryScreen = lazy(() => import('@/screens/Diary/EntryScreen'));
 const InsightsScreen = lazy(() => import('@/screens/Insights/InsightsScreen'));
 const WeeklyReviewScreen = lazy(() => import('@/screens/Insights/WeeklyReviewScreen'));
+const TargetScreen = lazy(() => import('@/screens/Insights/TargetScreen'));
 const MoreScreen = lazy(() => import('@/screens/More/MoreScreen'));
 const WeightScreen = lazy(() => import('@/screens/More/WeightScreen'));
 const SettingsScreen = lazy(() => import('@/screens/More/SettingsScreen'));
 const ExportScreen = lazy(() => import('@/screens/More/ExportScreen'));
+const BackupsScreen = lazy(() => import('@/screens/Backups/BackupsScreen'));
 const ComingSoonScreen = lazy(() => import('@/screens/More/ComingSoonScreen'));
 const EstimatingScreen = lazy(() => import('@/screens/Log/EstimatingScreen'));
 const ReviewScreen = lazy(() => import('@/screens/Log/ReviewScreen'));
@@ -32,6 +34,9 @@ const NewPotScreen = lazy(() => import('@/screens/Pots/NewPotScreen'));
 const PotDetailScreen = lazy(() => import('@/screens/Pots/PotDetailScreen'));
 const ActivityScreen = lazy(() => import('@/screens/Activity/ActivityScreen'));
 const LogWorkoutScreen = lazy(() => import('@/screens/Activity/LogWorkoutScreen'));
+const GoalsScreen = lazy(() => import('@/screens/Goals/GoalsScreen'));
+const NewGoalScreen = lazy(() => import('@/screens/Goals/NewGoalScreen'));
+const GoalDetailScreen = lazy(() => import('@/screens/Goals/GoalDetailScreen'));
 const GalleryPage = lazy(() => import('@/dev/GalleryPage'));
 
 function page(Component: LazyExoticComponent<ComponentType>) {
@@ -55,10 +60,12 @@ export const routes: RouteObject[] = [
       { path: '/diary/entry/:id', element: page(EntryScreen), handle: tab(false) },
       { path: '/insights', element: page(InsightsScreen), handle: tab('insights') },
       { path: '/insights/weekly', element: page(WeeklyReviewScreen), handle: tab(false) },
+      { path: '/insights/target', element: page(TargetScreen), handle: tab(false) },
       { path: '/more', element: page(MoreScreen), handle: tab('more') },
       { path: '/more/weight', element: page(WeightScreen), handle: tab(false) },
       { path: '/more/settings', element: page(SettingsScreen), handle: tab(false) },
       { path: '/more/export', element: page(ExportScreen), handle: tab(false) },
+      { path: '/more/backups', element: page(BackupsScreen), handle: tab(false) },
       { path: '/more/places', element: page(PlacesScreen), handle: tab(false) },
       { path: '/more/places/:id', element: page(PlaceDetailScreen), handle: tab(false) },
       { path: '/more/usuals', element: page(UsualsScreen), handle: tab(false) },
@@ -67,6 +74,9 @@ export const routes: RouteObject[] = [
       { path: '/more/pots/:id', element: page(PotDetailScreen), handle: tab(false) },
       { path: '/more/activity', element: page(ActivityScreen), handle: tab(false) },
       { path: '/more/activity/new', element: page(LogWorkoutScreen), handle: tab(false) },
+      { path: '/more/goals', element: page(GoalsScreen), handle: tab(false) },
+      { path: '/more/goals/new', element: page(NewGoalScreen), handle: tab(false) },
+      { path: '/more/goals/:id', element: page(GoalDetailScreen), handle: tab(false) },
       { path: '/more/soon/:what', element: page(ComingSoonScreen), handle: tab(false) },
       { path: '/log/estimating', element: page(EstimatingScreen), handle: tab(false) },
       { path: '/log/review', element: page(ReviewScreen), handle: tab(false) },

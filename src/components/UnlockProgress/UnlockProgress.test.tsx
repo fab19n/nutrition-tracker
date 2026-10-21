@@ -30,4 +30,14 @@ describe('UnlockProgress', () => {
     expect(screen.getByText('Unlocked')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '14');
   });
+
+  it('counts in another unit when given one', () => {
+    render(<UnlockProgress label="Weigh-ins for your maintenance" have={4} need={8} unit="weigh-ins" />);
+    expect(screen.getByText('4 of 8 weigh-ins')).toBeInTheDocument();
+  });
+
+  it('counts days by default', () => {
+    render(<UnlockProgress label="Your real maintenance" have={17} need={21} />);
+    expect(screen.getByText('17 of 21 days')).toBeInTheDocument();
+  });
 });

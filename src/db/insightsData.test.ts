@@ -4,7 +4,9 @@ import { getInsightFeedback, listSuggestionEvents, putWeekPlan } from '@/db/repo
 import { DEMO_EXPECTED, loadDemo } from '@/db/seed/demo';
 import { setDemoClock } from '@/domain/clock';
 import { instantAt } from '@/domain/day';
+import { loadMaintenanceWorld, MAINTENANCE_WORLD } from '@/test/maintenanceWorld';
 import { createInsightsActions, getEvidence, getInsightsView, getMealIdeas, getWeeklyReview } from './insightsData';
+import { createTargetActions, getTargetCheck } from './targetSuggestion';
 
 let db: KiraMakanDb;
 let actions: ReturnType<typeof createInsightsActions>;
@@ -131,3 +133,57 @@ describe('getMealIdeas', () => {
     expect(events).toEqual([expect.objectContaining({ id, role: 'usual', outcome: 'taken' })]);
   });
 });
+
+describe('with a target suggestion waiting (the maintenance world, Fri 30 Oct)', () => {
+  const read = { today: MAINTENANCE_WORLD.today, now: new Date(MAINTENANCE_WORLD.now) };
+
+  beforeEach(async () => {
+    setDemoClock(false);
+    await loadMaintenanceWorld(db);
+  });
+
+  it('keeps the maintenance insight out of the top 3 while the card shows, yet the rule found it', async () => {
+    const view = await getInsightsView(db, read);
+    expect(view?.top.map((i) => i.ruleId)).not.toContain('maintenanceEstimate');
+    const evidence = await getEvidence(db, 'maintenanceEstimate', read);
+    expect(evidence?.insight?.headline).toBe('Maintenance is about 2,100, not 2,350');
+
+    await createTargetActions(db).keepCurrentTarget({ versionId: MAINTENANCE_WORLD.ids.setupVersion }, { today: read.today });
+    expect((await getEvidence(db, 'maintenanceEstimate', read))?.insight).toBeUndefined();
+  });
+
+  it('shows the weigh-ins the maintenance read still needs', async () => {
+    await loadMaintenanceWorld(db, { weighInEvery: 7 });
+    const view = await getInsightsView(db, read);
+    expect(view?.unlocks).toContainEqual({ label: 'Weigh-ins for your maintenance', have: 4, need: 8, unit: 'weigh-ins' });
+    // In place of "Your real maintenance", which can't say Unlocked while no maintenance is shown.
+    expect(view?.unlocks.find((u) => u.label === 'Your real maintenance')).toBeUndefined();
+    expect(view?.unlocks.at(-1)?.label).toBe('Weigh-ins for your maintenance');
+  });
+
+  it('counts "Your real maintenance" as unlocked when the weekly read has 21 days, though the last 4 weeks have fewer', async () => {
+    // 2–8 Oct and this week's Mon–Thu not counted: the weekly window (28 Sep – 25 Oct) still has
+    // 21 complete days, the 28 days to yesterday only 17.
+    const notCounted = ['2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29'];
+    await db.days.bulkPut(notCounted.map((day) => ({ logicalDay: day, status: 'notCounted' as const })));
+    const target = await getTargetCheck(db, { today: read.today });
+    expect(target?.check).toMatchObject({ kind: 'suggestion', estimate: { basis: 'weekly', daysUsed: 21 } });
+    const view = await getInsightsView(db, read);
+    expect(view?.unlocks).toContainEqual({ label: 'Your real maintenance', have: 21, need: 21 });
+    expect(view?.unlocks.every((u) => u.have >= u.need)).toBe(true);
+  });
+
+  it('shows the span the weigh-ins still need', async () => {
+    await loadMaintenanceWorld(db, { weighInsFrom: '2026-10-20' });
+    const view = await getInsightsView(db, read);
+    expect(view?.unlocks).toContainEqual({ label: 'Weigh-ins for your maintenance', have: 9, need: 14, unit: 'days' });
+  });
+
+  it('reads the pace of the version in force today for the trend tile and the weekly review', async () => {
+    expect((await getInsightsView(db, read))?.tiles.paceKgPerWeek).toBe(0.5);
+    await db.goalVersions.update(MAINTENANCE_WORLD.ids.setupVersion, { paceKgPerWeek: 0.25 });
+    expect((await getInsightsView(db, read))?.tiles.paceKgPerWeek).toBe(0.25);
+    expect((await getWeeklyReview(db, '2026-10-19', read))?.trend.paceKgPerWeek).toBe(0.25);
+  });
+});
+

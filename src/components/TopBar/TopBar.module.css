@@ -13,7 +13,8 @@
   align-items: baseline;
   column-gap: 8px;
   row-gap: 0;
-  min-width: 0;
+  /* Never narrower than the title or the date: the trailing pill gives way first. */
+  min-width: min-content;
 }
 
 .title {
@@ -27,7 +28,8 @@
 }
 
 .right {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;

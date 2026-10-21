@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createActions } from '@/db/actions';
 import { createDb, type KiraMakanDb } from '@/db/db';
 import { DEMO_EXPECTED } from '@/db/seed/demo';
@@ -11,8 +11,11 @@ import {
   defaultDailyMinimum,
   finishSetup,
   getMoreSummary,
+  noteRestoredBackup,
+  readLastBackupAt,
   readLastExport,
   updateProfileSettings,
+  writeLastBackupAt,
   writeLastExport,
 } from './settings';
 
@@ -148,5 +151,95 @@ describe('last export', () => {
     expect(readLastExport()).toEqual({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
     window.localStorage.setItem('kira-makan:last-export', '{"at":"nope","kind":"json"}');
     expect(readLastExport()).toBeNull();
+  });
+});
+
+describe('last backup', () => {
+  const BACKUP_KEY = 'kira-makan:last-backup';
+  const EXPORT_KEY = 'kira-makan:last-export';
+
+  afterEach(() => clearLastExport());
+
+  it('is set by a JSON export, and a spreadsheet export leaves it alone', () => {
+    expect(readLastBackupAt()).toBeNull();
+    writeLastExport({ at: '2026-10-10T04:00:00.000Z', kind: 'json' });
+    expect(readLastBackupAt()).toBe('2026-10-10T04:00:00.000Z');
+    expect(window.localStorage.getItem(BACKUP_KEY)).toBe('2026-10-10T04:00:00.000Z');
+
+    writeLastExport({ at: '2026-10-16T11:10:00.000Z', kind: 'csv' });
+    expect(readLastBackupAt()).toBe('2026-10-10T04:00:00.000Z');
+    // The export record is still the newest export of any kind, exactly as before.
+    expect(readLastExport()).toEqual({ at: '2026-10-16T11:10:00.000Z', kind: 'csv' });
+  });
+
+  it('keeps the export record exactly { at, kind }', () => {
+    writeLastExport({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
+    expect(readLastExport()).toEqual({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
+    expect(JSON.parse(window.localStorage.getItem(EXPORT_KEY) ?? '{}')).toEqual({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
+  });
+
+  it('falls back to a JSON last export from before it existed, not a CSV one', () => {
+    window.localStorage.setItem(EXPORT_KEY, JSON.stringify({ at: '2026-09-01T04:00:00.000Z', kind: 'json' }));
+    expect(readLastBackupAt()).toBe('2026-09-01T04:00:00.000Z');
+    window.localStorage.setItem(EXPORT_KEY, JSON.stringify({ at: '2026-09-01T04:00:00.000Z', kind: 'csv' }));
+    expect(readLastBackupAt()).toBeNull();
+  });
+
+  it('reads junk or an invalid date as none', () => {
+    window.localStorage.setItem(BACKUP_KEY, 'last tuesday');
+    expect(readLastBackupAt()).toBeNull();
+    window.localStorage.setItem(BACKUP_KEY, '');
+    expect(readLastBackupAt()).toBeNull();
+    writeLastBackupAt('2026-10-16T11:10:00.000Z');
+    expect(readLastBackupAt()).toBe('2026-10-16T11:10:00.000Z');
+  });
+
+  it('is cleared with the export record', () => {
+    writeLastExport({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
+    clearLastExport();
+    expect(window.localStorage.getItem(EXPORT_KEY)).toBeNull();
+    expect(window.localStorage.getItem(BACKUP_KEY)).toBeNull();
+    expect(readLastBackupAt()).toBeNull();
+  });
+
+  it('notes a restored file, keeping the later date', () => {
+    noteRestoredBackup('2026-10-01T04:00:00.000Z');
+    expect(readLastBackupAt()).toBe('2026-10-01T04:00:00.000Z');
+    noteRestoredBackup('2026-09-01T04:00:00.000Z');
+    expect(readLastBackupAt()).toBe('2026-10-01T04:00:00.000Z');
+    noteRestoredBackup('2026-10-20T04:00:00.000Z');
+    expect(readLastBackupAt()).toBe('2026-10-20T04:00:00.000Z');
+  });
+
+  it('ignores an empty or unreadable export date', () => {
+    noteRestoredBackup('');
+    noteRestoredBackup('garbage');
+    expect(readLastBackupAt()).toBeNull();
+    noteRestoredBackup('2026-10-01T04:00:00.000Z');
+    noteRestoredBackup('');
+    noteRestoredBackup('garbage');
+    expect(readLastBackupAt()).toBe('2026-10-01T04:00:00.000Z');
+  });
+
+  it('survives blocked storage', () => {
+    const blocked = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    const blockedSet = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    const blockedRemove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    try {
+      expect(readLastBackupAt()).toBeNull();
+      expect(() => writeLastExport({ at: '2026-10-16T11:10:00.000Z', kind: 'json' })).not.toThrow();
+      expect(() => noteRestoredBackup('2026-10-16T11:10:00.000Z')).not.toThrow();
+      expect(() => clearLastExport()).not.toThrow();
+    } finally {
+      blocked.mockRestore();
+      blockedSet.mockRestore();
+      blockedRemove.mockRestore();
+    }
   });
 });

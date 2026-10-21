@@ -7,6 +7,7 @@ import { PlacesGallery } from './gallery/PlacesGallery';
 import { UsualsGallery } from './gallery/UsualsGallery';
 import { PotsGallery } from './gallery/PotsGallery';
 import { ActivityGallery } from './gallery/ActivityGallery';
+import { GoalsGallery } from './gallery/GoalsGallery';
 import { Segmented } from '@/components/ui/Segmented';
 import styles from './GalleryPage.module.css';
 
@@ -41,6 +42,7 @@ export default function GalleryPage() {
       <UsualsGallery />
       <PotsGallery />
       <ActivityGallery />
+      <GoalsGallery />
     </div>
   );
 }

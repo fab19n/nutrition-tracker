@@ -13,7 +13,7 @@ import { getProfile, listActivePots, listGoals, listPlaces, listUsuals, listWork
 import { byId, normaliseName } from '@/data/catalogue';
 import { now } from '@/domain/clock';
 import { itemFromCatalogue } from '@/domain/meal';
-import type { AiEstimateMode, Goal, LogicalDay, MealItem, MealSlot, Place, Pot, Profile, Usual, Workout } from '@/domain/types';
+import type { AiEstimateMode, Goal, Instant, LogicalDay, MealItem, MealSlot, Place, Pot, Profile, Usual, Workout } from '@/domain/types';
 
 // ---------------------------------------------------------------------------
 // Limits shared by setup (S02, S04, S07) and settings (S19)
@@ -229,6 +229,8 @@ export interface LastExport {
 }
 
 const LAST_EXPORT_KEY = 'kira-makan:last-export';
+/** The newest full backup (JSON) on this device, as an ISO string: a CSV export never counts. */
+const LAST_BACKUP_KEY = 'kira-makan:last-backup';
 
 export function readLastExport(): LastExport | null {
   try {
@@ -245,18 +247,65 @@ export function readLastExport(): LastExport | null {
   }
 }
 
+/** Records an export. A full backup (JSON) also becomes the last backup (see readLastBackupAt). */
 export function writeLastExport(value: LastExport): void {
   try {
     window.localStorage.setItem(LAST_EXPORT_KEY, JSON.stringify(value));
   } catch {
     // Private mode or storage blocked: the date just isn't remembered.
   }
+  if (value.kind === 'json') writeLastBackupAt(value.at);
 }
 
+/** Forgets both records (Delete everything, leaving demo). */
 export function clearLastExport(): void {
   try {
     window.localStorage.removeItem(LAST_EXPORT_KEY);
   } catch {
     // Nothing to clear.
   }
+  try {
+    window.localStorage.removeItem(LAST_BACKUP_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+function isInstant(value: unknown): value is Instant {
+  return typeof value === 'string' && value !== '' && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * When the newest full backup (JSON) was made here, or the file a restore came from (the monthly
+ * nudge, S39). Falls back to the last export when that was a JSON one, for a device that exported
+ * before this record existed. Null when there is none.
+ */
+export function readLastBackupAt(): Instant | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_BACKUP_KEY);
+    if (isInstant(raw)) return raw;
+  } catch {
+    // Storage blocked: fall back to the export record.
+  }
+  const last = readLastExport();
+  return last?.kind === 'json' ? last.at : null;
+}
+
+export function writeLastBackupAt(at: Instant): void {
+  try {
+    window.localStorage.setItem(LAST_BACKUP_KEY, at);
+  } catch {
+    // Private mode or storage blocked: the date just isn't remembered.
+  }
+}
+
+/**
+ * A restore leaves this device holding exactly the file's state, so the file's export date is a
+ * backup date. Keeps the later of that and the one on record; an empty or unreadable date is ignored.
+ */
+export function noteRestoredBackup(exportedAt: Instant): void {
+  if (!isInstant(exportedAt)) return;
+  const current = readLastBackupAt();
+  if (current !== null && Date.parse(current) >= Date.parse(exportedAt)) return;
+  writeLastBackupAt(exportedAt);
 }

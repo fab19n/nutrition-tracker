@@ -6,13 +6,18 @@
  */
 import { createActions } from '@/db/actions';
 import { createDb, SYNC_TABLES, type KiraMakanDb } from '@/db/db';
+import { getActiveGoal } from '@/db/selectors';
 import type { SyncLink } from '@/db/syncTypes';
+import { createGoalActions } from '@/db/goals';
+import { createTargetActions, getTargetView } from '@/db/targetSuggestion';
 import { setDemoClock } from '@/domain/clock';
+import { goalDraftFor } from '@/domain/goals';
 import type { DayRecord, MealLog } from '@/domain/types';
 import { SyncError } from './errors';
 import { ackPush, applyPage, applyRestore, collectPush, linkEmptyAccount, readMeta, recordSuccess } from './local';
 import type { PushChange, PushReply, PushResult, RemoteCtx, SyncRemote, WireRow } from './remote';
 import { primaryKeyField, toServerRow, type JsonObject } from './rows';
+import { loadMaintenanceWorld, MAINTENANCE_WORLD } from '@/test/maintenanceWorld';
 import { createFakeServer, type FakeServer } from './testing/fakeServer';
 
 const USER = 'user-1';
@@ -477,6 +482,176 @@ function random(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+describe('target suggestions on two devices', () => {
+  const at = { today: MAINTENANCE_WORLD.today };
+  const suggested = { versionId: MAINTENANCE_WORLD.ids.setupVersion, option: 'suggested' as const, dailyKcal: 1550 };
+
+  /** A has the maintenance world (a suggestion of 1,550 on Fri 30 Oct) and uploads it; B is restored from the account. */
+  async function pairWithWorld(): Promise<[Device, Device]> {
+    const a = makeDevice('a');
+    const b = makeDevice('b');
+    await on(a, async () => {
+      await loadMaintenanceWorld(a.db);
+      const summary = await a.remote.hello(ctx());
+      await linkEmptyAccount(a.db, { userId: USER, summary, now: Date.now() });
+    });
+    await sync(a);
+    await restore(b);
+    return [a, b];
+  }
+
+  it('an approval on A reaches B as the target from tomorrow', async () => {
+    const [a, b] = await pairWithWorld();
+    expect((await getTargetView(b.db, at))?.check.kind).toBe('suggestion');
+    const { version } = await on(a, () => createTargetActions(a.db).approveTarget(suggested, at));
+    await sync(a);
+    await sync(b);
+    const view = await getTargetView(b.db, at);
+    expect(view?.check.kind).toBe('onTrack');
+    expect(view?.pending?.id).toBe(version.id);
+    expect(view?.week?.pending?.totalKcal).toBe(12100);
+    await expectConverged(a, b);
+  });
+
+  it('a Keep current on A keeps it on B too', async () => {
+    const [a, b] = await pairWithWorld();
+    await on(a, () => createTargetActions(a.db).keepCurrentTarget({ versionId: MAINTENANCE_WORLD.ids.setupVersion }, at));
+    await sync(a);
+    await sync(b);
+    expect((await getTargetView(b.db, at))?.check.kind).toBe('kept');
+    await expectConverged(a, b);
+  });
+
+  it('Keep current on A and Approve on B, both offline: the approval stands on both', async () => {
+    const [a, b] = await pairWithWorld();
+    await on(a, () => createTargetActions(a.db).keepCurrentTarget({ versionId: MAINTENANCE_WORLD.ids.setupVersion }, at));
+    later(MINUTE);
+    const { version } = await on(b, () => createTargetActions(b.db).approveTarget(suggested, at));
+    await sync(a);
+    await sync(b);
+    await sync(a);
+    for (const device of [a, b]) {
+      const view = await getTargetView(device.db, at);
+      expect(view?.check.kind, device.name).toBe('onTrack');
+      expect(view?.pending?.id, device.name).toBe(version.id);
+    }
+    await expectConverged(a, b);
+  });
+
+  it('two offline approvals: one target from tomorrow on both, the later one', async () => {
+    const [a, b] = await pairWithWorld();
+    await on(a, () => createTargetActions(a.db).approveTarget(suggested, at));
+    later(MINUTE);
+    await on(b, () => createTargetActions(b.db).approveTarget({ ...suggested, option: 'slowerPace', dailyKcal: 1825 }, at));
+    await sync(a);
+    await sync(b);
+    await sync(a);
+    const onA = await getActiveGoal(a.db, MAINTENANCE_WORLD.tomorrow);
+    const onB = await getActiveGoal(b.db, MAINTENANCE_WORLD.tomorrow);
+    expect(onA?.version.id).toBe(onB?.version.id);
+    for (const device of [a, b]) {
+      const history = (await getTargetView(device.db, at))?.history ?? [];
+      expect(history.filter((r) => r.version.effectiveFrom === MAINTENANCE_WORLD.tomorrow), device.name).toHaveLength(1);
+      expect(history[0]?.version.id, device.name).toBe(onA?.version.id);
+    }
+    expect(await a.db.goalVersions.count()).toBe(3);
+    await expectConverged(a, b);
+  });
+
+  it('two offline approvals, then one "Keep 1,800 instead": no pending target on either device', async () => {
+    const [a, b] = await pairWithWorld();
+    await on(a, () => createTargetActions(a.db).approveTarget(suggested, at));
+    later(MINUTE);
+    await on(b, () => createTargetActions(b.db).approveTarget({ ...suggested, option: 'slowerPace', dailyKcal: 1825 }, at));
+    await sync(a);
+    await sync(b);
+    await sync(a);
+    const pending = (await getTargetView(a.db, at))?.pending;
+    expect(pending).toBeDefined();
+    await on(a, () => createTargetActions(a.db).cancelPendingTarget(pending!.id, at));
+    await sync(a);
+    await sync(b);
+    for (const device of [a, b]) {
+      const view = await getTargetView(device.db, at);
+      expect(view?.pending, device.name).toBeUndefined();
+      expect(view?.check.kind, device.name).toBe('suggestion');
+      expect((await getActiveGoal(device.db, MAINTENANCE_WORLD.tomorrow))?.version.id, device.name).toBe(MAINTENANCE_WORLD.ids.setupVersion);
+      expect(await device.db.goalVersions.count(), device.name).toBe(1);
+    }
+    await expectConverged(a, b);
+  });
+});
+
+describe('goal switches on two devices', () => {
+  const at = { today: MAINTENANCE_WORLD.today };
+  const { tomorrow } = MAINTENANCE_WORLD;
+  const cutPeriod = MAINTENANCE_WORLD.ids.period;
+
+  /** A has the maintenance world plus a saved Festive and Lean bulk, and uploads it; B is restored from the account. */
+  async function pairWithGoals(): Promise<{ a: Device; b: Device; festive: string; leanBulk: string }> {
+    const a = makeDevice('a');
+    const b = makeDevice('b');
+    const ids = await on(a, async () => {
+      await loadMaintenanceWorld(a.db);
+      const ctxDraft = { maintenanceKcal: 2350, weightKg: 78, dailyMinimumKcal: 1400 };
+      const goals = createGoalActions(a.db);
+      const festive = await goals.createGoal(goalDraftFor('festive', { name: 'Festive maintain', ...ctxDraft }), at);
+      const leanBulk = await goals.createGoal(goalDraftFor('leanBulk', { name: 'Lean bulk', ...ctxDraft }), at);
+      const summary = await a.remote.hello(ctx());
+      await linkEmptyAccount(a.db, { userId: USER, summary, now: Date.now() });
+      return { festive: festive.goal.id, leanBulk: leanBulk.goal.id };
+    });
+    await sync(a);
+    await restore(b);
+    return { a, b, ...ids };
+  }
+
+  it('a switch on A reaches B: the new goal from tomorrow, Cut today', async () => {
+    const { a, b, festive } = await pairWithGoals();
+    await on(a, () => createGoalActions(a.db).switchGoal(festive, at));
+    await sync(a);
+    await sync(b);
+    expect((await getActiveGoal(b.db, tomorrow))?.goal.id).toBe(festive);
+    expect((await getActiveGoal(b.db, at.today))?.goal.id).toBe(MAINTENANCE_WORLD.ids.cut);
+    await expectConverged(a, b);
+  });
+
+  it('two offline switches for tomorrow: the later booking wins on both devices', async () => {
+    const { a, b, festive, leanBulk } = await pairWithGoals();
+    await on(a, () => createGoalActions(a.db).switchGoal(festive, at));
+    later(MINUTE);
+    // A period's booking time comes from the real clock (new Date()), not the mocked Date.now: let it move on.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await on(b, () => createGoalActions(b.db).switchGoal(leanBulk, at));
+    await sync(a);
+    await sync(b);
+    await sync(a);
+    for (const device of [a, b]) {
+      expect((await getActiveGoal(device.db, tomorrow))?.goal.id, device.name).toBe(leanBulk);
+      expect((await getActiveGoal(device.db, at.today))?.goal.id, device.name).toBe(MAINTENANCE_WORLD.ids.cut);
+      expect((await device.db.goalPeriods.toArray()).filter((p) => p.from === tomorrow), device.name).toHaveLength(2);
+    }
+    await expectConverged(a, b);
+  });
+
+  it('a switch undone on A after it synced: B has Cut running on and nothing booked', async () => {
+    const { a, b, festive } = await pairWithGoals();
+    const { undo } = await on(a, () => createGoalActions(a.db).switchGoal(festive, at));
+    await sync(a);
+    await sync(b);
+    expect((await getActiveGoal(b.db, tomorrow))?.goal.id).toBe(festive);
+    await on(a, undo);
+    await sync(a);
+    await sync(b);
+    const cut = await b.db.goalPeriods.get(cutPeriod);
+    expect(cut).toBeDefined();
+    expect(cut?.to).toBeUndefined();
+    expect((await b.db.goalPeriods.toArray()).filter((p) => p.from === tomorrow)).toEqual([]);
+    expect((await getActiveGoal(b.db, tomorrow))?.goal.id).toBe(MAINTENANCE_WORLD.ids.cut);
+    await expectConverged(a, b);
+  });
+});
 
 describe('random steps', () => {
   it.each([1, 2, 3])('200 steps from seed %i leave A, B and the account the same', async (seed) => {

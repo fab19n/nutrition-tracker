@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { FileCheck, FileClock, FileDown } from 'lucide-react';
 import { SyncStatus, type SyncStatusProps } from './SyncStatus';
 
 describe('SyncStatus', () => {
@@ -17,6 +18,26 @@ describe('SyncStatus', () => {
     // Only the busy icon spins.
     expect(svg?.getAttribute('class')?.includes('spin')).toBe(tone === 'busy');
     expect(screen.getByText('Pill word').className).toContain(pill);
+  });
+
+  it.each<{ tone: SyncStatusProps['tone']; Icon: typeof FileCheck; icon: string }>([
+    { tone: 'ok', Icon: FileCheck, icon: 'file-check' },
+    { tone: 'attention', Icon: FileClock, icon: 'file-clock' },
+    { tone: 'off', Icon: FileDown, icon: 'file-down' },
+  ])('$tone: an icon of its own ($icon) replaces the one for the tone', ({ tone, Icon, icon }) => {
+    const { container } = render(<SyncStatus tone={tone} pill="Pill word" title="Title words" icon={Icon} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toHaveClass(`lucide-${icon}`);
+    expect(svg?.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(container.querySelectorAll('svg')).toHaveLength(1);
+  });
+
+  it('keeps the spinner while busy, whatever icon it is given', () => {
+    const { container } = render(<SyncStatus tone="busy" pill="Syncing" title="Syncing…" icon={FileCheck} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toHaveClass('lucide-loader-circle');
+    expect(svg).not.toHaveClass('lucide-file-check');
+    expect(svg?.getAttribute('class')?.includes('spin')).toBe(true);
   });
 
   it('puts the title and pill in the status region, the detail and facts outside it', () => {

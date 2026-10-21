@@ -3,7 +3,7 @@
  * a pace-based deficit, and default macro splits.
  */
 import { roundTo10, roundTo5 } from './format';
-import type { ActivityLevel, Goal, GoalTemplate, Sex } from './types';
+import type { ActivityLevel, Goal, GoalTemplate, GoalVersion, Sex } from './types';
 
 /** Multipliers for a day WITHOUT workouts; workouts are added to the budget separately. */
 export const ACTIVITY_FACTOR: Record<ActivityLevel, number> = { sedentary: 1.2, light: 1.375, active: 1.55 };
@@ -67,6 +67,22 @@ export function dailyTargetFor(
   return Math.max(dailyMinimumKcal, Math.round(target));
 }
 
+/** The pace a version was set at; versions from before paces were versioned use the goal's. */
+export function paceOf(goal: Pick<Goal, 'paceKgPerWeek'>, version?: Pick<GoalVersion, 'paceKgPerWeek'>): number {
+  return version?.paceKgPerWeek ?? goal.paceKgPerWeek;
+}
+
+/**
+ * Macros for a new target that keeps protein: fat 30% of kcal ÷ 9, carbs the remainder ÷ 4
+ * (never below 0), both rounded to 5. 1,550 / 110g → 110 / 165 / 50; 1,825 / 110g → 110 / 210 / 60.
+ */
+export function macrosForTarget(dailyKcal: number, proteinG: number): { proteinG: number; carbsG: number; fatG: number } {
+  const fatG = roundTo5((dailyKcal * FAT_SHARE_OF_KCAL) / KCAL_PER_G_FAT);
+  const remainder = dailyKcal - proteinG * KCAL_PER_G_PROTEIN - fatG * KCAL_PER_G_FAT;
+  const carbsG = Math.max(0, roundTo5(remainder / KCAL_PER_G_CARBS));
+  return { proteinG, carbsG, fatG };
+}
+
 /** Protein 1.4 g/kg (lean bulk 1.65), fat 30% of kcal, carbs the remainder; all rounded to 5. */
 export function defaultMacroTargets(
   dailyKcal: number,
@@ -74,8 +90,5 @@ export function defaultMacroTargets(
   template: GoalTemplate,
 ): { proteinG: number; carbsG: number; fatG: number } {
   const proteinG = roundTo5(weightKg * (template === 'leanBulk' ? PROTEIN_G_PER_KG_BULK : PROTEIN_G_PER_KG));
-  const fatG = roundTo5((dailyKcal * FAT_SHARE_OF_KCAL) / KCAL_PER_G_FAT);
-  const remainder = dailyKcal - proteinG * KCAL_PER_G_PROTEIN - fatG * KCAL_PER_G_FAT;
-  const carbsG = Math.max(0, roundTo5(remainder / KCAL_PER_G_CARBS));
-  return { proteinG, carbsG, fatG };
+  return macrosForTarget(dailyKcal, proteinG);
 }

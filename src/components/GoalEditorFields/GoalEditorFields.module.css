@@ -1,0 +1,235 @@
+/* C48 GoalEditorFields: cards at 16px side margins, labels and notes 4px in (20px on the page), Setup's stepper and input look. Tokens only. */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 var(--pad-card-x);
+}
+
+/* The Setup input look: 52px, radius 16, --card. */
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.inputWrap:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.invalid,
+.invalid:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.input::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}
+
+.unit {
+  flex: none;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.hint,
+.error,
+.note {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.hint,
+.note {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Lines under a card sit with the card's text: 20px from the screen edge. */
+.outside,
+.note {
+  padding: 8px var(--pad-text-x) 0;
+}
+
+.pauseCard {
+  margin: 14px var(--pad-card-x) 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.targetCard {
+  margin: 0 var(--pad-card-x);
+}
+
+/* Rows inside the target card, separated by hairlines. */
+.targetCard > * + * {
+  border-top: 1px solid var(--line);
+}
+
+.choiceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.rowLabel {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Choice chips (15px/700) sit on --card here: unselected ones take --card2 so they read as chips. */
+.choiceOnCard [aria-pressed='false'] {
+  background: var(--card2);
+}
+
+/* Choice chips are sized for equal-width rows; these wrap, so they get side padding and fill each row. */
+.choiceChips [role='group'] > button {
+  flex: 1 1 auto;
+  padding: 14px 14px;
+}
+
+.caption {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ---------- Stepper (the look of screens/Setup/Stepper) ---------- */
+
+/* The − value + controls move to their own line when the label gets too narrow (130% text). */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.stepperText {
+  display: flex;
+  flex: 1 1 120px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stepperLabel {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stepperSub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.stepperControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.stepperButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--card2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepperButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stepperValue {
+  min-width: 72px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.stepperUnit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ---------- Fixed hours (Custom) ---------- */
+
+.times {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
+}
+
+.timeRow + .timeRow {
+  border-top: 1px solid var(--line);
+}
+
+.timeLabel {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.time {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--card2);
+  color: var(--text);
+  /* 16px: mobile browsers zoom into smaller inputs. */
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.time::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}

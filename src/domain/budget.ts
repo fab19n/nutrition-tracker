@@ -6,7 +6,7 @@
  * check-in confirms them. Savings can be set aside for a makan day; a shortfall is spread
  * over the remaining days without taking any of them below the daily minimum.
  */
-import { compareDays, weekStartOf } from './day';
+import { addDays, compareDays, weekDays, weekStartOf } from './day';
 import type { DayStatusKind, LogicalDay } from './types';
 
 export interface BudgetDayInput {
@@ -247,6 +247,81 @@ function makanRoom(makanDay: LogicalDay, days: BudgetDay[], todayDay: BudgetDay 
   if (todayDay?.day === makanDay) return todayDay.baseKcal + Math.max(0, savedKcal);
   const day = days.find((d) => d.day === makanDay);
   return day?.kind === 'makan' ? day.plannedKcal : undefined;
+}
+
+export interface ProratedWeek {
+  /** The day the new target starts (tomorrow). */
+  startsOn: LogicalDay;
+  /** False when tomorrow is next week (today is Sunday): no week line. */
+  sameWeek: boolean;
+  /** Consecutive days at the same target: "5 days at 1,800 + 2 days at 1,550". Paused days left out. */
+  groups: { days: number; kcal: number }[];
+  totalKcal: number;
+}
+
+/**
+ * The budget week with `newKcal` from tomorrow (targets only, before workouts), for S37 (a goal
+ * switch, S44, uses switchedWeek): today and earlier days keep their target, later days take the new one unless paused.
+ */
+export function proratedWeek(
+  days: readonly { day: LogicalDay; targetKcal: number | null }[],
+  today: LogicalDay,
+  newKcal: number,
+): ProratedWeek {
+  const startsOn = addDays(today, 1);
+  const weekStart = weekStartOf(today);
+  if (weekStartOf(startsOn) !== weekStart) return { startsOn, sameWeek: false, groups: [], totalKcal: 0 };
+  const targetOn = new Map(days.map((d) => [d.day, d.targetKcal]));
+  const groups: ProratedWeek['groups'] = [];
+  for (const day of weekDays(weekStart)) {
+    const target = targetOn.get(day) ?? null;
+    if (target === null) continue;
+    const kcal = compareDays(day, today) <= 0 ? target : newKcal;
+    const last = groups.at(-1);
+    if (last && last.kcal === kcal) last.days += 1;
+    else groups.push({ days: 1, kcal });
+  }
+  return { startsOn, sameWeek: true, groups, totalKcal: groups.reduce((sum, g) => sum + g.days * g.kcal, 0) };
+}
+
+export interface SwitchedWeek {
+  /** Tomorrow. */
+  startsOn: LogicalDay;
+  /** False when tomorrow is next week (today is Sunday): no week line. */
+  sameWeek: boolean;
+  /** Budget days in order, consecutive equal targets merged (paused days skipped, not breaking a group). */
+  groups: { days: number; kcal: number }[];
+  totalKcal: number;
+  /** Days of the week with no budget after the switch (earlier Pause days and Pause days ahead). */
+  pausedDays: LogicalDay[];
+}
+
+/**
+ * The budget week with a different goal from tomorrow (S44): today and earlier days keep their
+ * target (null = paused), later days take `targetAfter(day)` (null = paused). Targets only, before workouts.
+ */
+export function switchedWeek(
+  days: readonly { day: LogicalDay; targetKcal: number | null }[],
+  today: LogicalDay,
+  targetAfter: (day: LogicalDay) => number | null,
+): SwitchedWeek {
+  const startsOn = addDays(today, 1);
+  const weekStart = weekStartOf(today);
+  if (weekStartOf(startsOn) !== weekStart) return { startsOn, sameWeek: false, groups: [], totalKcal: 0, pausedDays: [] };
+  const targetOn = new Map(days.map((d) => [d.day, d.targetKcal]));
+  const groups: SwitchedWeek['groups'] = [];
+  const pausedDays: LogicalDay[] = [];
+  for (const day of weekDays(weekStart)) {
+    const kcal = compareDays(day, today) <= 0 ? (targetOn.get(day) ?? null) : targetAfter(day);
+    if (kcal === null) {
+      pausedDays.push(day);
+      continue;
+    }
+    const last = groups.at(-1);
+    if (last && last.kcal === kcal) last.days += 1;
+    else groups.push({ days: 1, kcal });
+  }
+  return { startsOn, sameWeek: true, groups, totalKcal: groups.reduce((sum, g) => sum + g.days * g.kcal, 0), pausedDays };
 }
 
 /**

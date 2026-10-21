@@ -17,7 +17,7 @@ export function GoalPill({ label, onPress, className }: GoalPillProps) {
       aria-label={`Goal: ${label}`}
       onClick={onPress}
     >
-      {label}
+      <span className={styles.label}>{label}</span>
     </button>
   );
 }

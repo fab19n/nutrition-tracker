@@ -4,9 +4,11 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PATHS } from '@/app/paths';
 import type { SessionState } from '@/auth/session';
-import { loadDemoData, resetAll } from '@/db/actions';
+import { loadDemoData, resetAll, syncDemoClock } from '@/db/actions';
 import { db } from '@/db/db';
+import { readLastBackupAt, readLastExport, writeLastBackupAt, writeLastExport } from '@/db/settings';
 import type { OutboxEntry, SyncLink, SyncMeta } from '@/db/syncTypes';
+import { logicalDayOf } from '@/domain/day';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { EngineState } from '@/sync';
 import { SyncError } from '@/sync/errors';
@@ -123,6 +125,18 @@ async function ownDiary(): Promise<void> {
   await db.profile.update('me', { demoMode: false });
 }
 
+const DAY_MS = 86_400_000;
+
+/** A time some days before the real now, and the calendar day it falls on in Kuala Lumpur. */
+const isoDaysAgo = (days: number): string => new Date(Date.now() - days * DAY_MS).toISOString();
+const dayDaysAgo = (days: number): string => logicalDayOf(new Date(Date.now() - days * DAY_MS), 'Asia/Kuala_Lumpur', 0);
+
+/** An own diary of its own age, on the real clock (the sample week's Oct 2026 start would read as an old diary). */
+async function diaryStartedDaysAgo(days: number): Promise<void> {
+  await db.profile.update('me', { demoMode: false, startedOn: dayDaysAgo(days) });
+  await syncDemoClock();
+}
+
 /** This phone's own diary, synced with an account, with these changes queued. */
 async function linkedPhone(meta: Partial<SyncMeta> = {}, entries: OutboxEntry[] = []): Promise<void> {
   await ownDiary();
@@ -166,6 +180,7 @@ function renderSettings() {
       { path: '/more/settings', element: <SettingsScreen /> },
       { path: '/more', element: <h1>More screen</h1> },
       { path: '/more/export', element: <h1>Export screen</h1> },
+      { path: '/more/backups', element: <h1>Backups screen</h1> },
       { path: '/more/weight', element: <h1>Weight screen</h1> },
       { path: '/more/soon/:what', element: <h1>Soon screen</h1> },
       { path: '/setup/*', element: <h1>Setup screen</h1> },
@@ -346,6 +361,19 @@ describe('SettingsScreen (S19)', () => {
     expect(await db.profile.count()).toBe(0);
   });
 
+  it("forgets the sample week's export when leaving demo", async () => {
+    writeLastExport({ at: '2026-10-16T11:10:00.000Z', kind: 'json' });
+    expect(readLastBackupAt()).not.toBeNull();
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(await screen.findByRole('button', { name: /Leave demo and start fresh/ }));
+    expect(await screen.findByRole('heading', { name: 'Setup screen' })).toBeInTheDocument();
+    expect(readLastExport()).toBeNull();
+    expect(readLastBackupAt()).toBeNull();
+    expect(window.localStorage.getItem('kira-makan:last-backup')).toBeNull();
+  });
+
   it('links to export, reminders and backups', async () => {
     const user = userEvent.setup();
     const router = renderSettings();
@@ -354,10 +382,97 @@ describe('SettingsScreen (S19)', () => {
     expect(router.state.location.pathname).toBe(PATHS.export);
     await router.navigate(PATHS.settings);
     await user.click(await screen.findByRole('button', { name: /^Backups/ }));
-    expect(router.state.location.pathname).toBe(PATHS.soon('backups'));
+    expect(router.state.location.pathname).toBe(PATHS.backups);
+    expect(await screen.findByRole('heading', { name: 'Backups screen' })).toBeInTheDocument();
     await router.navigate(PATHS.settings);
     await user.click(await screen.findByRole('button', { name: /^Reminders/ }));
     expect(router.state.location.pathname).toBe(PATHS.soon('reminders'));
+  });
+});
+
+describe('SettingsScreen Backups row', () => {
+  const backupsRow = () => screen.findByRole('button', { name: /^Backups/ });
+
+  it('says what the screen is for, and nothing about Google Drive', async () => {
+    renderSettings();
+    expect(await backupsRow()).toHaveTextContent('Export and restore');
+    expect(document.body).not.toHaveTextContent('Google Drive');
+  });
+
+  it('mentions sync in the deployed app', async () => {
+    deployed({ status: 'signedOut' });
+    await diaryStartedDaysAgo(10);
+    renderSettings();
+    expect(await backupsRow()).toHaveTextContent('Sync, export and restore');
+    expect(document.body).not.toHaveTextContent('Google Drive');
+  });
+
+  it('keeps the same line on the sample week, however old the last export', async () => {
+    writeLastBackupAt(isoDaysAgo(45));
+    renderSettings();
+    const row = await backupsRow();
+    expect(row).toHaveTextContent('Export and restore');
+    expect(row).not.toHaveTextContent('Time for');
+  });
+
+  it('keeps the same line for a young diary that was never exported', async () => {
+    await diaryStartedDaysAgo(10);
+    renderSettings();
+    expect(await backupsRow()).toHaveTextContent('Export and restore');
+  });
+
+  it('keeps the same line when the last backup is recent', async () => {
+    await diaryStartedDaysAgo(100);
+    writeLastBackupAt(isoDaysAgo(10));
+    renderSettings();
+    const row = await backupsRow();
+    await act(async () => {
+      await db.meals.count();
+    });
+    expect(row).toHaveTextContent('Export and restore');
+    expect(row).not.toHaveTextContent('Time for');
+  });
+
+  it('says quietly that a new export is due, when the last backup is over 30 days old', async () => {
+    await diaryStartedDaysAgo(100);
+    writeLastBackupAt(isoDaysAgo(45));
+    renderSettings();
+    await waitFor(async () => expect(await backupsRow()).toHaveTextContent('Last export 45 days ago. Time for a new one.'));
+    // Not a banner: no alert, and this row is the one place outside Backups that says so.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('counts a JSON export from before the backup record existed', async () => {
+    await diaryStartedDaysAgo(100);
+    window.localStorage.setItem('kira-makan:last-export', JSON.stringify({ at: isoDaysAgo(45), kind: 'json' }));
+    renderSettings();
+    await waitFor(async () => expect(await backupsRow()).toHaveTextContent('Last export 45 days ago. Time for a new one.'));
+  });
+
+  it('does not count a spreadsheet export', async () => {
+    await diaryStartedDaysAgo(100);
+    writeLastExport({ at: isoDaysAgo(1), kind: 'csv' });
+    renderSettings();
+    await waitFor(async () => expect(await backupsRow()).toHaveTextContent('No export yet. Time for one.'));
+    // The Export row still shows the newest export of any kind.
+    expect(screen.getByRole('button', { name: /^Export/ })).toHaveTextContent('Last export');
+  });
+
+  it('says there is no export yet once an old diary has never been exported', async () => {
+    await diaryStartedDaysAgo(40);
+    renderSettings();
+    await waitFor(async () => expect(await backupsRow()).toHaveTextContent('No export yet. Time for one.'));
+  });
+
+  it('stays quiet for an empty diary', async () => {
+    await diaryStartedDaysAgo(100);
+    await db.meals.clear();
+    renderSettings();
+    const row = await backupsRow();
+    await act(async () => {
+      await db.meals.count();
+    });
+    expect(row).toHaveTextContent('Export and restore');
   });
 });
 

@@ -5,10 +5,12 @@ import styles from './UnlockProgress.module.css';
 export interface UnlockProgressProps {
   /** "Timing patterns", "Your real maintenance". */
   label: string;
-  /** Complete days logged so far. */
+  /** Complete days logged so far (or what `unit` counts). */
   have: number;
   /** Days needed to unlock. */
   need: number;
+  /** What `have` and `need` count: "days" (default), "weigh-ins". */
+  unit?: string;
   className?: string;
 }
 
@@ -23,7 +25,7 @@ export function unlockPct(have: number, need: number): number {
 }
 
 /** @design C15 UnlockProgress — "9 of 14 days" toward an insight that needs more data. */
-export function UnlockProgress({ label, have, need, className }: UnlockProgressProps) {
+export function UnlockProgress({ label, have, need, unit = 'days', className }: UnlockProgressProps) {
   const unlocked = isUnlocked(have, need);
   return (
     <div className={[styles.row, className].filter(Boolean).join(' ')}>
@@ -36,7 +38,7 @@ export function UnlockProgress({ label, have, need, className }: UnlockProgressP
           </span>
         ) : (
           <span className="muted">
-            {fmtInt(have)} of {fmtInt(need)} days
+            {fmtInt(have)} of {fmtInt(need)} {unit}
           </span>
         )}
       </div>

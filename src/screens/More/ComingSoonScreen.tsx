@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import { Bell, CloudUpload, Search, Sparkles, Target } from 'lucide-react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { Bell, Search, Sparkles } from 'lucide-react';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { SubScreenHeader } from '@/components/TopBar/TopBar';
-import { useActiveGoal } from '@/db/hooks';
 import styles from './ComingSoonScreen.module.css';
 
 interface Area {
@@ -17,11 +16,6 @@ interface Area {
 }
 
 const AREAS: Record<string, Area> = {
-  goals: {
-    title: 'Goals',
-    icon: <Target />,
-    body: 'Your goal library, switching goals from the next rollover and editing targets. Your current goal keeps running until then.',
-  },
   search: {
     title: 'Search',
     icon: <Search />,
@@ -31,12 +25,6 @@ const AREAS: Record<string, Area> = {
     title: 'Reminders',
     icon: <Bell />,
     body: 'Weigh-in and meal nudges, only at times you pick.',
-  },
-  backups: {
-    title: 'Backups',
-    icon: <CloudUpload />,
-    body: 'A weekly copy to your Google Drive. Until then, Export makes a full backup.',
-    action: { label: 'Export now', to: PATHS.export },
   },
 };
 
@@ -51,15 +39,16 @@ export default function ComingSoonScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { what = '' } = useParams();
-  const active = useActiveGoal();
   const key = what.toLowerCase();
-  const found = AREAS[key] ?? fallbackArea(what);
-  // Goals names the goal that is actually running ("Your Lean bulk goal keeps running…").
-  const area: Area =
-    key === 'goals' && active ? { ...found, body: found.body.replace('Your current goal', `Your ${active.goal.name} goal`) } : found;
+  const area = AREAS[key] ?? fallbackArea(what);
 
   const back = () => (location.key !== 'default' ? goBack(navigate) : navigate(PATHS.more, { replace: true }));
   const action = area.action;
+
+  // Goals has its screens now (S41–S44); an old link lands on the library.
+  if (key === 'goals') return <Navigate to={PATHS.goals} replace />;
+  // So does Backups (S39).
+  if (key === 'backups') return <Navigate to={PATHS.backups} replace />;
 
   return (
     <div className={styles.subScreen}>

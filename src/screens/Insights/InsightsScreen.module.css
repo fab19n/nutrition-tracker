@@ -17,6 +17,11 @@
   padding: 14px var(--pad-card-x) 0;
 }
 
+/* C45 target suggestion, first under the TopBar. */
+.target {
+  margin: 14px var(--pad-card-x) 0;
+}
+
 .inset {
   margin: 0 var(--pad-card-x);
 }

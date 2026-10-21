@@ -33,9 +33,13 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByText('C49 CheckInCard / Nothing picked (interactive)')).toBeInTheDocument();
     expect(screen.getByText('C61 SleepTap / Shown')).toBeInTheDocument();
     expect(screen.getByText('SyncStatus / Up to date')).toBeInTheDocument();
+    expect(screen.getByText('SyncStatus / File backup (Due)')).toBeInTheDocument();
+    expect(screen.getByText('BackupPreview / Full')).toBeInTheDocument();
+    expect(screen.getByText('BackupPreview / Amber note')).toBeInTheDocument();
     // Suggestions and insights (C40–C43)
     expect(screen.getByRole('heading', { level: 2, name: 'Suggestions and insights' })).toBeInTheDocument();
     expect(screen.getByText('C41 InsightCard / Marked useful')).toBeInTheDocument();
+    expect(screen.getByText('C45 TargetSuggestionCard / Full · change pace instead')).toBeInTheDocument();
     // Phase 2: Places (C34–C36), Usuals (C37), Pots (C38–C39), Activity (C51–C52)
     for (const name of ['Places', 'Usuals', 'Pots', 'Activity']) {
       expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
@@ -47,6 +51,12 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getAllByText(/^C39 IngredientRow \//).length).toBeGreaterThan(0);
     expect(screen.getByText('C51 WorkoutForm / Futsal · 60 min · Moderate (~470 kcal this week)')).toBeInTheDocument();
     expect(screen.getByText('C52 OneOffBonus / Empty · today')).toBeInTheDocument();
+    // Phase 5: Goals (C46–C48)
+    expect(screen.getByRole('heading', { level: 2, name: 'Goals' })).toBeInTheDocument();
+    expect(screen.getByText('C46 GoalCard / Active (Cut · week 3)')).toBeInTheDocument();
+    expect(screen.getByText('C47 GoalSwitchSheet / Festive maintain')).toBeInTheDocument();
+    expect(screen.getByText('C48 GoalEditorFields / Cut')).toBeInTheDocument();
+    expect(screen.getByText('C48 GoalEditorFields / Custom with fixed hours')).toBeInTheDocument();
 
     expect(consoleError).not.toHaveBeenCalled();
     // Renders every component in one go: about 1 s alone, 10 s+ while the whole suite runs.

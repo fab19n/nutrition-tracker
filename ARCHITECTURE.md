@@ -95,7 +95,7 @@ export function zonedParts(at: Date | Instant, tz?: string): { year: number; mon
 ```ts
 fmtInt(1800) → '1,800'          fmtSigned(650) → '+650'   fmtSigned(-120) → '−120' (U+2212)
 fmtKcal(1800) → '1,800 kcal'     fmtApprox(560) → '~560'    fmtRange({low:750,high:1010}) → '750–1,010' (en dash)
-fmtKg(77.9) → '77.9 kg'          fmtKgDelta(-0.4) → '−0.4 kg'
+fmtKg(77.9) → '77.9 kg'          fmtKgDelta(-0.4) → '−0.4 kg'   fmtKgRate(0.2348) → '0.25 kg' (paces and trend rates, nearest 0.05)
 fmtRm(9.5) → 'RM 9.50'           fmtTime(instant, tz) → '10:40am' | '7:10pm' | '12:05am'
 fmtDayShort('2026-10-16') → 'Fri 16 Oct'   fmtWeekday → 'Fri'   fmtDayLetter → 'F'   fmtDayRange(mon, sun) → '12–18 Oct'
 fmtAgo(thenMs, nowMs, tz) → 'just now' | '5 min ago' | 'at 9:40pm' | 'yesterday at 9:40pm' | 'on Fri 16 Oct'   (real clock, calendar days)
@@ -127,7 +127,10 @@ export function dailyTargetFor(goal: Pick<Goal,'template'|'paceKgPerWeek'|'surpl
 //   cut: max(min, maintenance − deficit) · festive: maintenance · leanBulk: maintenance + (surplus ?? 200) · pause/custom: maintenance − deficit (never below min)
 export function defaultMacroTargets(dailyKcal: number, weightKg: number, template: GoalTemplate): { proteinG: number; carbsG: number; fatG: number };
 //   protein 1.4 g/kg (leanBulk 1.65), fat 30% of kcal ÷ 9, carbs = remainder ÷ 4; all rounded to 5
+export function macrosForTarget(dailyKcal: number, proteinG: number): { proteinG; carbsG; fatG }; // keeps protein; fat and carbs as above (1,550 / 110 → 110 / 165 / 50)
+export function paceOf(goal: Pick<Goal,'paceKgPerWeek'>, version?: Pick<GoalVersion,'paceKgPerWeek'>): number; // version.paceKgPerWeek ?? goal.paceKgPerWeek
 ```
+Paces are versioned (decision §10.13): read a pace with `paceOf(goal, version)`, never `goal.paceKgPerWeek` alone.
 
 ### 5.6 `budget.ts` — weekly budget (plan §7, with decision §10.1)
 ```ts
@@ -167,6 +170,13 @@ export interface WeekBudget {
 }
 export function computeWeekBudget(input: { days: BudgetDayInput[]; today: LogicalDay; dailyMinimumKcal: number; makanDay?: LogicalDay }): WeekBudget;
 export function daysInRange(days: { eatenKcal: number; status: DayStatusKind | null }[], maintenanceKcal: number, rangePct: number): number;
+export function proratedWeek(days: { day; targetKcal: number | null }[], today: LogicalDay, newKcal: number):
+  { startsOn: LogicalDay; sameWeek: boolean; groups: { days: number; kcal: number }[]; totalKcal: number };
+//   this week with newKcal from tomorrow (paused days left out): "5 days at 1,800 + 2 days at 1,550 = 12,100"; Sunday → sameWeek false
+export function switchedWeek(days: { day; targetKcal: number | null }[], today: LogicalDay, targetAfter: (day: LogicalDay) => number | null):
+  { startsOn; sameWeek; groups; totalKcal; pausedDays: LogicalDay[] };
+//   S44: this week with another goal from tomorrow (null = paused); paused days are skipped without breaking a group and listed
+//   in pausedDays: Fri switch to Festive → "5 days at 1,800 + 2 days at 2,100 = 13,200"; to Pause → "5 days at 1,800 = 9,000", Sat and Sun
 ```
 Rules for **finished** days (before today):
 - `complete` / `guess`: counted = eaten; saved = base − eaten (may be negative).
@@ -203,7 +213,18 @@ export function adaptiveMaintenance(input: {
 // maintenance without workouts ≈ avg eaten − avg workout + (trend kg lost per day × 7,700); only complete days count; round to 10
 export function targetSuggestion(current: { maintenanceKcal: number; dailyKcal: number }, adaptive: { maintenanceKcal: number }, goal: Pick<Goal,'template'|'paceKgPerWeek'|'surplusKcal'>, dailyMinimumKcal: number):
   { suggestedDailyKcal: number; newMaintenanceKcal: number; altSlowerPace?: { paceKgPerWeek: number; dailyKcal: number } } | null; // null unless |Δmaintenance| > 100
+export const MIN_WEIGH_INS = 8, MIN_WEIGH_IN_SPAN_DAYS = 14, KEEP_CURRENT_DAYS = 28, TREND_SETTLE_DAYS = 10;
+export function checkTarget(input: { today; days: MaintenanceDay[]; trend: TrendPoint[]; goal?; latest?: GoalVersion; switching?: boolean; dailyMinimumKcal: number; kept?: KeptTarget }): TargetCheck;
+//   kinds: noTarget (noGoal | paused | switching) · tooEarly (< 21 complete days) · needWeighIns (< 8, or spread < 14 days, or the
+//   trend's run started too recently: needSpanDays 17 from its first day) ·
+//   onTrack (|Δ| ≤ 100, or the target would stay the same: sameTarget) · suggestion · kept (after Keep current)
+export function maintenanceWorking(estimate): string; // "You logged ~1,820 a day, and your trend dropped 0.25 kg a week."
 ```
+`checkTarget` reads the 28 days to last Sunday (`basis: 'weekly'`, the same number Mon–Sun on every device); only while that
+read is blocked does it read the 28 days to yesterday (`'daily'`). It compares with the goal's newest version, a pending one
+included. The slope only uses trend points at least `TREND_SETTLE_DAYS` into their run (a run starts at the first weigh-in, or
+after a gap of 10+ days), so a setup weight typed 1 kg off the morning scale moves maintenance by ~30 kcal, not ~230. Worked example (a unit test, `src/test/maintenanceWorld.ts`): Fri 30 Oct 2026, window 28 Sep–25 Oct, ~1,822 a day,
+trend −0.25 kg a week → maintenance 2,100; 2,350 / 1,800 at 0.5 kg → suggested 1,550, or 0.25 kg → 1,825.
 
 ### 5.9 `timing.ts`
 ```ts
@@ -233,6 +254,32 @@ export function analyseDay(meals: MealLog[], ctx: { baselines; tz?; rolloverHour
 // looksIncomplete when a usual slot (≥ 5 samples) has no meal and the gap after the last meal is ≥ 6 h
 ```
 
+### 5.12 `goals.ts` — goal periods, switching, end conditions, the S42/S43 draft (plan §6, decision §10.14)
+```ts
+export function comparePeriods(a: GoalPeriod, b: GoalPeriod): number;      // from, then createdAt ?? '' (older rows first), then id
+export function periodOn(periods, day): GoalPeriod | undefined;             // of the periods covering day (to exclusive), the last by comparePeriods
+export function everInForce(periods, goalId, today): boolean;              // a period of the goal with from ≤ today
+export function inUseAfter(periods, goalId, today): boolean;               // a period of the goal with to undefined or > today
+export function activeGoalIdAfter(periods): Id | undefined;                // the goal of the open-ended period that sorts last
+export function goalWeek(period, today): number;                           // floor(days since from / 7) + 1, at least 1
+export function planGoalSwitch({ periods, today, goalId, until?, resumeGoalId?, newId, createdAt }): PeriodPlan;
+//   T = tomorrow; remove periods with from ≥ T; cap periods reaching past today at to = T; add { goalId, from: T, createdAt } (to: until
+//   for a dated pause, plus { resumeGoalId, from: until }); until must be T+1 … T+60 and needs resumeGoalId (RangeError). Past rows never change.
+export function planCancelSwitch(periods, today): PeriodPlan | undefined;   // remove from ≥ T; today's period put back without `to`
+export function endConditionState(end, { today, trendKg?, paceKgPerWeek }): EndState; // none · date (reached on the day) · weight (by the trend, in the pace's direction; pace 0 never)
+export function endKey(goalId, state): string | undefined;                  // `${goalId}:date:${date}` · `${goalId}:weight:${kg}`
+export function goalDraftFor(template, { name, maintenanceKcal, weightKg, dailyMinimumKcal }): GoalDraft; // presetFor + dailyTargetFor + defaultMacroTargets
+export function validateGoalDraft(draft, { today, dailyMinimumKcal, trendKg?, kcalChanged, endChanged }): GoalDraftErrors; // {} when valid; an unchanged target or end is never an error
+export function sameEndCondition(a, b): boolean;                            // same date and weight (none = none); callers pass !sameEndCondition(stored, draft) as endChanged
+export function uniqueGoalName(base, taken): string;                        // 'Cut' → 'Cut 2' → 'Cut 3' (case-insensitive)
+export class GoalChangedError extends Error;  export class GoalDraftError extends RangeError { errors }
+```
+Constants: `GOAL_NAME_MAX 40`, `TARGET_KCAL_MAX 5000` (step 50, the minimum is the daily minimum), `PROTEIN_LIMIT 40–250` (step 5),
+`PACE_CHOICES 0.25 / 0.5 / 0.75`, `CUSTOM_PACE_CHOICES 0 / 0.25 / 0.5 / 0.75`, `RANGE_CHOICES 5 / 10 / 15%`, eating window 8–16 h,
+last meal 1–4 h before sleep, grazing 3–8 occasions, `PAUSE_UNTIL_MAX_DAYS 60`, `END_DATE_MAX_DAYS 730`, end weight 30–300 kg.
+`src/domain/insights/groups.ts`: `INSIGHT_GROUPS` (food · protein · timing · weight) and `rulesOffFor(goal)`; `evaluateInsights` leaves
+an off group's rules out of `ranked`/`top` (and so the weekly focus options), `all` still holds them; the maintenance estimate is in no group.
+
 ## 6. Data layer contracts (`src/db`)
 
 - `db.ts`: Dexie database `kira-makan`, version 2.
@@ -251,9 +298,9 @@ export function analyseDay(meals: MealLog[], ctx: { baselines; tz?; rolloverHour
 - `repo/*.ts`: plain async CRUD per table (no React).
 - `actions.ts`: user intents, each a transaction: `saveMeal(draft)`, `updateMeal(id, patch)`, `deleteMeal(id) → undo()`, `confirmDay(day, choice)`, `addWeight(kg, at?)`, `planMakanDay(day | null)`, `setWeeklyFocus(weekStart, focus)`, `addWorkout(...)`, `addBonus(...)`, `logPotServing(potId, servings)`, `completeSetup(input)`, `loadDemoData()`, `resetAll()`.
 - `hooks.ts`: live-query hooks for screens (see §6.1). Hooks combine Dexie data with the engine; screens never call the engine for budget maths directly.
-- `seed/defaults.ts`: goal templates (Cut, Festive maintain, Lean bulk, Pause) with timing rules and suggestion weights.
+- `seed/defaults.ts`: goal templates (Cut, Festive maintain, Lean bulk, Pause) with timing rules and suggestion weights, plus the Custom preset (`presetFor(template)`, `NEW_GOAL_TEMPLATES` for S43).
 - `seed/demo.ts`: the design's sample world (design_handoff.md §9) anchored to the demo clock: week Mon 12 – Sun 18 Oct 2026, today Fri 16 Oct 7:10pm; last week 5–11 Oct for the weekly review; weights 3–16 Oct; Places, Usuals, the kari ayam pot, last week's futsal.
-- `export.ts`: full JSON export/import and CSV (meals, items, weights, workouts). Import deletes the rows missing from the file, then puts the file's rows (photos are cleared and put), so an import becomes the account's state on every device.
+- `export.ts`: full JSON export, CSV (meals, items, weights, workouts) and the restore of a JSON file, in two steps so a screen can show the file before anything changes. `readBackup(file)` checks the file and writes nothing; it throws a `BackupImportError` whose `reason` is `notJson`, `notABackup` (also a version that isn't a number), `newerVersion`, `badRow` (a row of the wrong shape, or a profile whose time zone or rollover hour would break every date), `unreadable` or `tooBig` (over 128 MB, refused before reading). A table the file doesn't list is left alone; a listed empty one empties it. `assertRestorable` refuses a file with no diary (`incomplete`) or the sample week (`sampleData`); `previewOf` and `compareWithDevice` describe it against this device. `restoreBackup(db, backup, { deviceDefaults })` is the app's restore: one transaction that deletes the rows the file lacks by key (never `clear()`) and puts the file's rows, keeps this device's `theme` and `useLocation`, forces `demoMode` off, and, when the file left photos out, keeps the photos meals point to and deletes the rest. Its writes are captured, so with sync on the account follows the file. `importAll(db, file)` is the raw replace (the file's profile as it is, photos wholesale) for tools and tests.
 
 ### 6.0 As built (read the code; these supersede the sketches below)
 
@@ -262,6 +309,27 @@ export function analyseDay(meals: MealLog[], ctx: { baselines; tz?; rolloverHour
 - `src/db/selectors.ts` holds framework-free reads; `src/db/hooks.ts` wraps them with `useLiveQuery`. Hooks return supersets of §6.1 (e.g. `useActiveGoal` → `{ goal, version, period, paused }`, `useWeekBudget` → `{ budget, plan, goal, version, days, dailyMinimumKcal }`). Extra hooks: `useHasProfile` (tells "no setup yet" apart from loading), `useMeal`, `useProteinLeft`, `useFestiveDaysInRange`, `usePersonalItems`. Single-row hooks return `undefined` both while loading and when missing.
 - `getCheckIn()` returns the newest unconfirmed day with a `queue` of older ones and the four choices with their consequence copy.
 - The trend is a plain EMA (α 0.25). On the design's 14 readings the latest trend is 77.99 → "78.0 kg" (the design's "77.9" copy was hand-written).
+- Target suggestion (S37, decision §10.13): `src/db/targetSuggestion.ts` holds `getTargetCheck` / `getTargetView` / `useTargetView`,
+  the actions `approveTarget(choice)`, `keepCurrentTarget({ versionId })`, `cancelPendingTarget(versionId)` (each refuses stale
+  numbers with `TargetChangedError` and returns an undo) and the per-device notice store (`kira-makan:target-notice-seen`).
+  `cancelPendingTarget` and the approval's undo remove **every** `approvedSuggestion` version of the goal for that day (two devices
+  can each approve offline), by key with `bulkDelete`; the cancel's undo puts them all back. `useTargetDecisions(view)` keeps the
+  buttons locked after a decision until the live `view` shows it. The Insights "Your real maintenance" unlock row follows the check.
+  Rows: new optional `GoalVersion.paceKgPerWeek` (written on every approved version), feedback value `'keepCurrent'` with optional
+  `InsightFeedback.keptTarget` in the row `ruleId: 'targetSuggestion'`. No new table, no Dexie or `SYNC_PROTOCOL` bump.
+- Goals (S41–S44, decision §10.14): `src/db/goals.ts` holds the reads `getGoalLibraryIn` / `useGoalLibrary` (current with its week, a
+  booked `next`, saved, the templates no goal of their own covers, ended with `lastUsed`, a reached `end`), `getGoalDetailIn` /
+  `useGoalDetail` (`{ detail: null }` when missing; role current · next · saved · ended · template), `getNewGoalDefaultsIn`,
+  `getSwitchPreviewIn` / `useSwitchPreview` and `getGoalEndCheckIn` / `useGoalEnd`, and the actions `createGoal(draft)`,
+  `saveGoalEdits(id, draft)`, `switchGoal(id, { until? })`, `cancelGoalSwitch()`, `archiveGoal(id)`, `restoreGoal(id)`
+  (`createGoalActions(db)` for tests). Each action is one transaction and returns an undo; a switch, cancel or edit undo does
+  nothing once tomorrow has started. Stale state throws `GoalChangedError`, an invalid draft `GoalDraftError`. Which goal applies
+  always comes from periods (`periodOn`, also used by `loadGoalTimeline`, `goalPeriodOn` and `listGoalPeriods`' order); every
+  action leaves the goal of the latest open-ended period `'active'` and any other `'active'` goal `'saved'`, and screens never read
+  "in force" from the status. New optional fields: `Goal.insightsOff` (an older app version rewriting the row drops it: insights
+  come back on) and `GoalPeriod.createdAt` (the tie-break between two bookings for the same day). The goal-end notice's "seen" key
+  is per device (`kira-makan:goal-end-seen`). No new table, no Dexie or `SYNC_PROTOCOL` bump. `getDaySummary` gives a paused day no
+  timing tags and no window close; `getFestiveDaysInRange` centres the band on the version's `dailyKcal`.
 
 ### 6.1 Hooks screens can rely on
 ```ts
@@ -344,6 +412,16 @@ One user with a phone and a laptop. Each device's IndexedDB stays its working co
 - **Delete everything** stops the engine, wipes this device (data, queue, link), then resumes. The account copy stays, so signing in again and restoring brings it back. Wiping the account copy is a SQL step (DEPLOY.md); devices then show `cloudReset`.
 - **Demo never syncs**, by four guards: `loadDemo` is uncaptured and clears the sync tables, the demo clock skips capture, the gate refuses a demo profile, and `demoMode` is stripped on push, never applied on pull, and refused by the server.
 
+**Import** (Backups › Restore from a backup file, and Welcome › Restore from a backup file; `src/screens/Backups`)
+
+- A restore is `restoreBackup`'s diff-delete plus `bulkPut` in one captured transaction, so it syncs like any edit: the rows the file lacks become tombstones, the file's rows become puts, and the account ends up equal to the file.
+- **Reach decides the safeguards** (`restoreReach`): no profile (Welcome) and the sample week restore without a confirm; a real diary that isn't syncing asks for a confirm; a linked, unpaused diary (a restore reaches the account and every other device) asks for a confirm that needs `REPLACE` typed, and offers Export first.
+- **A linked device catches up first** (`syncNow()`, and the restore goes on only if the engine ends `idle`), because the restore deletes only the rows this device holds: a row another device added that hasn't arrived here would otherwise come back after the restore. A catch-up that fails stops the restore with nothing written. A linked device whose card says Needs you (or is copying the diary) can't restore until that is fixed in Settings. If the catch-up itself ends in a Needs-you phase (the token was refused, the account changed or was reset, a copy to choose), the sheet says "Sync needs you first" with Open Settings and no Try again (`CatchUpFailed` carries the engine phase); only offline, error or unreachable keep "Couldn't reach your account" and Try again.
+- **Demo leaves demo.** The write runs with the demo clock still on, so the sample rows' deletions are not captured as tombstones for rows the account never had; then the clock is unpinned, drafts are cleared, the sample week's last-export record is dropped, and `syncNow()` starts the first-link flow (an empty account takes the upload; an account with a diary shows Choose, never a merge).
+- **Device-only fields survive** (`DEVICE_PROFILE_FIELDS`): `theme` and `useLocation` keep this device's values (a device with no profile takes its stored theme and `false`), and `demoMode` is forced off, the same rule a profile that arrives by sync follows. The sample week's profile counts as no profile here: its `useLocation: true` and theme were never chosen, so a restore over the sample week resets `useLocation` to `false` and the location primer still runs.
+- After any restore `syncNow()` is called once; it never rejects and the gate decides. The last-backup date (`kira-makan:last-backup`, per device, never synced) becomes the file's export date.
+- The monthly nudge (`src/domain/backup.ts`): a full backup (JSON) older than 30 calendar days, or none for a diary older than that, with at least one meal and never in demo mode. It shows in two quiet places only, the Settings › Backups row's sub-line and the backup-file card on Backups.
+
 **Tests and server changes**
 
 - Tests drive the engine through `SyncEngineDeps` (a fake remote, session, timers and locks) and never call a live Supabase project. `fakeServer.ts` follows `sync.sql` and covers the same cases as `sync-selftest.sql`.
@@ -372,10 +450,15 @@ export interface Estimator { estimate(req: EstimateRequest, ctx: { place?: Place
 | `/diary/entry/:id` | S14 Entry detail / edit |
 | `/insights` | S31 Insights |
 | `/insights/weekly` | S33 Weekly review |
+| `/insights/target` | S37 Target suggestion (and the target history) |
 | `/more` | S48 More |
 | `/more/weight` | S16 Weight |
 | `/more/settings` | S19 Settings |
 | `/more/export` | S20 Export |
+| `/more/backups` | S39 Backups |
+| `/more/goals` | S41 Goals library |
+| `/more/goals/new` (`?template=`) | S43 New goal from template |
+| `/more/goals/:id` | S42 Goal detail / edit (S44 Switch is a sheet on it) |
 | `/log/estimating` | S10 Estimating |
 | `/log/review` | S11 Review |
 | `/log/plate` | S24 Plate builder |
@@ -390,11 +473,13 @@ Sheets open over the current tab via the `?sheet=` search param: `log` (S09), `b
 - Paths: `src/app/paths.ts` (`PATHS`, `SheetName`, `Tab`). Never hard-code paths.
 - Sheets: `useSheet()` from `src/app/navigation.ts` → `{ sheet, params, open(name, extra?), close() }`. Opening pushes history so the phone's back button closes the sheet.
 - Route table: `src/app/routes.tsx`. Each route has a handle `{ tab: Tab | false }`; `false` hides the nav.
-- Screen files (default export = the route element): `src/screens/Today/TodayScreen.tsx` (S08), `src/screens/Log/{EstimatingScreen,ReviewScreen,PlateScreen}.tsx` (S10, S11 + S14 edit mode, S24), `src/screens/Diary/{DiaryDayScreen,DiaryWeekScreen,EntryScreen}.tsx` (S12–S14), `src/screens/More/{MoreScreen,WeightScreen,SettingsScreen,ExportScreen,ComingSoonScreen}.tsx` (S48, S16, S19, S20, later-phase placeholder), `src/screens/Insights/{InsightsScreen,WeeklyReviewScreen}.tsx` (S31, S33), `src/screens/Ideas/IdeasScreen.tsx` (S36), `src/screens/Setup/SetupFlow.tsx` (S01–S07).
+- Screen files (default export = the route element): `src/screens/Today/TodayScreen.tsx` (S08), `src/screens/Log/{EstimatingScreen,ReviewScreen,PlateScreen}.tsx` (S10, S11 + S14 edit mode, S24), `src/screens/Diary/{DiaryDayScreen,DiaryWeekScreen,EntryScreen}.tsx` (S12–S14), `src/screens/More/{MoreScreen,WeightScreen,SettingsScreen,ExportScreen,ComingSoonScreen}.tsx` (S48, S16, S19, S20, later-phase placeholder), `src/screens/Insights/{InsightsScreen,WeeklyReviewScreen,TargetScreen}.tsx` (S31, S33, S37), `src/screens/Ideas/IdeasScreen.tsx` (S36), `src/screens/Setup/SetupFlow.tsx` (S01–S07).
 - Sheet content files: `src/screens/sheets/{LogSheet,BudgetSheet,MakanSheet,CheckInSheet,EvidenceSheet}.tsx`. Each default-exports `({ close }) => content`; the shell wraps it in `BottomSheet` (check-in is not dismissible by scrim).
 - Screens render inside the shell's scroll column. They start with their TopBar/SubScreenHeader at the design's `padding: 4px 20px 0` (the shell adds the status-bar safe area). Tab screens leave `var(--content-pad-nav)` bottom padding; screens with a floating `RangeTotal` leave `var(--content-pad-footer)`.
 - Moving between logging steps uses the Zustand `reviewDraft` (`src/state/ui.ts`): set the draft, then navigate to `PATHS.review`. The draft's `backTo` says where Back goes.
-- Phase 2 screens (all `tab: false`, reached from More): `src/screens/Places/{PlacesScreen,PlaceDetailScreen}.tsx` (S21, S22 — `PATHS.places`, `PATHS.place(id)`), `src/screens/Usuals/UsualsScreen.tsx` (S23 — `PATHS.usuals`), `src/screens/Pots/{PotsScreen,NewPotScreen,PotDetailScreen}.tsx` (S26–S28 — `PATHS.pots`, `PATHS.potNew`, `PATHS.pot(id)`), `src/screens/Activity/{ActivityScreen,LogWorkoutScreen}.tsx` (S30, S29 — `PATHS.activity`, `PATHS.workoutNew`). Goals, Reminders and Backups still route to `PATHS.soon(...)`.
+- Phase 2 screens (all `tab: false`, reached from More): `src/screens/Places/{PlacesScreen,PlaceDetailScreen}.tsx` (S21, S22 — `PATHS.places`, `PATHS.place(id)`), `src/screens/Usuals/UsualsScreen.tsx` (S23 — `PATHS.usuals`), `src/screens/Pots/{PotsScreen,NewPotScreen,PotDetailScreen}.tsx` (S26–S28 — `PATHS.pots`, `PATHS.potNew`, `PATHS.pot(id)`), `src/screens/Activity/{ActivityScreen,LogWorkoutScreen}.tsx` (S30, S29 — `PATHS.activity`, `PATHS.workoutNew`). Reminders still routes to `PATHS.soon(...)`.
+- Backups (S39, `tab: false`, `PATHS.backups`; Settings › Backups opens it and `/more/soon/backups` redirects to it): `src/screens/Backups/{BackupsScreen,BackupImportSheet,useBackupImport}` with the copy in `backupsModel.ts`. The screen shows the sync card (read-only except Sync now and Try again), the backup-file card (Export now, via `src/screens/More/exportFiles.ts`, shared with S20) and Restore from a backup file. `useBackupImport` is the stage machine behind the one `BackupImportSheet` (reading, preview, confirm, restoring, done, problems); Welcome uses the same hook and sheet with reach `none`.
+- Phase 5 screens: `src/screens/Goals/{GoalsScreen,GoalDetailScreen,NewGoalScreen}.tsx` (S41, S42, S43 — `PATHS.goals`, `PATHS.goal(id)`, `PATHS.goalNew(template?)`); S44 is the local `GoalSwitchSheet` on S42 (not a `?sheet=`: it needs a goal id). Today's GoalPill and More › Goals open S41; `/more/soon/goals` redirects there.
 
 ## 9. Demo mode
 
@@ -421,3 +506,6 @@ Sheets open over the current tab via the `?sheet=` search param: `log` (S09), `b
     - **Sync timing:** about 2 s after a save, on opening the app or coming back to it, on reconnecting, and every 5 minutes while it's open. The laptop can lag the phone by up to 5 minutes while both are open.
     - **Photos stay on the device for now.** A later step adds a private Storage bucket (`kira-photos/{uid}/{id}.jpg`) and a photo row in `SYNC_TABLES` behind a `SYNC_PROTOCOL` bump; `keepPhotos` will decide what uploads.
     - **The account lives in the owner's Supabase project.** `sync_accounts` references `auth.users` with `on delete restrict`, so deleting the user can't silently erase the synced diary: a lost password is reset in place (DEPLOY.md).
+13. **The target only changes when the user approves a change (S37).** The adaptive maintenance is read **weekly**, from the 28 logical days to last Sunday, so it is the same number all week and on every device (there is no server job); only while that read isn't possible yet (fewer than 21 complete days, or fewer than 8 weigh-ins spread over 14 days) is it read from the 28 days to yesterday, so the first suggestion comes as soon as the data allows. It compares with the goal's **newest** version, a pending one included, so an approval doesn't show the card again before the rollover. **Approve** (or "Change pace instead") adds a goal version from the next logical day (`reason 'approvedSuggestion'`, protein kept, fat and carbs from `macrosForTarget`); past days and today keep theirs and the week is prorated by the per-day version lookup. **Paces are versioned** (`GoalVersion.paceKgPerWeek`, read through `paceOf`); the goal row is never edited by a suggestion. **Keep current** is the synced `insightFeedback` row `targetSuggestion` (`'keepCurrent'`, 4 weeks), and the suggestion comes back sooner when the estimate moves by more than 100 kcal again or the target changes. The S40 notice is in-app for now: an accent banner on Today, once per `${versionId}:${weekStart}` per device (localStorage), behind the check-in banner and with no nav badge; the key is ready for a web push on Android later. Demo mode follows the real rules: the demo Friday is day 19 with 17 complete days, so S37 shows "17 of 21"; the designed card states are in the `/dev` gallery. **The trend settles before it counts:** the slope leaves out the first 10 days of each trend run (from the first weigh-in, often the setup weight, or after a 10-day gap), because one reading 0.5 kg off would alone move maintenance past the 100 kcal threshold. While the estimate is a daily read, S37 says "Checked again tomorrow" (it moves at every rollover), not next Monday.
+14. **Goals switch from the next logical day and never rewrite the past (S41–S44).** A switch writes only goal periods and goal statuses: every period reaching past today ends at tomorrow, anything booked from tomorrow on is removed (a later booking replaces an earlier one), and the new period starts tomorrow, so today keeps its goal and this week's budget is prorated by the per-day lookup at once. The S44 week line counts Friday as Cut ("5 days at 1,800 + 2 days at 2,100 = 13,200"), not the plan's 4 + 3 example. **Periods decide which goal applies; `Goal.status` is bookkeeping** (the goal of the latest open-ended period is `'active'`, other `'active'` rows become `'saved'`), and two bookings for the same day are settled by the new optional `GoalPeriod.createdAt` (later wins, older rows first, then id), so two offline switches give the same answer on both devices. **Pause takes an end in S44** (the Monday after tomorrow's week, a picked day up to 60 days, or open): a dated pause is a bounded Pause period plus a period that gives today's goal back that day. Switching back to the goal in force while a switch is booked cancels the booking ("Keep Cut instead"); switch, cancel, create, edit, archive and restore all have an Undo, and an undo of a switch, cancel or edit does nothing once tomorrow has started. The Templates section is derived (a built-in template with no goal of its own running, booked or saved), and saving a template's S43 converts its `'template'` row. **Target edits are versions:** a goal never in force keeps one version, replaced; a goal in force or used before gets a version from tomorrow (`'manualEdit'`, with its pace), replacing any other version for tomorrow (a pending approval included); `Goal.paceKgPerWeek` is never edited. Name, timing, insight toggles, end condition, the Festive range and a Custom main number live on the goal row and apply at once. Festive's days in range centre on the version's target. Pause days have timing off. Archive ends a goal that was ever in force (history kept, "Restore" brings it back) and deletes one that never was. An end condition is never automatic: when it's reached (date, or the trend at or past the weight) and nothing is booked, S41/S42 suggest the first saved Festive goal (or setting one up) and Today shows a once-per-device banner after the check-in and the target notice. **Follow-ups from review:** (a) a Pause carries the budget goal's targets through any chain of Pauses (`goalTimelineOf` resolves the previous day through the timeline itself, memoised, so Pause after Pause still has a goal on every day), and a dated pause started while a Pause runs resumes the budget goal it carries, not the Pause; (b) the end condition is validated only when it differs from the stored one (`endChanged`, like `kcalChanged`), so an end that has passed or been reached never blocks a rename or a protein edit, while S43 and a changed end keep the full checks; (c) a Hold pace has no weight end (`withPace` turns it into no end, and a stored weight end on a Hold goal shows as no end); (d) "Keep Pause instead" cancels what is booked from tomorrow whatever day it starts (a running dated pause can go on), and a goal booked for a later day (a pause's resume) offers Switch to this goal to start from tomorrow; (e) when Save finds errors, `GoalEditorFields` takes a `focusSeq` that the screen bumps, scrolls the first invalid field into view and focuses it, and the messages are `role="alert"` with `aria-describedby` on the field; (f) a long goal name shortens the Today GoalPill with an ellipsis (the TopBar right slot shrinks, the title never does) and the aria-label keeps the whole name.
+15. **Backups are the synced account copy plus a restorable file; Google Drive is for photos, later (S39).** Settings › Backups no longer means a weekly Drive copy: it opens a Backups screen built on what exists, the two-way sync (§6.2) and the JSON export. (a) **The sync card is read-only here:** Sync now and Try again run in place; Sign in, Choose, Switch, Turn on sync and Sign out stay in Settings behind one Open Settings, so their confirms exist once. (b) **Only a full backup (JSON) counts:** a spreadsheet export restores nothing, so the nudge reads its own `kira-makan:last-backup` date (written by a JSON export and by a restore, which sets it to the file's export date) and falls back to a JSON `last-export`; `last-export` itself still means the newest export of any kind. (c) **Export now is exactly S20's full backup** (no photos, `backupFilename(today)`, the same toast), through the shared `exportFiles.ts`. (d) **The nudge is one rule:** more than 30 calendar days in the profile zone since the last backup or, with none, since `startedOn`; never in demo mode, never with no meals; Settings' row sub-line and the file card are its only places, with no banner, dot or toast, and copy that never says overdue or forgot. (e) **A restore is a full replace** (§6.2 Import): safeguards by reach, a typed `REPLACE` and a catch-up sync on a linked device, device-only profile fields kept, demo left cleanly, a sample-week or diary-less file refused, and nothing written unless the whole file passes (one transaction). (f) **No new table, no `SYNC_PROTOCOL` bump, no new synced field:** the work is code, one localStorage key and optional parameters. Meal photos stay on the device; the Drive photo sync (C55/C58 in the gallery, kept as their designs) is a separate later feature. (g) **Back steps back one level:** over the destructive confirm, the phone's Back (and Escape or the scrim) only dismisses the confirm, as its Cancel does, so the loaded file isn't dropped; the next Back closes the sheet. The Backups screen also says meal photos stay on the device and aren't in the file.

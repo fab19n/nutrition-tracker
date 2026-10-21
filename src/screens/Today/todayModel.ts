@@ -4,6 +4,7 @@
  */
 import type { HeroCardProps } from '@/components/HeroCard/HeroCard';
 import type { WeekBar, WeekBarsProps } from '@/components/WeekBars/WeekBars';
+import type { GoalEndView } from '@/db/goals';
 import type { ActiveGoal, CheckIn, FestiveDaysInRange, ProteinLeft, WeekBudgetView } from '@/db/selectors';
 import type { BudgetDay, WeekBudget } from '@/domain/budget';
 import { addDays, compareDays, daysBetween, wallToLogicalMinutes, weekdayIndex } from '@/domain/day';
@@ -13,13 +14,16 @@ import {
   fmtGrams,
   fmtInt,
   fmtKcal,
+  fmtKg,
   fmtRange,
   fmtSigned,
   fmtTime,
   fmtWeekday,
 } from '@/domain/format';
+import type { TargetCheck } from '@/domain/maintenance';
 import type { SlotBaselines } from '@/domain/timing';
 import type { Instant, LogicalDay, MealLog, MealSlot } from '@/domain/types';
+import { weeksOfData } from '@/screens/Insights/targetModel';
 
 // ---------------------------------------------------------------------------
 // Goal pill
@@ -344,4 +348,49 @@ export function checkInBanner(checkIn: CheckIn, today: LogicalDay): CheckInBanne
   const summary = `${mealCount(count)}, ${fmtKcal(checkIn.kcal)}.${moreText}`;
   if (checkIn.variant === 'full') return { tone: 'amber', lead: `${name} looks incomplete.`, rest: summary };
   return { tone: 'neutral', lead: `${name} isn't confirmed yet.`, rest: summary };
+}
+
+// ---------------------------------------------------------------------------
+// Target suggestion notice (S40, in-app)
+// ---------------------------------------------------------------------------
+
+export interface TargetNoticeCopy {
+  /** The notice key (`${versionId}:${weekStart}`), marked seen when the banner is tapped. */
+  key: string;
+  /** Bold lead: "New target suggestion". */
+  lead: string;
+  /** "based on 4 weeks of data." */
+  rest: string;
+}
+
+/**
+ * The in-app S40 notice: "New target suggestion based on 4 weeks of data." Shown while a
+ * suggestion waits (not kept), once per key on this device.
+ */
+export function targetNotice(check: TargetCheck | undefined, seenKey: string | null): TargetNoticeCopy | undefined {
+  if (check?.kind !== 'suggestion' || check.proposal.noticeKey === seenKey) return undefined;
+  return {
+    key: check.proposal.noticeKey,
+    lead: 'New target suggestion',
+    rest: `based on ${fmtInt(weeksOfData(check.estimate.daysUsed))} weeks of data.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Goal end notice (plan §6.3): the end of a goal was reached, once per device
+// ---------------------------------------------------------------------------
+
+export interface GoalEndNoticeCopy {
+  /** endKey() of the goal and its end, marked seen when the banner is tapped. */
+  key: string;
+  /** Bold lead: "Your Cut goal reached its end date." */
+  lead: string;
+  rest: string;
+}
+
+/** Shown after the check-in banner and the target notice, until this end has been seen on this device. */
+export function goalEndNotice(end: Pick<GoalEndView, 'goal' | 'state' | 'key'> | undefined, seenKey: string | null): GoalEndNoticeCopy | undefined {
+  if (!end || end.key === seenKey) return undefined;
+  const lead = end.state.kind === 'date' ? `Your ${end.goal.name} goal reached its end date.` : `Your trend reached ${fmtKg(end.state.weightKg)}.`;
+  return { key: end.key, lead, rest: 'Pick what comes next.' };
 }

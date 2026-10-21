@@ -13,12 +13,14 @@ import { SectionHeading } from '@/components/ui/SectionHeading';
 import { deleteWeight } from '@/db/actions';
 import { saveWeighIn } from '@/db/diary';
 import { useActiveGoal, useNow, useProfile, useToday, useWeightTrend } from '@/db/hooks';
+import { paceOf } from '@/domain/targets';
 import type { TrendPoint } from '@/domain/trend';
 import { DEFAULT_TZ, addDays, compareDays, zonedParts } from '@/domain/day';
 import { fmtDayShort, fmtKg, fmtKgDelta, fmtTime } from '@/domain/format';
 import type { Goal, LogicalDay, WeightLog } from '@/domain/types';
 import { useUiStore } from '@/state/ui';
 import { dayMonth, kgNumber } from '@/screens/Diary/diaryModel';
+import { fmtPaceKg } from '@/screens/Setup/fields';
 import styles from './WeightScreen.module.css';
 
 const RANGE_DAYS: Record<WeightRange, number> = { '14d': 14, '30d': 30, '90d': 90 };
@@ -44,7 +46,7 @@ function planTile(goal: Pick<Goal, 'paceKgPerWeek' | 'template'> | undefined): {
   if (goal.template === 'pause') return { value: '—', sub: 'goal paused' };
   if (goal.paceKgPerWeek === 0) return { value: 'Hold', sub: 'steady weight' };
   // pace > 0 means losing: the plan reads "−0.5 kg a week".
-  return { value: fmtKgDelta(-goal.paceKgPerWeek).replace(/ kg$/, ''), sub: 'kg a week' };
+  return { value: fmtPaceKg(goal.paceKgPerWeek).replace(/ kg$/, ''), sub: 'kg a week' };
 }
 
 function chartLabel(points: TrendPoint[], weekChangeKg: number | null, latest: TrendPoint | undefined): string {
@@ -147,7 +149,9 @@ export default function WeightScreen() {
   const last = points.at(-1);
   const latest = trend?.latest;
   const weekChangeKg = trend?.weekChangeKg ?? null;
-  const plan = planTile(active?.goal);
+  // The pace of the target in force today (a "Change pace instead" version has its own).
+  const goalPace = active ? { template: active.goal.template, paceKgPerWeek: paceOf(active.goal, active.version) } : undefined;
+  const plan = planTile(goalPace);
   const shown = showAll ? entries : entries.slice(0, RECENT_COUNT);
 
   return (
@@ -188,7 +192,7 @@ export default function WeightScreen() {
             <MetricTile
               label="This week"
               value={weekChangeKg !== null ? fmtKgDelta(weekChangeKg) : '—'}
-              tone={changeTone(weekChangeKg, active?.goal)}
+              tone={changeTone(weekChangeKg, goalPace)}
               sub={weekChangeKg === null ? 'after a week of weigh-ins' : undefined}
             />
             <MetricTile label="Plan" value={plan.value} sub={plan.sub} />

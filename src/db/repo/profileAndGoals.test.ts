@@ -124,6 +124,22 @@ describe('goals repo', () => {
     expect((await listGoalPeriods(db)).map((p) => p.id)).toEqual(['p1', 'p2']);
   });
 
+  it('resolves two periods from the same day by when they were booked (the later wins)', async () => {
+    await putGoalPeriod(db, { id: 'p1', goalId: cut.id, from: '2026-09-28', to: '2026-10-17' });
+    // Two switches booked offline for Saturday; the id order is the other way round on purpose.
+    await putGoalPeriod(db, { id: 'p-b', goalId: festive.id, from: '2026-10-17', createdAt: '2026-10-16T11:00:00.000Z' });
+    await putGoalPeriod(db, { id: 'p-a', goalId: 'g-lean-bulk', from: '2026-10-17', createdAt: '2026-10-16T11:05:00.000Z' });
+    // A row from before createdAt existed loses to both.
+    await putGoalPeriod(db, { id: 'p-z', goalId: 'g-old', from: '2026-10-17' });
+
+    expect((await listGoalPeriods(db)).map((p) => p.id)).toEqual(['p1', 'p-z', 'p-b', 'p-a']);
+    expect((await goalPeriodOn(db, '2026-10-17'))?.id).toBe('p-a');
+    expect((await goalPeriodOn(db, '2026-10-16'))?.id).toBe('p1');
+
+    await updateGoalPeriod(db, 'p-b', { createdAt: '2026-10-16T11:10:00.000Z' });
+    expect((await goalPeriodOn(db, '2026-10-17'))?.id).toBe('p-b');
+  });
+
   it('deletes a goal together with its versions and periods', async () => {
     await putGoal(db, cut);
     await putGoal(db, festive);

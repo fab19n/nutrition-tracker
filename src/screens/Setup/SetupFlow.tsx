@@ -6,6 +6,8 @@ import { loadDemoData } from '@/db/actions';
 import { useHasProfile } from '@/db/hooks';
 import { finishSetup } from '@/db/settings';
 import { fmtKcal } from '@/domain/format';
+import { BackupImportSheet } from '@/screens/Backups/BackupImportSheet';
+import { useBackupImport } from '@/screens/Backups/useBackupImport';
 import { useUiStore } from '@/state/ui';
 import { AboutStep } from './AboutStep';
 import { ActivityStep } from './ActivityStep';
@@ -25,7 +27,8 @@ const STEPS = 6;
  * S01–S07 first run (plan §16.1). Answers stay in memory until Done, which runs completeSetup and
  * saves the regulars as Usuals, then opens Today. With a profile already there, /setup goes to Today.
  * The deployed app (Supabase configured) can restore the account's diary from Welcome instead:
- * the restored profile lands with everything else, and the same redirect opens Today.
+ * the restored profile lands with everything else, and the same redirect opens Today. A backup file
+ * restores from Welcome too, with or without an account (S39's Restore from a backup file).
  */
 export default function SetupFlow() {
   const hasProfile = useHasProfile();
@@ -37,6 +40,8 @@ export default function SetupFlow() {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
+  // Nothing is lost here and no account is involved yet: no confirm, no catch-up.
+  const backupImport = useBackupImport({ reach: 'none', word: 'phone' });
 
   const update = useCallback((patch: Partial<SetupDraft>) => setDraft((d) => ({ ...d, ...patch })), []);
 
@@ -107,6 +112,7 @@ export default function SetupFlow() {
           onStart={() => goTo(1)}
           onExplore={() => void explore()}
           onRestore={canRestore ? () => setRestoreOpen(true) : undefined}
+          onBackupFile={backupImport.choose}
           exploring={busy}
         />
       ) : null}
@@ -126,6 +132,7 @@ export default function SetupFlow() {
           }}
         />
       ) : null}
+      <BackupImportSheet flow={backupImport} />
     </div>
   );
 }

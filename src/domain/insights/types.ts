@@ -7,6 +7,7 @@
  */
 import type { WeekBudget } from '@/domain/budget';
 import type { FocusRuleId } from '@/domain/focus';
+import type { TargetCheck } from '@/domain/maintenance';
 import type { SlotBaselines } from '@/domain/timing';
 import type { TrendPoint } from '@/domain/trend';
 import type { DayStatusKind, Goal, GoalVersion, Id, Instant, LogicalDay, MealLog, Place } from '@/domain/types';
@@ -81,6 +82,8 @@ export interface InsightContext {
   trend: TrendPoint[];
   /** Your own meal times, from complete days before today. */
   baselines: SlotBaselines;
+  /** The target check as of today (src/db/targetSuggestion), so the rule and the card agree. */
+  maintenance?: TargetCheck;
 }
 
 /** One meal behind an insight, with the part of it the insight is about. */

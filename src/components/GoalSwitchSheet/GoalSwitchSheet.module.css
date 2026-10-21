@@ -1,0 +1,152 @@
+/* C47 GoalSwitchSheet (S44): sheet title 22px/700, the week on a --card block, what changes, Confirm and Cancel. Tokens only. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  padding: 0 4px;
+}
+
+.title b {
+  font-weight: 700;
+}
+
+.starts {
+  margin: 6px 0 0;
+  padding: 0 4px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.week {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.week b {
+  font-weight: 700;
+}
+
+.heading {
+  display: block;
+  margin: 16px 0 8px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.changes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.change {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.changeIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent-text);
+}
+
+.replaces {
+  margin: 12px 0 0;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.until {
+  display: flex;
+  flex-direction: column;
+}
+
+.until .heading {
+  margin-top: 16px;
+}
+
+/* Choice chips are sized for equal-width rows; these wrap, so they get side padding and fill each row. */
+.untilChips [role='group'] > button {
+  flex: 1 1 auto;
+  padding: 14px 14px;
+}
+
+/* The Setup input look: 52px, radius 16, --card. */
+.dateField {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 0 16px;
+  border-radius: var(--r-tile);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.dateField:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.invalid,
+.invalid:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.date {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  /* 16px or more: mobile browsers zoom into smaller inputs. */
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.date::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}
+
+.line {
+  margin: 8px 0 0;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.error {
+  margin: 4px 0 0;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 20px;
+}

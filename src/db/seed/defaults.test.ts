@@ -1,4 +1,4 @@
-import { GOAL_PRESETS, GOAL_PRESET_ORDER, buildGoal, buildStarterGoals } from './defaults';
+import { CUSTOM_PRESET, GOAL_PRESETS, GOAL_PRESET_ORDER, NEW_GOAL_TEMPLATES, buildGoal, buildStarterGoals, presetFor } from './defaults';
 
 describe('goal presets', () => {
   it('match the plan templates', () => {
@@ -52,5 +52,24 @@ describe('buildGoal', () => {
       ['goal-leanBulk', 'template'],
       ['goal-pause', 'template'],
     ]);
+  });
+});
+
+describe('custom goals (S43)', () => {
+  it('offers the templates in chip order, Custom last', () => {
+    expect(NEW_GOAL_TEMPLATES).toEqual(['cut', 'festive', 'leanBulk', 'pause', 'custom']);
+  });
+
+  it('has a Custom preset set by a pace, like Cut', () => {
+    expect(presetFor('custom')).toBe(CUSTOM_PRESET);
+    expect(presetFor('custom')).toMatchObject({ name: 'Custom', template: 'custom', heroMetric: 'kcalLeft', paceKgPerWeek: 0.5 });
+    expect(presetFor('festive')).toBe(GOAL_PRESETS.festive);
+  });
+
+  it('builds a custom goal with copied settings', () => {
+    const goal = buildGoal('custom', { id: 'g-custom', createdAt: '2026-10-16T11:10:00.000Z', status: 'saved' });
+    expect(goal).toMatchObject({ id: 'g-custom', name: 'Custom', template: 'custom', status: 'saved', heroMetric: 'kcalLeft' });
+    goal.timing.maxWindowHours = 9;
+    expect(CUSTOM_PRESET.timing.maxWindowHours).toBe(12);
   });
 });

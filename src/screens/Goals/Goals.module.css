@@ -1,0 +1,197 @@
+/* S41–S43 Goals: cards at 16px side margins with 8px gaps, text on the background at 20px (design/README.md). Tokens only. */
+
+.screen {
+  padding-bottom: 40px;
+}
+
+/* The sticky footer sits at the bottom of the scroll column; nothing more to clear below it. */
+.withFooter {
+  padding-bottom: 0;
+}
+
+.block {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--pad-card-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.cards:first-of-type {
+  padding-top: 14px;
+}
+
+.cards > li {
+  animation: km-up var(--dur-enter) var(--ease) both;
+}
+
+.none {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.footer {
+  padding: 16px var(--pad-card-x) 0;
+}
+
+/* ---------- The reached end (S41, S42) ---------- */
+
+.noteBlock {
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.endNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-tile);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.endText {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.endText b {
+  font-weight: 700;
+}
+
+.endAction {
+  flex: none;
+}
+
+/* ---------- S42 status card ---------- */
+
+.status {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.statusHeadline {
+  margin: 0;
+}
+
+.statusLine {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.statusAction {
+  margin-top: 10px;
+}
+
+/* ---------- S42 target history (the S37 rows) ---------- */
+
+.usage {
+  margin: 0;
+  padding: 0 var(--pad-text-x) 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.history {
+  margin: 0 var(--pad-card-x);
+  padding: 4px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.historyRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.historyRow + .historyRow {
+  border-top: 1px solid var(--line);
+}
+
+.historyText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.historySub {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.historyBadge {
+  flex: none;
+}
+
+.targetLink {
+  padding: 10px var(--pad-card-x) 0;
+}
+
+.archive {
+  padding-top: 18px;
+}
+
+/* ---------- Sticky footer (S42 Save changes / Switch, S43 Save goal) ---------- */
+
+.stickyFooter {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 20px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+}
+
+.footerCaption {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---------- S43 template chips ---------- */
+
+.templates {
+  padding: 0 var(--pad-card-x);
+}
+
+/* Choice chips are sized for equal-width rows; these wrap, so they get side padding and fill each row. */
+.templates [role='group'] > button {
+  flex: 1 1 auto;
+  padding: 14px 14px;
+}
+
+.description {
+  margin: 0;
+  padding: 8px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}

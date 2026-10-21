@@ -3,6 +3,7 @@
  * engine stays pure and testable without a database.
  */
 import type { WeekBudget } from '@/domain/budget';
+import type { TargetCheck } from '@/domain/maintenance';
 import { DEFAULT_ROLLOVER_HOUR, DEFAULT_TZ, addDays, compareDays, daysBetween, weekStartOf, zonedParts } from '@/domain/day';
 import { mealMacros } from '@/domain/meal';
 import { slotBaselines } from '@/domain/timing';
@@ -79,6 +80,8 @@ export interface InsightSource {
   goal?: Goal;
   version?: GoalVersion;
   budget?: WeekBudget;
+  /** The target check as of today (src/db/targetSuggestion). */
+  maintenance?: TargetCheck;
 }
 
 function dayRange(from: LogicalDay, to: LogicalDay): LogicalDay[] {
@@ -143,5 +146,6 @@ export function buildInsightContext(src: InsightSource): InsightContext {
   if (src.goal) ctx.goal = src.goal;
   if (src.version) ctx.version = src.version;
   if (src.budget) ctx.budget = src.budget;
+  if (src.maintenance) ctx.maintenance = src.maintenance;
   return ctx;
 }

@@ -9,6 +9,16 @@
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+  /* A long goal name shrinks the pill instead of running over the title. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The ellipsis sits on the label: the button itself stays unclipped for its 44px hit area. */
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 44px hit area around the ~31px pill. */

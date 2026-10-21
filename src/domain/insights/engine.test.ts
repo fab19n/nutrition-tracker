@@ -3,10 +3,11 @@ import { instantAt } from '@/domain/day';
 import { buildInsightContext, dayNumberOf, insightPeriodFor, isSundayNight, reviewWeekStart, weekNumberOf } from './context';
 import { categoryShares } from './categories';
 import { evaluateInsights, focusOptions, NOT_FOR_ME_PAUSE_DAYS, pausedRuleIds, pausedUntilFrom, unlockProgress } from './engine';
+import { INSIGHT_GROUPS, INSIGHT_GROUP_ORDER, rulesOffFor } from './groups';
 import { focusOutcome } from './focusRules';
 import { INSIGHT_RULES, shortPlaceName } from './rules';
 import { learnedAboutYou, placeTotals, recurringItems, timingGrid } from './summaries';
-import { demoWeekContext, demoWorldContext, notForMe } from './testWorld';
+import { demoWeekContext, demoWorldContext, maintenanceWorldContext, notForMe } from './testWorld';
 import type { InsightRule } from './types';
 
 const TODAY = DEMO_EXPECTED.today.day;
@@ -174,6 +175,38 @@ describe('ranking and pausing', () => {
   });
 });
 
+describe('insight groups a goal turned off (C48)', () => {
+  it('lists the rules of each off group', () => {
+    expect([...rulesOffFor({ insightsOff: ['timing'] })]).toEqual(['windowVsCalories', 'firstMealDrift', 'grazing', 'lateEating']);
+    expect(rulesOffFor(undefined).size).toBe(0);
+    expect(rulesOffFor({}).size).toBe(0);
+    expect(INSIGHT_GROUP_ORDER).toEqual(['food', 'protein', 'timing', 'weight']);
+    // The maintenance estimate (S37) is never in a group.
+    expect(Object.values(INSIGHT_GROUPS).flat()).not.toContain('maintenanceEstimate');
+  });
+
+  it('leaves an off group out of the feed, the top 3 and the focus options, but keeps its evidence', () => {
+    const ctx = demoWorldContext();
+    const on = evaluateInsights(ctx);
+    const goal = ctx.goal;
+    if (!goal) throw new Error('The demo context has a goal');
+    const offCtx = { ...ctx, goal: { ...goal, insightsOff: ['food' as const] } };
+    const off = evaluateInsights(offCtx);
+    const food = new Set<string>(INSIGHT_GROUPS.food);
+
+    expect(on.top.some((i) => food.has(i.ruleId))).toBe(true);
+    expect(off.ranked.some((i) => food.has(i.ruleId))).toBe(false);
+    expect(off.top.some((i) => food.has(i.ruleId))).toBe(false);
+    expect(off.all.map((i) => i.ruleId)).toContain('categoryShare');
+
+    // The drinks focus is still offered, but not with the food insight's own number.
+    const foodSubs = on.all.filter((i) => food.has(i.ruleId) && i.focusSub).map((i) => i.focusSub);
+    expect(foodSubs.length).toBeGreaterThan(0);
+    for (const option of focusOptions(off.top)) expect(foodSubs).not.toContain(option.sub);
+    expect(unlockProgress(offCtx)).toEqual(unlockProgress(ctx));
+  });
+});
+
 describe('unlock schedule and early days', () => {
   it('stays quiet on days 1–6 and shows progress', () => {
     const ctx = demoWorldContext({ today: '2026-10-01' });
@@ -252,3 +285,67 @@ describe('timing grid and the day-7 review', () => {
     expect(learned).toMatchObject({ completeDays: 7, daysInUse: 7 });
   });
 });
+
+describe('maintenance and weight rules on the maintenance world (Fri 30 Oct)', () => {
+  const rule = (id: string) => {
+    const found = INSIGHT_RULES.find((r) => r.id === id);
+    if (!found) throw new Error(`No rule ${id}`);
+    return found;
+  };
+
+  it('words the shared target check as an insight', () => {
+    const ctx = maintenanceWorldContext();
+    expect(ctx.maintenance?.kind).toBe('suggestion');
+    const finding = rule('maintenanceEstimate').compute(ctx);
+    expect(finding).toMatchObject({
+      headline: 'Maintenance is about 2,100, not 2,350',
+      evidence: 'You logged ~1,820 a day, and your trend dropped 0.25 kg a week.',
+      tryText: 'a daily target of 1,550 at your 0.5 kg a week pace',
+      summary: '28 complete days',
+      topic: 'maintenance',
+      linkLabel: '',
+      evidenceEntries: [],
+      basisDays: 28,
+      impactKcalPerWeek: 1750,
+      earlyRead: false,
+    });
+    expect(evaluateInsights(ctx).all.find((i) => i.ruleId === 'maintenanceEstimate')?.meta).toBe('Based on 28 days');
+  });
+
+  it('has no pace in the Try for Festive maintain', () => {
+    const ctx = maintenanceWorldContext({ template: 'festive', maintenanceKcal: 2350, dailyKcal: 2350 });
+    expect(rule('maintenanceEstimate').compute(ctx)?.tryText).toBe('a daily target of 2,100');
+  });
+
+  it('says nothing unless a suggestion waits', () => {
+    const kept = { keptOn: '2026-10-30', until: '2026-11-27', maintenanceKcal: 2100, versionId: 'version-cut-setup' };
+    expect(maintenanceWorldContext({}, { kept }).maintenance?.kind).toBe('kept');
+    expect(rule('maintenanceEstimate').compute(maintenanceWorldContext({}, { kept }))).toBeNull();
+    expect(rule('maintenanceEstimate').compute(maintenanceWorldContext({ maintenanceKcal: 2060 }))).toBeNull();
+    expect(rule('maintenanceEstimate').compute(maintenanceWorldContext({ startedOn: '2026-10-14' }))).toBeNull();
+    expect(rule('maintenanceEstimate').compute(maintenanceWorldContext({}, { maintenance: null }))).toBeNull();
+  });
+
+  it('compares the weight trend with the pace of the version in force', () => {
+    const ctx = maintenanceWorldContext();
+    // Losing ~0.25 kg a week against a 0.5 plan.
+    expect(rule('weightTrendVsPlan').compute(ctx)?.headline).toBe('Losing 0.2 kg a week vs 0.5 kg planned');
+    const slower = { ...ctx, version: { ...ctx.version!, paceKgPerWeek: 0.25 } };
+    expect(rule('weightTrendVsPlan').compute(slower)).toBeNull();
+  });
+
+  it('reads "Your real maintenance" from the target check', () => {
+    // An estimate: unlocked, by the complete days it used.
+    expect(unlockProgress(maintenanceWorldContext())).toEqual([
+      { label: 'Timing patterns', have: 53, need: 14 },
+      { label: 'Your real maintenance', have: 28, need: 21 },
+    ]);
+    // Too early: the check's own count.
+    expect(unlockProgress(maintenanceWorldContext({ startedOn: '2026-10-14' })).at(-1)).toEqual({ label: 'Your real maintenance', have: 16, need: 21 });
+    // Enough days, too few weigh-ins: the weigh-ins take its place.
+    expect(unlockProgress(maintenanceWorldContext({ weighInEvery: 7 })).at(-1)).toEqual({ label: 'Weigh-ins for your maintenance', have: 4, need: 8, unit: 'weigh-ins' });
+    // No check (no goal, paused): by complete days, as before.
+    expect(unlockProgress(maintenanceWorldContext({}, { maintenance: null })).at(-1)).toEqual({ label: 'Your real maintenance', have: 53, need: 21 });
+  });
+});
+

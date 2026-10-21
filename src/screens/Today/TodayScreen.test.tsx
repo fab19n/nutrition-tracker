@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,9 +6,12 @@ import { db } from '@/db/db';
 import { deleteMeal, loadDemoData, resetAll, setWeeklyFocus } from '@/db/actions';
 import { putDayRecord } from '@/db/repo';
 import { DEMO_IDS } from '@/db/seed/demo';
+import { clearGoalEndNoticeSeen, readGoalEndNoticeSeen } from '@/db/goals';
+import { clearTargetNoticeSeen, readTargetNoticeSeen } from '@/db/targetSuggestion';
 import { instantAt } from '@/domain/day';
 import { FOCUS_RULES } from '@/domain/focus';
 import { resetUiState, useUiStore } from '@/state/ui';
+import { loadMaintenanceWorld, MAINTENANCE_WORLD, pinClock } from '@/test/maintenanceWorld';
 import TodayScreen from './TodayScreen';
 
 const WEEK = '2026-10-12';
@@ -52,6 +55,8 @@ function renderToday() {
       { path: '/diary/entry/:id', element: <p>Entry screen</p> },
       { path: '/ideas', element: <p>Ideas screen</p> },
       { path: '/more/soon/:what', element: <p>Soon screen</p> },
+      { path: '/more/goals', element: <p>Goals screen</p> },
+      { path: '/insights/target', element: <p>Target suggestion screen</p> },
     ],
     { initialEntries: ['/'] },
   );
@@ -62,6 +67,8 @@ function renderToday() {
 describe('TodayScreen (S08)', () => {
   beforeEach(async () => {
     resetUiState();
+    clearTargetNoticeSeen();
+    clearGoalEndNoticeSeen();
     syncEngine.current.state = { phase: 'starting' };
     await resetAll();
     await loadDemoData();
@@ -100,8 +107,9 @@ describe('TodayScreen (S08)', () => {
     expect(screen.getByText('Not logged yet')).toBeInTheDocument();
     expect(screen.getByText('Protein is behind: ~68g left. A protein-heavy dinner helps.')).toBeInTheDocument();
 
-    // No check-in waiting and no focus this week in the demo; 7:10pm is too early for the sleep tap.
+    // No check-in waiting, no target suggestion (day 19) and no focus this week in the demo; 7:10pm is too early for the sleep tap.
     expect(screen.queryByText(/looks incomplete/)).not.toBeInTheDocument();
+    expect(screen.queryByText('New target suggestion')).not.toBeInTheDocument();
     expect(screen.queryByText("This week's focus:")).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Going to sleep/ })).not.toBeInTheDocument();
   });
@@ -155,6 +163,46 @@ describe('TodayScreen (S08)', () => {
     expect(screen.getByText(/kurang manis for drinks/)).toBeInTheDocument();
     expect(await screen.findByText('2 of 3')).toBeInTheDocument();
     expect(screen.getByText('2 of 3 drinks kurang or kosong so far')).toBeInTheDocument();
+  });
+
+  it('keeps the title and the full goal name for a 40-character goal name', async () => {
+    const name = 'Cut before the Raya open houses begin ok';
+    expect(name).toHaveLength(40);
+    await db.goals.update(DEMO_IDS.goals.cut, { name });
+    renderToday();
+    const pill = await screen.findByRole('button', { name: `Goal: ${name} · 1,800` });
+    // The label shortens in the layout (ellipsis); the text and the aria-label stay whole.
+    expect(within(pill).getByText(`${name} · 1,800`)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByText('Fri 16 Oct')).toBeInTheDocument();
+  });
+
+  it('opens the goal library from the goal pill', async () => {
+    const user = userEvent.setup();
+    const router = renderToday();
+    await user.click(await screen.findByRole('button', { name: 'Goal: Cut · 1,800' }));
+    expect(await screen.findByText('Goals screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/more/goals');
+  });
+
+  it('says once that the goal reached its end, and Goals opens the library', async () => {
+    await db.goals.update(DEMO_IDS.goals.cut, { endCondition: { date: '2026-10-16' } });
+    const user = userEvent.setup();
+    const router = renderToday();
+    const banner = await screen.findByRole('button', { name: /Your Cut goal reached its end date\. Pick what comes next\./ });
+    expect(within(banner).getByText('Goals')).toBeInTheDocument();
+    await user.click(banner);
+    expect(await screen.findByText('Goals screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/more/goals');
+    expect(readGoalEndNoticeSeen()).toBe('goal-cut:date:2026-10-16');
+  });
+
+  it('puts the check-in banner before a reached goal end', async () => {
+    await db.goals.update(DEMO_IDS.goals.cut, { endCondition: { date: '2026-10-16' } });
+    await db.days.delete(YESTERDAY);
+    renderToday();
+    expect(await screen.findByRole('button', { name: /Yesterday isn't confirmed yet\.|Yesterday looks incomplete\./ })).toBeInTheDocument();
+    expect(screen.queryByText(/reached its end date/)).not.toBeInTheDocument();
   });
 
   it('asks about yesterday when it looks incomplete, with savings held back', async () => {
@@ -225,3 +273,54 @@ describe('TodayScreen (S08)', () => {
     await waitFor(() => expect(screen.queryByText('Waiting to sync')).not.toBeInTheDocument());
   });
 });
+
+describe('TodayScreen target suggestion notice (S40, in-app)', () => {
+  beforeEach(async () => {
+    resetUiState();
+    clearTargetNoticeSeen();
+    syncEngine.current.state = { phase: 'starting' };
+    await resetAll();
+    await loadMaintenanceWorld(db);
+    pinClock();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    resetUiState();
+    clearTargetNoticeSeen();
+  });
+
+  it('tells about a new target suggestion once, and See opens S37', async () => {
+    const user = userEvent.setup();
+    const router = renderToday();
+    const banner = await screen.findByRole('button', { name: /New target suggestion based on 4 weeks of data\./ });
+    expect(within(banner).getByText('See')).toBeInTheDocument();
+    // The target itself hasn't changed: 1,800 − 500 eaten.
+    expect(await screen.findByText('1,300')).toBeInTheDocument();
+    await user.click(banner);
+    expect(await screen.findByText('Target suggestion screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/insights/target');
+    expect(readTargetNoticeSeen()).toBe(MAINTENANCE_WORLD.expected.noticeKey);
+  });
+
+  it('is gone once seen', async () => {
+    const user = userEvent.setup();
+    const first = renderToday();
+    await user.click(await screen.findByRole('button', { name: /New target suggestion/ }));
+    expect(await screen.findByText('Target suggestion screen')).toBeInTheDocument();
+    first.dispose();
+    cleanup();
+
+    renderToday();
+    expect(await screen.findByText('1,300')).toBeInTheDocument();
+    expect(screen.queryByText('New target suggestion')).not.toBeInTheDocument();
+  });
+
+  it('gives way to the check-in banner', async () => {
+    await db.days.delete('2026-10-29');
+    renderToday();
+    expect(await screen.findByRole('button', { name: /Yesterday isn't confirmed yet\.|Yesterday looks incomplete\./ })).toBeInTheDocument();
+    expect(screen.queryByText('New target suggestion')).not.toBeInTheDocument();
+  });
+});
+

@@ -1,7 +1,9 @@
 import {
+  ageText,
   fmtAgo,
   fmtApprox,
   fmtClock,
+  fmtDateYear,
   fmtDayLetter,
   fmtDayRange,
   fmtDayShort,
@@ -10,6 +12,7 @@ import {
   fmtKcal,
   fmtKg,
   fmtKgDelta,
+  fmtKgRate,
   fmtRange,
   fmtRelativeDay,
   fmtRm,
@@ -129,6 +132,19 @@ describe('days', () => {
     expect(fmtDayRange('2026-12-28', '2027-01-03')).toBe('28 Dec–3 Jan');
   });
 
+  it('formats a date with the year, no weekday', () => {
+    expect(fmtDateYear('2026-10-16')).toBe('16 Oct 2026');
+    expect(fmtDateYear('2027-01-05')).toBe('5 Jan 2027');
+  });
+
+  it('says how long ago in whole days', () => {
+    expect(ageText(0)).toBe('today');
+    expect(ageText(1)).toBe('yesterday');
+    expect(ageText(2)).toBe('2 days ago');
+    expect(ageText(41)).toBe('41 days ago');
+    expect(ageText(1200)).toBe('1,200 days ago');
+  });
+
   it('names nearby days relative to today', () => {
     const today = '2026-10-16';
     expect(fmtRelativeDay('2026-10-16', today)).toBe('Today');
@@ -182,5 +198,21 @@ describe('fmtAgo', () => {
 
   it('shows a placeholder for a time that is not a number', () => {
     expect(fmtAgo(Number.NaN, now)).toBe('—');
+  });
+});
+
+describe('fmtKgRate', () => {
+  it('shows paces and trend rates to the nearest 0.05 kg', () => {
+    expect(fmtKgRate(0.2348)).toBe('0.25 kg');
+    expect(fmtKgRate(0.5)).toBe('0.5 kg');
+    expect(fmtKgRate(0.75)).toBe('0.75 kg');
+    expect(fmtKgRate(-0.25)).toBe(`${MINUS}0.25 kg`);
+    expect(fmtKgRate(1)).toBe('1 kg');
+    expect(fmtKgRate(0.01)).toBe('0 kg');
+  });
+
+  it('never shows "−0"', () => {
+    expect(fmtKgRate(-0.01)).toBe('0 kg');
+    expect(fmtKgRate(-0)).toBe('0 kg');
   });
 });

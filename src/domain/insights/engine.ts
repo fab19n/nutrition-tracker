@@ -5,8 +5,10 @@
  */
 import { addDays, compareDays } from '@/domain/day';
 import { fmtInt } from '@/domain/format';
+import { MIN_COMPLETE_DAYS } from '@/domain/maintenance';
 import type { InsightFeedback, LogicalDay } from '@/domain/types';
 import { defaultFocusSub, focusLabel, FOCUS_RULE_IDS, type WeeklyFocus } from './focusRules';
+import { rulesOffFor } from './groups';
 import { INSIGHT_RULES } from './rules';
 import type { FocusRuleId, InsightContext, InsightRule, InsightRuleId, RankedInsight } from './types';
 
@@ -38,7 +40,7 @@ function metaOf(basis: string, earlyRead: boolean): string {
 export interface InsightEvaluation {
   /** Every unlocked rule that found something, paused ones included (the evidence sheet reads these), best first. */
   all: RankedInsight[];
-  /** What the feed shows: not paused, one per topic, best first. */
+  /** What the feed shows: not paused, not turned off by the goal (C48), one per topic, best first. */
   ranked: RankedInsight[];
   /** The top 3 of `ranked`. */
   top: RankedInsight[];
@@ -51,6 +53,8 @@ export function evaluateInsights(
 ): InsightEvaluation {
   const rules = opts.rules ?? INSIGHT_RULES;
   const paused = pausedRuleIds(opts.feedback ?? [], ctx.today);
+  // Groups the goal turned off (C48) leave the feed like a paused rule; `all` still holds them.
+  const off = rulesOffFor(ctx.goal);
   const all: RankedInsight[] = [];
   for (const rule of rules) {
     if (!isUnlocked(rule, ctx)) continue;
@@ -69,7 +73,7 @@ export function evaluateInsights(
   const topics = new Set<string>();
   const ranked: RankedInsight[] = [];
   for (const insight of all) {
-    if (paused.has(insight.ruleId) || topics.has(insight.topic)) continue;
+    if (paused.has(insight.ruleId) || off.has(insight.ruleId) || topics.has(insight.topic)) continue;
     topics.add(insight.topic);
     ranked.push(insight);
   }
@@ -86,17 +90,43 @@ export function findInsight(evaluation: InsightEvaluation, ruleId: string): Rank
 
 export interface UnlockItem {
   label: string;
-  /** Complete days so far. */
+  /** Complete days so far (or weigh-ins, per `unit`). */
   have: number;
   need: number;
+  /** What `have` counts: "days" when absent. */
+  unit?: string;
+}
+
+/**
+ * "Your real maintenance" as the target check (S37, C45) sees it, so the list never contradicts
+ * the card: the complete days in its window, the weigh-ins it still needs in its place, or
+ * unlocked once there is an estimate. Without a check (no goal, paused), by complete days.
+ */
+function maintenanceUnlock(ctx: Pick<InsightContext, 'completeDays' | 'maintenance'>): UnlockItem {
+  const label = 'Your real maintenance';
+  const check = ctx.maintenance;
+  switch (check?.kind) {
+    case 'tooEarly':
+      return { label, have: check.completeDays, need: check.needDays };
+    case 'needWeighIns':
+      return check.weighIns < check.needWeighIns
+        ? { label: 'Weigh-ins for your maintenance', have: check.weighIns, need: check.needWeighIns, unit: 'weigh-ins' }
+        : { label: 'Weigh-ins for your maintenance', have: check.spanDays, need: check.needSpanDays, unit: 'days' };
+    case 'onTrack':
+    case 'suggestion':
+    case 'kept':
+      return { label, have: check.estimate.daysUsed, need: MIN_COMPLETE_DAYS };
+    default:
+      return { label, have: ctx.completeDays, need: MIN_COMPLETE_DAYS };
+  }
 }
 
 /** "Timing patterns 9 of 14 days · Your real maintenance 9 of 21" (plan §13.3), by complete days. */
-export function unlockProgress(ctx: Pick<InsightContext, 'completeDays' | 'dayNumber'>): UnlockItem[] {
+export function unlockProgress(ctx: Pick<InsightContext, 'completeDays' | 'dayNumber' | 'maintenance'>): UnlockItem[] {
   const items: UnlockItem[] = [];
   if (ctx.dayNumber < 7) items.push({ label: 'Weekly review and patterns', have: ctx.completeDays, need: 7 });
   items.push({ label: 'Timing patterns', have: ctx.completeDays, need: 14 });
-  items.push({ label: 'Your real maintenance', have: ctx.completeDays, need: 21 });
+  items.push(maintenanceUnlock(ctx));
   return items;
 }
 

@@ -6,8 +6,10 @@ import { buildDemoWorld, DEMO_EXPECTED } from '@/db/seed/demo';
 import { computeWeekBudget, type BudgetDayInput } from '@/domain/budget';
 import { DEMO_NOW_ISO } from '@/domain/clock';
 import { compareDays, instantAt, weekDays } from '@/domain/day';
+import { checkTarget, type KeptTarget, type TargetCheck } from '@/domain/maintenance';
 import { mealMacros } from '@/domain/meal';
 import type { InsightFeedback, LogicalDay } from '@/domain/types';
+import { buildMaintenanceWorld, MAINTENANCE_WORLD, targetCheckInput, type MaintenanceWorldOptions } from '@/test/maintenanceWorld';
 import { buildInsightContext, insightPeriodFor, reviewWeekStart, weekPeriod } from './context';
 import type { InsightContext, InsightPeriod } from './types';
 
@@ -57,4 +59,31 @@ export function demoWeekContext(weekStart: LogicalDay): InsightContext {
 
 export function notForMe(ruleId: string, pausedUntil: LogicalDay): InsightFeedback {
   return { ruleId, feedback: 'notForMe', at: DEMO_NOW_ISO, pausedUntil };
+}
+
+/**
+ * The maintenance world (src/test/maintenanceWorld.ts) on Fri 30 Oct as the insights see it:
+ * last week (19–25 Oct) as the period, the Cut and its setup version, and the target check for
+ * the same rows (a suggestion of 1,550 unless `opts` or `kept` say otherwise).
+ */
+export function maintenanceWorldContext(opts: MaintenanceWorldOptions = {}, extra: { kept?: KeptTarget; maintenance?: TargetCheck | null } = {}): InsightContext {
+  const world = buildMaintenanceWorld(opts);
+  const today = MAINTENANCE_WORLD.today;
+  const goal = world.goals.find((g) => g.status === 'active');
+  const version = world.goalVersions.find((v) => v.goalId === goal?.id);
+  const maintenance =
+    extra.maintenance === null ? undefined : (extra.maintenance ?? checkTarget({ ...targetCheckInput(world, today), ...(extra.kept ? { kept: extra.kept } : {}) }));
+  return buildInsightContext({
+    today,
+    profile: world.profile,
+    period: { from: '2026-10-19', to: '2026-10-25', kind: 'week' },
+    meals: world.meals,
+    records: world.days.filter((d) => compareDays(d.logicalDay, today) < 0),
+    workouts: world.workouts,
+    weights: world.weights,
+    places: [],
+    ...(goal ? { goal } : {}),
+    ...(version ? { version } : {}),
+    ...(maintenance ? { maintenance } : {}),
+  });
 }

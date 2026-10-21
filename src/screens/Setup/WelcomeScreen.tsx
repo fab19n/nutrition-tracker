@@ -3,6 +3,7 @@ import { CalendarDays, MessageSquareText, SlidersHorizontal } from 'lucide-react
 // CONTRACT: the shell exports usePwaInstall() from src/app/pwa.ts:
 // { canPrompt: boolean; platform: 'ios' | 'android' | 'other'; isStandalone: boolean; prompt: () => Promise<void> }
 import { usePwaInstall } from '@/app/pwa';
+import { FilePickButton } from '@/components/FilePickButton/FilePickButton';
 import { InstallPrompt } from '@/components/InstallPrompt/InstallPrompt';
 import { Button } from '@/components/ui/Button';
 import styles from './Setup.module.css';
@@ -12,6 +13,8 @@ export interface WelcomeScreenProps {
   onExplore: () => void;
   /** "Restore from your account". Without it (no Supabase configured) there's no restore button. */
   onRestore?: () => void;
+  /** "Restore from a backup file": the chosen file. Without it the button isn't shown. */
+  onBackupFile?: (file: File) => void;
   /** The sample week is loading. */
   exploring: boolean;
 }
@@ -24,9 +27,9 @@ const POINTS = [
 
 /**
  * S01 Welcome and install: app name, one line, Get started, restore from the account (deployed
- * app only), the sample week, and C59 InstallPrompt in the browser.
+ * app only), restore from a backup file, the sample week, and C59 InstallPrompt in the browser.
  */
-export function WelcomeScreen({ onStart, onExplore, onRestore, exploring }: WelcomeScreenProps) {
+export function WelcomeScreen({ onStart, onExplore, onRestore, onBackupFile, exploring }: WelcomeScreenProps) {
   const pwa = usePwaInstall();
   const [installDismissed, setInstallDismissed] = useState(false);
   // Installed already: no prompt. Android/desktop only once the browser offers its install event.
@@ -72,6 +75,9 @@ export function WelcomeScreen({ onStart, onExplore, onRestore, exploring }: Welc
           <Button variant="ghost" size="lg" onClick={onRestore} disabled={exploring}>
             Restore from your account
           </Button>
+        ) : null}
+        {onBackupFile ? (
+          <FilePickButton variant="ghost" size="lg" label="Restore from a backup file" onFile={onBackupFile} disabled={exploring} />
         ) : null}
         <Button variant="ghost" size="lg" onClick={onExplore} disabled={exploring} aria-busy={exploring || undefined}>
           {exploring ? 'Loading the sample week…' : 'Explore with sample data'}

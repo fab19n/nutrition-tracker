@@ -160,6 +160,9 @@ export interface TimingRules {
   fixedWindow?: { startMin: number; endMin: number };
 }
 
+/** C48 insight toggles: groups of insight rules a goal can turn off. */
+export type InsightGroup = 'food' | 'protein' | 'timing' | 'weight';
+
 export interface SuggestionWeights {
   budget: number;
   protein: number;
@@ -184,6 +187,8 @@ export interface Goal {
   timing: TimingRules;
   suggestionWeights: SuggestionWeights;
   endCondition?: { date?: LogicalDay; weightKg?: number };
+  /** Insight groups turned off for this goal (C48). Missing = all on. */
+  insightsOff?: InsightGroup[];
   createdAt: Instant;
 }
 
@@ -197,6 +202,8 @@ export interface GoalVersion {
   carbsG: number;
   fatG: number;
   maintenanceKcal: number;
+  /** kg a week the target was set at (new versions only); see paceOf(). */
+  paceKgPerWeek?: number;
   reason: 'setup' | 'approvedSuggestion' | 'manualEdit';
   createdAt: Instant;
 }
@@ -208,6 +215,8 @@ export interface GoalPeriod {
   from: LogicalDay;
   /** Exclusive end; undefined = still active. */
   to?: LogicalDay;
+  /** When the switch that made it was booked; breaks ties between periods starting the same day (later wins). Missing on older rows. */
+  createdAt?: Instant;
 }
 
 // ---------------------------------------------------------------------------
@@ -428,10 +437,13 @@ export interface WeekPlan {
 
 export interface InsightFeedback {
   ruleId: string;
-  feedback: 'useful' | 'notForMe';
+  /** 'keepCurrent' is "Keep current" on the target suggestion (ruleId 'targetSuggestion'). */
+  feedback: 'useful' | 'notForMe' | 'keepCurrent';
   at: Instant;
-  /** "Not for me" pauses the rule for about 4 weeks. */
+  /** "Not for me" pauses the rule for about 4 weeks; "Keep current" hides the suggestion as long. */
   pausedUntil?: LogicalDay;
+  /** "Keep current" on the target suggestion (ruleId 'targetSuggestion'): the day, the estimate and the version it answered. */
+  keptTarget?: { keptOn: LogicalDay; maintenanceKcal: number; versionId: Id };
 }
 
 export interface SuggestionEvent {

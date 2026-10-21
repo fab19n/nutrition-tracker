@@ -5,6 +5,8 @@ import {
   dailyTargetFor,
   defaultMacroTargets,
   deficitForPace,
+  macrosForTarget,
+  paceOf,
   startingMaintenance,
 } from './targets';
 import type { GoalTemplate } from './types';
@@ -95,5 +97,25 @@ describe('defaultMacroTargets', () => {
       for (const g of [t.proteinG, t.carbsG, t.fatG]) expect(g % 5).toBe(0);
     }
     expect(defaultMacroTargets(600, 150, 'leanBulk').carbsG).toBe(0);
+  });
+});
+
+describe('macrosForTarget', () => {
+  it('keeps protein, then fat 30% of kcal and carbs the rest, rounded to 5 (S37)', () => {
+    expect(macrosForTarget(1550, 110)).toEqual({ proteinG: 110, carbsG: 165, fatG: 50 });
+    expect(macrosForTarget(1825, 110)).toEqual({ proteinG: 110, carbsG: 210, fatG: 60 });
+  });
+
+  it('never goes below 0 carbs', () => {
+    expect(macrosForTarget(1000, 200).carbsG).toBe(0);
+  });
+});
+
+describe('paceOf', () => {
+  it('reads the version’s pace, else the goal’s', () => {
+    expect(paceOf({ paceKgPerWeek: 0.5 }, { paceKgPerWeek: 0.25 })).toBe(0.25);
+    expect(paceOf({ paceKgPerWeek: 0.5 }, {})).toBe(0.5);
+    expect(paceOf({ paceKgPerWeek: 0.5 })).toBe(0.5);
+    expect(paceOf({ paceKgPerWeek: 0.5 }, { paceKgPerWeek: 0 })).toBe(0);
   });
 });

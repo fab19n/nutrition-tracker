@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { ChipGroup } from '@/components/ui/Chip';
 import { resetAll, setDemoMode } from '@/db/actions';
 import { db } from '@/db/db';
-import { useProfile, useWeightTrend } from '@/db/hooks';
+import { useMealCount, useNow, useProfile, useWeightTrend } from '@/db/hooks';
 import {
   AI_ESTIMATE_MODES,
   DAILY_MINIMUM_STEP,
@@ -22,14 +22,17 @@ import {
   ROLLOVER_HOURS,
   aiEstimateModeOf,
   clearLastExport,
+  readLastBackupAt,
   readLastExport,
   updateProfileSettings,
   type ProfileSettingsPatch,
 } from '@/db/settings';
+import { backupStatus } from '@/domain/backup';
 import { fmtClock, fmtDayShort, fmtInt, fmtKcal, fmtKg } from '@/domain/format';
 import { logicalDayOf } from '@/domain/day';
 import type { AiEstimateMode, Profile, Sex, ThemePreference } from '@/domain/types';
 import { readEstimateUrl } from '@/estimate/aiClient';
+import { backupsRowSub } from '@/screens/Backups/backupsModel';
 import { SEX_OPTIONS } from '@/screens/Setup/AboutStep';
 import { fieldError, parseNumber } from '@/screens/Setup/fields';
 import { NumberField } from '@/screens/Setup/NumberField';
@@ -302,6 +305,8 @@ export default function SettingsScreen() {
   const location = useLocation();
   const profile = useProfile();
   const weight = useWeightTrend();
+  const now = useNow();
+  const mealCount = useMealCount();
   const session = useSession();
   const syncView = useSyncView();
   const showToast = useUiStore((s) => s.showToast);
@@ -310,6 +315,7 @@ export default function SettingsScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lastExport] = useState(readLastExport);
+  const [lastBackupAt] = useState(readLastBackupAt);
 
   // Sign-in serves sync and guards the AI function, so Account and sync exists only when Supabase
   // is set up. Without Supabase, AI calls go straight to the endpoint (the Vite dev server in local dev).
@@ -358,6 +364,8 @@ export default function SettingsScreen() {
   const leaveDemo = async () => {
     await setDemoMode(false);
     resetUiState();
+    // The sample week's export record carries a demo timestamp.
+    clearLastExport();
     navigate(PATHS.setup, { replace: true });
   };
 
@@ -377,6 +385,20 @@ export default function SettingsScreen() {
   };
 
   const latestKg = weight?.entries[0]?.kg;
+  // The monthly backup nudge shows here, quietly: the Backups row's sub-line says when a file is due.
+  const backupsSub = profile
+    ? backupsRowSub(
+        backupStatus({
+          ...(lastBackupAt ? { lastBackupAt } : {}),
+          now,
+          tz: profile.timeZone,
+          startedOn: profile.startedOn,
+          mealCount: mealCount ?? 0,
+          demo: profile.demoMode === true,
+        }),
+        authConfigured,
+      )
+    : '';
   const exportSub = lastExport
     ? `Last export ${fmtDayShort(logicalDayOf(lastExport.at, profile?.timeZone, 0))}`
     : 'Full backup or spreadsheet files';
@@ -489,7 +511,7 @@ export default function SettingsScreen() {
 
           <SettingsGroup title="Reminders and data">
             <SettingsRow label="Reminders" sub="Weigh-in and meal nudges" onPress={() => navigate(PATHS.soon('reminders'))} />
-            <SettingsRow label="Backups" sub="A weekly copy to Google Drive" onPress={() => navigate(PATHS.soon('backups'))} />
+            <SettingsRow label="Backups" sub={backupsSub} onPress={() => navigate(PATHS.backups)} />
             <SettingsRow label="Export" sub={exportSub} onPress={() => navigate(PATHS.export)} />
           </SettingsGroup>
 

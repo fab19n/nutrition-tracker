@@ -4,13 +4,17 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionState } from '@/auth/session';
 import { completeSetup, loadDemoData, resetAll, type SetupInput } from '@/db/actions';
-import { db } from '@/db/db';
-import { fmtApprox, fmtKcal } from '@/domain/format';
+import { createDb, db, type KiraMakanDb } from '@/db/db';
+import { loadDemo } from '@/db/seed/demo';
+import { clearLastExport, readLastBackupAt } from '@/db/settings';
+import { fmtApprox, fmtInt, fmtKcal } from '@/domain/format';
 import { dailyTargetFor, startingMaintenance } from '@/domain/targets';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { RestoreResult, SyncProgress } from '@/sync';
 import { SyncError } from '@/sync/errors';
+import { backupFileOf, jsonFile } from '@/test/backupFiles';
 import SetupFlow from './SetupFlow';
+import { WelcomeScreen } from './WelcomeScreen';
 
 const pwa = vi.hoisted(() => ({
   state: { canPrompt: false, platform: 'other' as 'ios' | 'android' | 'other', isStandalone: false },
@@ -54,14 +58,16 @@ vi.mock('@/auth/session', async (importOriginal) => {
   };
 });
 
-/** Stands in for the sync engine's restore (src/sync); a test says what it answers. */
+/** Stands in for the sync engine (src/sync): restore answers what a test says, and nothing real runs. */
 const sync = vi.hoisted(() => ({
   restore: vi.fn<(onProgress?: (progress: SyncProgress) => void) => Promise<RestoreResult>>(),
+  syncNow: vi.fn<() => Promise<void>>(async () => {}),
 }));
 
 vi.mock('@/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/sync')>()),
   restoreFromAccount: (onProgress?: (progress: SyncProgress) => void) => sync.restore(onProgress),
+  syncNow: () => sync.syncNow(),
 }));
 
 const EMAIL = 'fabian@example.com';
@@ -126,10 +132,13 @@ beforeEach(async () => {
   auth.signIn.mockReset().mockImplementation(async (email) => auth.set({ status: 'signedIn', email, userId: USER_ID }));
   auth.signOut.mockReset().mockImplementation(async () => auth.set({ status: 'signedOut' }));
   sync.restore.mockReset().mockResolvedValue({ result: 'empty' });
+  sync.syncNow.mockReset().mockResolvedValue(undefined);
+  clearLastExport();
 });
 
 afterEach(async () => {
   await resetAll();
+  window.localStorage.clear();
 });
 
 describe('SetupFlow (S01–S07)', () => {
@@ -293,12 +302,19 @@ describe('Restore from your account (S01)', () => {
     expect(screen.queryByRole('button', { name: 'Restore from your account' })).not.toBeInTheDocument();
   });
 
+  it('offers a backup file between Get started and the sample week without Supabase', async () => {
+    renderSetup();
+    await screen.findByRole('button', { name: 'Restore from a backup file' });
+    const names = screen.getAllByRole('button').map((button) => button.textContent);
+    expect(names).toEqual(['Get started', 'Restore from a backup file', 'Explore with sample data']);
+  });
+
   it('offers restore between Get started and the sample week in the deployed app', async () => {
     deployed({ status: 'signedOut' });
     renderSetup();
     await screen.findByRole('button', { name: 'Restore from your account' });
     const names = screen.getAllByRole('button').map((button) => button.textContent);
-    expect(names).toEqual(['Get started', 'Restore from your account', 'Explore with sample data']);
+    expect(names).toEqual(['Get started', 'Restore from your account', 'Restore from a backup file', 'Explore with sample data']);
   });
 
   it('signs a signed-out phone in, restores straight away with progress, and opens Today', async () => {
@@ -478,5 +494,157 @@ describe('Restore from your account (S01)', () => {
     act(() => auth.set(signedIn));
     expect(await screen.findByRole('dialog', { name: 'Nothing to restore yet' })).toBeInTheDocument();
     expect(sync.restore).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Restore from a backup file (S01)', () => {
+  /** The file's own database: a phone that was set up and used. */
+  let source: KiraMakanDb;
+
+  beforeEach(async () => {
+    source = createDb(`setup-source-${crypto.randomUUID()}`);
+    await loadDemo(source);
+  });
+
+  afterEach(async () => {
+    await source.delete();
+  });
+
+  const pick = async (user: ReturnType<typeof userEvent.setup>, file: File) => {
+    await user.upload(await screen.findByLabelText('Backup file'), file);
+  };
+
+  it('shows what is in the file, with no question, no confirm and nothing to export first', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+
+    await pick(user, await backupFileOf(source, { real: true }));
+    const sheet = await screen.findByRole('dialog', { name: 'Restore this backup' });
+    expect(within(sheet).getByText('This sets up your diary from the backup.')).toBeInTheDocument();
+    expect(within(sheet).getByText('kira-makan-backup-2026-10-16.json')).toBeInTheDocument();
+    expect(within(sheet).getByText('Exported 16 Oct 2026, 7:10pm')).toBeInTheDocument();
+    expect(within(sheet).getByText('Meals').closest('div')).toHaveTextContent(fmtInt(await source.meals.count()));
+    expect(within(sheet).getByText('Places').closest('div')).toHaveTextContent('4');
+    // Nothing is on this phone, so nothing can be lost.
+    expect(within(sheet).queryByText(/They will be lost|is also in the backup/)).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Export this/ })).not.toBeInTheDocument();
+    expect(await db.profile.count()).toBe(0);
+  });
+
+  it('restores at once and opens Today on the diary from the file', async () => {
+    const user = userEvent.setup();
+    const router = renderSetup();
+
+    await pick(user, await backupFileOf(source, { real: true }));
+    const sheet = await screen.findByRole('dialog', { name: 'Restore this backup' });
+    await user.click(within(sheet).getByRole('button', { name: 'Restore this backup' }));
+
+    expect(await screen.findByText('Today screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(await db.meals.count()).toBe(await source.meals.count());
+    expect(await db.places.count()).toBe(4);
+    // A fresh phone takes its own theme and asks for location again, whatever the other phone had.
+    expect(await db.profile.get('me')).toMatchObject({ theme: 'system', useLocation: false, demoMode: false });
+    const meals = fmtInt(await source.meals.count());
+    expect(useUiStore.getState().toast?.message).toBe(`Restored · ${meals} meals`);
+    expect(readLastBackupAt()).toBe('2026-10-16T11:10:00.000Z');
+    // Sync is asked to look once, and decides for itself.
+    expect(sync.syncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('says "1 meal" for a file with one', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+
+    const one = await backupFileOf(source, {
+      real: true,
+      mutate: (b) => {
+        b.tables.meals = (b.tables.meals ?? []).slice(0, 1);
+      },
+    });
+    await pick(user, one);
+    await user.click(within(await screen.findByRole('dialog', { name: 'Restore this backup' })).getByRole('button', { name: 'Restore this backup' }));
+
+    expect(await screen.findByText('Today screen')).toBeInTheDocument();
+    expect(useUiStore.getState().toast?.message).toBe('Restored · 1 meal');
+  });
+
+  it('works with an account too, and asks the account nothing', async () => {
+    deployed({ status: 'signedOut' });
+    const user = userEvent.setup();
+    renderSetup();
+
+    await pick(user, await backupFileOf(source, { real: true }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Restore this backup' })).getByRole('button', { name: 'Restore this backup' }));
+
+    expect(await screen.findByText('Today screen')).toBeInTheDocument();
+    expect(sync.restore).not.toHaveBeenCalled();
+    expect(await db.meals.count()).toBe(await source.meals.count());
+  });
+
+  it('says so about a file that is not a backup, and Welcome is as it was', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+
+    await pick(user, jsonFile('{"hello": "world"}'));
+    const sheet = await screen.findByRole('dialog', { name: "That's not a Kira Makan backup" });
+    expect(within(sheet).getByRole('alert')).toHaveTextContent("The file is JSON, but this app didn't make it. Pick one saved by Export now.");
+    // The sheet's grab handle is called Close too; the button is the last.
+    await user.click(within(sheet).getAllByRole('button', { name: 'Close' }).at(-1) as HTMLElement);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Get started' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Explore with sample data' })).toBeEnabled();
+    expect(await db.profile.count()).toBe(0);
+    expect(sync.syncNow).not.toHaveBeenCalled();
+  });
+
+  it('refuses the sample week as a diary', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+
+    await pick(user, await backupFileOf(source));
+    const sheet = await screen.findByRole('dialog', { name: 'This backup is the sample week' });
+    expect(within(sheet).getByText("Sample data isn't a diary, so it can't replace yours. Nothing was changed.")).toBeInTheDocument();
+    expect(await db.profile.count()).toBe(0);
+  });
+
+  it('goes back to Welcome on Cancel, with nothing written', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+
+    await pick(user, await backupFileOf(source, { real: true }));
+    const sheet = await screen.findByRole('dialog', { name: 'Restore this backup' });
+    await user.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore from a backup file' })).toBeEnabled();
+    expect(await db.profile.count()).toBe(0);
+    expect(await db.meals.count()).toBe(0);
+  });
+
+  it('can pick another file after a problem', async () => {
+    const user = userEvent.setup();
+    const router = renderSetup();
+
+    await pick(user, jsonFile('nope'));
+    const problem = await screen.findByRole('dialog', { name: "That file isn't a backup" });
+    await user.upload(within(problem).getByLabelText('Backup file'), await backupFileOf(source, { real: true }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Restore this backup' })).getByRole('button', { name: 'Restore this backup' }));
+
+    expect(await screen.findByText('Today screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/');
+  });
+
+  it('is disabled while the sample week loads', () => {
+    render(<WelcomeScreen onStart={() => {}} onExplore={() => {}} onBackupFile={() => {}} exploring />);
+    expect(screen.getByRole('button', { name: 'Restore from a backup file' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Loading the sample week…' })).toBeDisabled();
+  });
+
+  it('is left out of Welcome when no handler is given', () => {
+    render(<WelcomeScreen onStart={() => {}} onExplore={() => {}} exploring={false} />);
+    expect(screen.queryByRole('button', { name: 'Restore from a backup file' })).not.toBeInTheDocument();
   });
 });

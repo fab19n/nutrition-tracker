@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
+import { DEMO_IDS } from '@/db/seed/demo';
 import { getWeightTrend } from '@/db/selectors';
 import { fmtKg } from '@/domain/format';
 import { resetUiState, useUiStore } from '@/state/ui';
@@ -56,6 +57,14 @@ afterEach(async () => {
 });
 
 describe('WeightScreen (S16)', () => {
+  it('plans by the pace of the target in force', async () => {
+    const cut = (await db.goalVersions.get(DEMO_IDS.goalVersions.cut))!;
+    await db.goalVersions.put({ ...cut, id: 'version-slower', effectiveFrom: '2026-10-16', dailyKcal: 1825, paceKgPerWeek: 0.25, reason: 'approvedSuggestion', createdAt: '2026-10-15T11:00:00.000Z' });
+    renderWeight();
+    await screen.findByText('77.8', { exact: false, selector: 'output' }, SLOW);
+    await waitFor(() => expect(tile('Plan')).toHaveTextContent('Plan−0.25kg a week'));
+  });
+
   it('pre-fills the latest weigh-in and shows the trend, tiles and recent weigh-ins', async () => {
     renderWeight();
 

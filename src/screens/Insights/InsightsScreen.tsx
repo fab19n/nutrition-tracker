@@ -8,13 +8,18 @@ import { InsightCard } from '@/components/InsightCard/InsightCard';
 import { MetricRow, MetricTile, type MetricTone } from '@/components/MetricTile/MetricTile';
 import { RecurringList } from '@/components/RecurringRow/RecurringRow';
 import { SkeletonList } from '@/components/Skeleton/Skeleton';
+import { TargetSuggestionCard } from '@/components/TargetSuggestionCard/TargetSuggestionCard';
 import { TimingGrid } from '@/components/TimingGrid/TimingGrid';
 import { TopBar } from '@/components/TopBar/TopBar';
 import { UnlockList } from '@/components/UnlockProgress/UnlockProgress';
 import { SectionHeading } from '@/components/ui/SectionHeading';
+import { useNow } from '@/db/hooks';
 import { clearFeedback, recordFeedback, useInsights, type InsightsView, type Undo } from '@/db/insightsData';
+import { useTargetView, type TargetView } from '@/db/targetSuggestion';
 import { fmtClock, fmtInt, fmtKg, fmtKgDelta, fmtRm, fmtSigned, roundTo10 } from '@/domain/format';
 import { fmtHours, type RankedInsight } from '@/domain/insights';
+import { targetCardModel } from './targetModel';
+import { useTargetDecisions } from './useTargetDecisions';
 import styles from './InsightsScreen.module.css';
 
 interface Dismissed {
@@ -150,9 +155,29 @@ function WhenYouAte({ view }: { view: InsightsView }) {
   );
 }
 
+/** C45 in compact form, first under the TopBar while a target suggestion waits (not kept). */
+function TargetCard({ target }: { target: TargetView }) {
+  const navigate = useNavigate();
+  const now = useNow();
+  const { approve, keep, busy } = useTargetDecisions(target);
+  const card = target.check.kind === 'suggestion' ? targetCardModel(target, { now, variant: 'compact' }) : undefined;
+  if (!card) return null;
+  return (
+    <TargetSuggestionCard
+      className={styles.target}
+      {...card.props}
+      onApprove={() => void approve(target, 'suggested', now)}
+      onKeep={() => void keep(target)}
+      onDetails={() => navigate(PATHS.target)}
+      busy={busy}
+    />
+  );
+}
+
 /** @design S31 Insights — this week's numbers, top 3, where calories came from, timing, unlocks. */
 export default function InsightsScreen() {
   const view = useInsights();
+  const target = useTargetView();
 
   if (!view) {
     return (
@@ -172,6 +197,8 @@ export default function InsightsScreen() {
   return (
     <div className={styles.screen}>
       <TopBar title="Insights" right={<span className={styles.caption}>{view.headerLabel}</span>} />
+
+      {target ? <TargetCard target={target} /> : null}
 
       <MetricRow className={styles.tiles}>
         <MetricTile label={budget.label} value={budget.value} tone={budget.tone} sub={budget.sub} />

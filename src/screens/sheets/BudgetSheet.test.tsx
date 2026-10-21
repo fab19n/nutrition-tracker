@@ -45,6 +45,14 @@ describe('BudgetSheet (S17)', () => {
     expect(screen.queryByText('Waiting for check-in')).not.toBeInTheDocument();
   });
 
+  it('says a paused week is out of trends, with no makan day to plan', async () => {
+    await db.goalPeriods.update('goal-period-cut-1', { to: '2026-10-16' });
+    await db.goalPeriods.put({ id: 'pause-today', goalId: 'goal-pause', from: '2026-10-16' });
+    renderSheet();
+    expect(await screen.findByText('Your budget is off for now. Logging is optional, and these days stay out of trends.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /makan day/ })).not.toBeInTheDocument();
+  });
+
   it('opens the makan-day sheet', async () => {
     const user = userEvent.setup();
     const { router } = renderSheet();

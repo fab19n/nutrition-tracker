@@ -203,6 +203,15 @@ describe('demo day read models', () => {
 
     expect(await getFestiveDaysInRange(db, ...thisWeek)).toEqual({ inRange: 1, days: 4, lowKcal: 1890, highKcal: 2310 });
   });
+
+  it('centres the Festive band on the target, so an edited target and its band agree', async () => {
+    const thisWeek = [DEMO_EXPECTED.weekStart, DEMO_EXPECTED.today.day] as const;
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: DEMO_EXPECTED.weekStart });
+    await db.goalPeriods.put({ id: 'festive-period', goalId: DEMO_IDS.goals.festive, from: DEMO_EXPECTED.weekStart });
+    const festive = (await db.goalVersions.get(DEMO_IDS.goalVersions.festive))!;
+    await db.goalVersions.put({ ...festive, id: 'festive-2200', effectiveFrom: DEMO_EXPECTED.weekStart, dailyKcal: 2200, maintenanceKcal: 2100, createdAt: '2026-10-12T01:00:00.000Z' });
+    expect(await getFestiveDaysInRange(db, ...thisWeek)).toMatchObject({ lowKcal: 1980, highKcal: 2420 });
+  });
 });
 
 describe('budget edge cases', () => {
@@ -226,5 +235,58 @@ describe('budget edge cases', () => {
     const budget = (await getWeekBudget(db))!.budget;
     expect(budget.days[2]?.kind).toBe('paused');
     expect(budget.weeklyBudgetKcal).toBe(1800 * 6);
+  });
+
+  it('keeps the budget goal’s targets through a Pause that follows a Pause', async () => {
+    const pause = (await db.goals.get(DEMO_IDS.goals.pause))!;
+    await db.goals.put({ ...pause, id: 'pause-2', name: 'Sick days' });
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: '2026-10-14' });
+    await db.goalPeriods.put({ id: 'pause-period', goalId: DEMO_IDS.goals.pause, from: '2026-10-14', to: '2026-10-15' });
+    await db.goalPeriods.put({ id: 'pause-period-2', goalId: 'pause-2', from: '2026-10-15', to: '2026-10-17' });
+    await db.goalPeriods.put({ id: 'pause-period-3', goalId: DEMO_IDS.goals.pause, from: '2026-10-17' });
+
+    for (const day of ['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-20']) {
+      const active = await getActiveGoal(db, day);
+      expect(active?.paused, day).toBe(true);
+      expect(active?.version.id, day).toBe(DEMO_IDS.goalVersions.cut);
+    }
+    expect((await getActiveGoal(db, '2026-10-16'))?.goal.id).toBe('pause-2');
+    // The whole week is paused, so there is still a week to show (not a missing goal).
+    const week = await getWeekBudget(db);
+    expect(week).toBeDefined();
+    expect(week!.budget.days[2]?.kind).toBe('paused');
+  });
+
+  it('has timing off on a paused day: no tags and no window closing', async () => {
+    const before = await getDaySummary(db, '2026-10-14');
+    expect(Object.keys(before.tags).length).toBeGreaterThan(0);
+    expect(before.window.closesAt).toBeDefined();
+
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: '2026-10-14' });
+    await db.goalPeriods.put({ id: 'pause-period', goalId: DEMO_IDS.goals.pause, from: '2026-10-14', to: '2026-10-15' });
+    await db.goalPeriods.put({ id: 'cut-again', goalId: DEMO_IDS.goals.cut, from: '2026-10-15' });
+
+    const paused = await getDaySummary(db, '2026-10-14');
+    expect(paused.goal?.paused).toBe(true);
+    expect(paused.tags).toEqual({});
+    expect(paused.window.closesAt).toBeUndefined();
+    expect(paused.window.opensAt).toBeUndefined();
+    expect(paused.window.occasions).toBe(before.window.occasions);
+    expect(paused.window.lengthHours).toBe(before.window.lengthHours);
+    // The day after the pause has timing again.
+    expect((await getDaySummary(db, '2026-10-15')).window.closesAt).toBeDefined();
+  });
+});
+
+describe('two switches booked for the same day', () => {
+  it('resolve to the later booking', async () => {
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: '2026-10-17' });
+    await db.goalPeriods.put({ id: 'p-festive', goalId: DEMO_IDS.goals.festive, from: '2026-10-17', createdAt: '2026-10-16T11:00:00.000Z' });
+    await db.goalPeriods.put({ id: 'p-lean', goalId: DEMO_IDS.goals.leanBulk, from: '2026-10-17', createdAt: '2026-10-16T11:01:00.000Z' });
+    expect((await getActiveGoal(db, '2026-10-17'))?.goal.id).toBe(DEMO_IDS.goals.leanBulk);
+    expect((await getActiveGoal(db, '2026-10-16'))?.goal.id).toBe(DEMO_IDS.goals.cut);
+
+    await db.goalPeriods.update('p-festive', { createdAt: '2026-10-16T11:02:00.000Z' });
+    expect((await getActiveGoal(db, '2026-10-17'))?.goal.id).toBe(DEMO_IDS.goals.festive);
   });
 });

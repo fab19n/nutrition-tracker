@@ -1,11 +1,13 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
 import { getInsightFeedback } from '@/db/repo';
-import { resetUiState } from '@/state/ui';
+import { clearTargetNoticeSeen, TARGET_FEEDBACK_ID } from '@/db/targetSuggestion';
+import { resetUiState, useUiStore } from '@/state/ui';
+import { loadMaintenanceWorld, pinClock } from '@/test/maintenanceWorld';
 import InsightsScreen from './InsightsScreen';
 
 function renderInsights() {
@@ -13,6 +15,7 @@ function renderInsights() {
     [
       { path: PATHS.insights, element: <InsightsScreen /> },
       { path: PATHS.weekly, element: <p>Weekly review route</p> },
+      { path: PATHS.target, element: <p>Target suggestion route</p> },
     ],
     { initialEntries: [PATHS.insights] },
   );
@@ -22,6 +25,7 @@ function renderInsights() {
 
 beforeEach(async () => {
   resetUiState();
+  clearTargetNoticeSeen();
   await resetAll();
   await loadDemoData();
 });
@@ -94,6 +98,12 @@ describe('S31 InsightsScreen on the demo world', () => {
     expect(router.state.location.search).toBe('?week=2026-10-05');
   });
 
+  it('has no target suggestion on day 19', async () => {
+    renderInsights();
+    expect(await screen.findByRole('heading', { name: 'Drinks were 17% of your calories' })).toBeInTheDocument();
+    expect(screen.queryByText('Target suggestion')).toBeNull();
+  });
+
   it('shows the early state on days 1–6', async () => {
     await db.profile.update('me', { startedOn: '2026-10-14' });
     renderInsights();
@@ -105,3 +115,74 @@ describe('S31 InsightsScreen on the demo world', () => {
     expect(screen.getByText('saved so far')).toBeInTheDocument();
   });
 });
+
+describe('S31 InsightsScreen with a target suggestion waiting (Fri 30 Oct)', () => {
+  const card = () => screen.findByRole('article', { name: 'Your real maintenance looks like ~2,100, not 2,350' });
+
+  beforeEach(async () => {
+    await loadMaintenanceWorld(db);
+    pinClock();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('puts the compact card first, and keeps the same finding out of the top 3', async () => {
+    renderInsights();
+    const article = await card();
+    expect(within(article).getByText('Target suggestion')).toBeInTheDocument();
+    expect(within(article).getByText('Based on 4 weeks')).toBeInTheDocument();
+    expect(within(article).getByText('Starts tomorrow (Sat) if you approve.')).toBeInTheDocument();
+    const trend = await screen.findByText('Trend');
+    expect(article.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Maintenance is about 2,100, not 2,350' })).toBeNull();
+    expect(within(article).queryByRole('button', { name: /Change pace instead/ })).toBeNull();
+  });
+
+  it('approves in place, and Undo brings the card back', async () => {
+    const user = userEvent.setup();
+    renderInsights();
+    await user.click(within(await card()).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Target 1,550 from tomorrow'));
+    await waitFor(() => expect(screen.queryByText('Target suggestion')).toBeNull());
+    expect((await db.goalVersions.toArray()).map((v) => v.dailyKcal).sort()).toEqual([1550, 1800]);
+
+    await act(async () => {
+      useUiStore.getState().toast?.undo?.();
+    });
+    expect(await card()).toBeInTheDocument();
+    await waitFor(async () => expect(await db.goalVersions.count()).toBe(1));
+  });
+
+  it('keeps the current target in place, and Undo brings the card back', async () => {
+    const user = userEvent.setup();
+    renderInsights();
+    await user.click(within(await card()).getByRole('button', { name: 'Keep current' }));
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Target stays at 1,800'));
+    await waitFor(() => expect(screen.queryByText('Target suggestion')).toBeNull());
+    expect((await getInsightFeedback(db, TARGET_FEEDBACK_ID))?.feedback).toBe('keepCurrent');
+
+    await act(async () => {
+      useUiStore.getState().toast?.undo?.();
+    });
+    expect(await card()).toBeInTheDocument();
+  });
+
+  it('opens S37 from "See the working"', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    await user.click(within(await card()).getByRole('button', { name: 'See the working' }));
+    expect(await screen.findByText('Target suggestion route')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.target);
+  });
+
+  it('lists the weigh-ins the maintenance read still needs', async () => {
+    await loadMaintenanceWorld(db, { weighInEvery: 7 });
+    renderInsights();
+    expect(await screen.findByRole('progressbar', { name: 'Weigh-ins for your maintenance' })).toBeInTheDocument();
+    expect(screen.getByText('4 of 8 weigh-ins')).toBeInTheDocument();
+    expect(screen.queryByText('Target suggestion')).toBeNull();
+  });
+});
+

@@ -4,8 +4,6 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
-import { db } from '@/db/db';
-import { updateGoal } from '@/db/repo';
 import ComingSoonScreen from './ComingSoonScreen';
 
 function renderSoon(what: string) {
@@ -14,6 +12,8 @@ function renderSoon(what: string) {
       { path: '/more/soon/:what', element: <ComingSoonScreen /> },
       { path: '/more', element: <h1>More screen</h1> },
       { path: '/more/export', element: <h1>Export screen</h1> },
+      { path: '/more/backups', element: <h1>Backups screen</h1> },
+      { path: '/more/goals', element: <h1>Goals screen</h1> },
     ],
     { initialEntries: [PATHS.soon(what)] },
   );
@@ -31,24 +31,26 @@ afterEach(async () => {
 });
 
 describe('ComingSoonScreen', () => {
-  it.each([
-    ['goals', 'Goals', /goal library/],
-    ['reminders', 'Reminders', /nudges/],
-    ['backups', 'Backups', /Google Drive/],
-  ])('titles /more/soon/%s as %s with an honest line', (what, title, line) => {
+  it.each([['reminders', 'Reminders', /nudges/]])('titles /more/soon/%s as %s with an honest line', (what, title, line) => {
     renderSoon(what);
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Coming in the next build' })).toBeInTheDocument();
     expect(screen.getByText(line)).toBeInTheDocument();
   });
 
-  it('names the goal that is actually running on the Goals placeholder', async () => {
-    renderSoon('goals');
-    expect(await screen.findByText(/Your Cut goal keeps running until then\./)).toBeInTheDocument();
-    const goals = await db.goals.toArray();
-    for (const goal of goals) await updateGoal(db, goal.id, { name: 'Lean bulk' });
-    expect(await screen.findByText(/Your Lean bulk goal keeps running until then\./)).toBeInTheDocument();
-    expect(screen.queryByText(/Cut goal/)).toBeNull();
+  it('sends an old Goals link to the goal library (S41)', async () => {
+    const router = renderSoon('goals');
+    expect(await screen.findByRole('heading', { name: 'Goals screen' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.goals);
+    expect(screen.queryByRole('heading', { name: 'Coming in the next build' })).toBeNull();
+  });
+
+  it('sends an old Backups link to the Backups screen (S39)', async () => {
+    const router = renderSoon('backups');
+    expect(await screen.findByRole('heading', { name: 'Backups screen' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.backups);
+    expect(screen.queryByRole('heading', { name: 'Coming in the next build' })).toBeNull();
+    expect(screen.queryByText(/Google Drive/)).toBeNull();
   });
 
   it('goes back to More when opened directly', async () => {
@@ -56,13 +58,6 @@ describe('ComingSoonScreen', () => {
     const router = renderSoon('reminders');
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(router.state.location.pathname).toBe(PATHS.more);
-  });
-
-  it('links Backups to Export', async () => {
-    const user = userEvent.setup();
-    const router = renderSoon('backups');
-    await user.click(screen.getByRole('button', { name: 'Export now' }));
-    expect(router.state.location.pathname).toBe(PATHS.export);
   });
 
   it('falls back to a readable title for an unknown area', () => {
