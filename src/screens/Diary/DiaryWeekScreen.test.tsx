@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
+import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
 import { DEMO_IDS } from '@/db/seed/demo';
@@ -24,6 +25,7 @@ function renderWeek(url = '/diary/week') {
     [
       { path: '/diary', element: <Probe name="Day" /> },
       { path: '/diary/week', element: <DiaryWeekScreen /> },
+      { path: '/diary/search', element: <Probe name="Search" /> },
     ],
     { initialEntries: [url] },
   );
@@ -50,6 +52,14 @@ afterEach(async () => {
 });
 
 describe('DiaryWeekScreen (S13)', () => {
+  it('has the same search button as the Day view, and it opens Search', async () => {
+    const user = userEvent.setup();
+    const router = renderWeek();
+    await user.click(screen.getByRole('button', { name: 'Search your diary' }));
+    expect(router.state.location.pathname).toBe(PATHS.search);
+    expect(await screen.findByText('Search at /diary/search')).toBeInTheDocument();
+  });
+
   it('shows this week: bars, target, savings and one row per day', async () => {
     renderWeek();
 

@@ -182,7 +182,7 @@ export default function DiaryDayScreen() {
     <div className={styles.tabScreen}>
       <TopBar
         title="Diary"
-        onSearch={() => navigate(PATHS.soon('search'))}
+        onSearch={() => navigate(PATHS.search)}
         searchLabel="Search your diary"
         right={
           <Segmented

@@ -250,7 +250,8 @@ Bottom nav
 │   └── Morning check-in (S15, shown on first open after the day rollover)
 ├── Diary
 │   ├── Day view (S12) ── Entry detail (S14)
-│   └── Week view (S13)
+│   ├── Week view (S13)
+│   └── Search (S49) ── Entry detail (S14)
 ├── + Log (S09 sheet)
 │   ├── Text → Estimating (S10) → Review (S11)
 │   ├── Photo (S25) → Estimating (S10) → Review (S11)
@@ -319,6 +320,7 @@ Bottom nav
 | S46 | Offline and sync states | 1 |
 | S47 | AI failed | 1 |
 | S48 | More menu | 1 |
+| S49 | Search | 1 |
 
 ### 7.3 Screen details
 
@@ -415,6 +417,12 @@ Layouts run top to bottom. Component IDs are in brackets.
 
 #### S14 Entry detail / edit
 - Reuses S11 in edit mode, plus: photo [C33], **history** ("Original estimate ~820 · edited by you"), Duplicate, Save as Usual, Delete [C60].
+
+#### S49 Search
+- **Purpose:** find any meal you have logged by name, item or Place.
+- **Layout:** SubScreenHeader "Search" → search field ("Dish, drink or Place") → meal-slot chips (All, Breakfast … Supper) → a Place filter chip when one is set → suggestions or results. Suggestions come from your own meals: "Often logged" (top items) and "Places" (top Places). Results: a count ("12 meals"), then MealRows [C29] newest first under a day heading that opens that day in the Diary, 30 at a time ("Show 30 more"). A row says why it matched when its name doesn't ("Includes Kangkung belacan").
+- **States:** loading · no history ("Nothing to search yet") · idle · results · no results ("No meals match “zzzz”").
+- **Navigation:** opens from the Diary search icon (Day and Week views); a result opens S14, and Back returns to the same results.
 
 #### S15 Morning check-in
 - **Purpose:** confirm yesterday so missed meals don't become fake savings.
@@ -690,6 +698,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 |---|---|
 | Log placeholder | "nasi lemak ayam goreng, teh o ais" |
 | Photo caption hint | "Add a few words, e.g. kuah banjir" |
+| Search placeholder | "Dish, drink or Place" |
 | Range line | "Likely 750–1,010 kcal. Tap anything to adjust." |
 | Over budget | "+120 over today · covered by your savings" |
 | Check-in question | "Was that everything?" |

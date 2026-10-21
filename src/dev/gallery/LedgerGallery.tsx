@@ -242,6 +242,18 @@ function MealRowStates() {
           onPress={press('Opened: Ayam bakar')}
         />
       </State>
+      <State label="C29 MealRow / Search result · why it matched">
+        <MealRow
+          slotLabel="Lunch"
+          timeLabel="2:15pm"
+          placeName="Kedai near home"
+          priceLabel="RM 9.50"
+          name="Economy rice"
+          note="Includes Kangkung belacan"
+          kcalLabel="~670"
+          onPress={press('Opened: Economy rice')}
+        />
+      </State>
       <State label="C29 MealRow / Guess (check-in fill-in)">
         <MealRow slotLabel="Dinner" timeLabel="9:00pm" name="Typical dinner" kcalLabel="~650" isGuess onPress={press('Opened: guess')} />
       </State>

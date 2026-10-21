@@ -12,6 +12,7 @@ const TodayScreen = lazy(() => import('@/screens/Today/TodayScreen'));
 const DiaryDayScreen = lazy(() => import('@/screens/Diary/DiaryDayScreen'));
 const DiaryWeekScreen = lazy(() => import('@/screens/Diary/DiaryWeekScreen'));
 const EntryScreen = lazy(() => import('@/screens/Diary/EntryScreen'));
+const SearchScreen = lazy(() => import('@/screens/Search/SearchScreen'));
 const InsightsScreen = lazy(() => import('@/screens/Insights/InsightsScreen'));
 const WeeklyReviewScreen = lazy(() => import('@/screens/Insights/WeeklyReviewScreen'));
 const TargetScreen = lazy(() => import('@/screens/Insights/TargetScreen'));
@@ -58,6 +59,7 @@ export const routes: RouteObject[] = [
       { path: '/diary', element: page(DiaryDayScreen), handle: tab('diary') },
       { path: '/diary/week', element: page(DiaryWeekScreen), handle: tab('diary') },
       { path: '/diary/entry/:id', element: page(EntryScreen), handle: tab(false) },
+      { path: '/diary/search', element: page(SearchScreen), handle: tab(false) },
       { path: '/insights', element: page(InsightsScreen), handle: tab('insights') },
       { path: '/insights/weekly', element: page(WeeklyReviewScreen), handle: tab(false) },
       { path: '/insights/target', element: page(TargetScreen), handle: tab(false) },

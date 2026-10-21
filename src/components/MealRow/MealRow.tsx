@@ -21,6 +21,8 @@ export interface MealRowProps {
   priceLabel?: string;
   /** "Roti canai + teh tarik" */
   name: string;
+  /** Why the row is here, when the name doesn't say ("Includes Kangkung belacan"): a caption under the name. */
+  note?: string;
   /** Pre-formatted estimate, e.g. "~560". */
   kcalLabel: string;
   tag?: TimingTagKind;
@@ -48,6 +50,7 @@ export function MealRow({
   placeName,
   priceLabel,
   name,
+  note,
   kcalLabel,
   tag,
   thumbUrl,
@@ -151,6 +154,7 @@ export function MealRow({
           <span className={styles.body}>
             <span className={styles.meta}>{meta}</span>
             <span className={styles.name}>{name}</span>
+            {note ? <span className={styles.note}>{note}</span> : null}
             {isGuess || tag ? (
               <span className={styles.tags}>
                 {isGuess ? (

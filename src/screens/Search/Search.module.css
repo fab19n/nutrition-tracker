@@ -1,0 +1,98 @@
+/* S49 Search: a sub-screen (no bottom nav). Tokens only. */
+
+.screen {
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Skeleton and EmptyState wrappers. */
+.block {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+/* Long Place names truncate instead of pushing the chip wider than the screen. */
+.placeFilter {
+  max-width: 100%;
+}
+
+.placeName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 var(--pad-card-x);
+}
+
+.count {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Also carries .t-section (13px/700, uppercase, --muted). */
+.dayHeading {
+  margin: 0;
+}
+
+/* The link carries a 44px hit area, so the heading's own top padding is 10px, not SectionHeading's 18px. */
+.dayLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px var(--pad-text-x) 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--pad-card-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-stack);
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 16px var(--pad-card-x) 0;
+}
+
+.moreCaption {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}

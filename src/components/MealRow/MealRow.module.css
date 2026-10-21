@@ -62,6 +62,15 @@
   overflow-wrap: anywhere;
 }
 
+/* Why a search result is here, when the name alone doesn't show it. */
+.note {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;

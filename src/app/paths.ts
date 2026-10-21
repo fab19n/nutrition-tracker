@@ -5,6 +5,8 @@ export const PATHS = {
   today: '/',
   diary: '/diary',
   diaryWeek: '/diary/week',
+  /** S49 Search: find any meal by name, item or Place (?q=, ?slot=, ?place=). */
+  search: '/diary/search',
   entry: (id: string) => `/diary/entry/${encodeURIComponent(id)}`,
   insights: '/insights',
   weekly: '/insights/weekly',

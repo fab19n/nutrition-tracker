@@ -105,4 +105,34 @@ describe('MealRow', () => {
     expect(screen.queryByRole('button', { name: /More actions/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Delete')).not.toBeInTheDocument();
   });
+
+  it('shows why a search result matched under the name, as part of the row button', () => {
+    render(<MealRow {...base} name="Economy rice" note="Includes Kangkung belacan" tag={undefined} />);
+    const main = screen.getByRole('button', { name: /^Breakfast/ });
+    const note = screen.getByText('Includes Kangkung belacan');
+    expect(main).toContainElement(note);
+    expect(main).toHaveTextContent('Economy riceIncludes Kangkung belacan');
+    expect(main).toHaveAccessibleName(/Economy rices*Includes Kangkung belacan/);
+  });
+
+  it('draws no note element without a note', () => {
+    const { rerender } = render(<MealRow {...base} tag={undefined} />);
+    const main = screen.getByRole('button', { name: /^Breakfast/ });
+    // The text block holds the meta line and the name only.
+    const body = main.children[1] as HTMLElement;
+    expect(body.children).toHaveLength(2);
+    rerender(<MealRow {...base} tag={undefined} note="" />);
+    expect(body.children).toHaveLength(2);
+    rerender(<MealRow {...base} tag={undefined} note="Includes Teh tarik" />);
+    expect(body.children).toHaveLength(3);
+    expect(body.children[2]).toHaveTextContent('Includes Teh tarik');
+  });
+
+  it('is read-only without onDuplicate and onDelete: no swipe actions and no More actions button', () => {
+    render(<MealRow {...base} note="Includes Teh tarik" />);
+    expect(screen.queryByRole('button', { name: /More actions/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
 });

@@ -14,6 +14,7 @@ function renderSoon(what: string) {
       { path: '/more/export', element: <h1>Export screen</h1> },
       { path: '/more/backups', element: <h1>Backups screen</h1> },
       { path: '/more/goals', element: <h1>Goals screen</h1> },
+      { path: '/diary/search', element: <h1>Search screen</h1> },
     ],
     { initialEntries: [PATHS.soon(what)] },
   );
@@ -51,6 +52,15 @@ describe('ComingSoonScreen', () => {
     expect(router.state.location.pathname).toBe(PATHS.backups);
     expect(screen.queryByRole('heading', { name: 'Coming in the next build' })).toBeNull();
     expect(screen.queryByText(/Google Drive/)).toBeNull();
+  });
+
+  it('sends an old Search link to Search (S49)', async () => {
+    const router = renderSoon('search');
+    expect(await screen.findByRole('heading', { name: 'Search screen' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.search);
+    expect(screen.queryByRole('heading', { name: 'Coming in the next build' })).toBeNull();
+    // A replace: Back from Search is not the placeholder.
+    expect(router.state.historyAction).toBe('REPLACE');
   });
 
   it('goes back to More when opened directly', async () => {

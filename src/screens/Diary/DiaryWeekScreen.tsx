@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Star } from 'lucide-react';
+import { PATHS } from '@/app/paths';
 import { Banner } from '@/components/Banner/Banner';
 import { DayStatusBadge } from '@/components/DayStatusBadge/DayStatusBadge';
 import { SkeletonList } from '@/components/Skeleton/Skeleton';
@@ -123,6 +124,8 @@ export default function DiaryWeekScreen() {
     <div className={styles.tabScreen}>
       <TopBar
         title="Diary"
+        onSearch={() => navigate(PATHS.search)}
+        searchLabel="Search your diary"
         right={
           <Segmented
             label="Diary view"

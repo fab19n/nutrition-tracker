@@ -81,7 +81,7 @@ The app:
 Bottom navigation: **Today · Diary · + Log · Insights · More**
 
 - **Today:** the main number (chosen by the active goal), macros, today's timeline with the eating window, the meal list with timing tags, this week's focus, and a "Meal ideas" button.
-- **Diary:** the ledger. Day-by-day entries with photos, each day's status, edit, duplicate, search and a week view.
+- **Diary:** the ledger. Day-by-day entries with photos, each day's status, edit, duplicate, search (by name, item or Place) and a week view.
 - **+ Log:** always one tap away. Opens on a text box, with buttons for Photo, Plate (economy rice), Usuals and Pots. Place and time are pre-filled.
 - **Insights:** top 3 insights, where your calories came from, recurring calories, the timing grid, unlock progress and the weekly review.
 - **More:** Goals, Places, Pots and recipes, Weight, Workouts, and Settings (budget, day rollover, reminders, backups, export).

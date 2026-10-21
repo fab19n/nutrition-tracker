@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Bell, Search, Sparkles } from 'lucide-react';
+import { Bell, Sparkles } from 'lucide-react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
@@ -16,11 +16,6 @@ interface Area {
 }
 
 const AREAS: Record<string, Area> = {
-  search: {
-    title: 'Search',
-    icon: <Search />,
-    body: 'Search every meal you have logged, by name or Place. Until then, the Diary has each day.',
-  },
   reminders: {
     title: 'Reminders',
     icon: <Bell />,
@@ -49,6 +44,8 @@ export default function ComingSoonScreen() {
   if (key === 'goals') return <Navigate to={PATHS.goals} replace />;
   // So does Backups (S39).
   if (key === 'backups') return <Navigate to={PATHS.backups} replace />;
+  // So does Search (S49).
+  if (key === 'search') return <Navigate to={PATHS.search} replace />;
 
   return (
     <div className={styles.subScreen}>

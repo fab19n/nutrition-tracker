@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
+import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
 import { DEMO_IDS } from '@/db/seed/demo';
@@ -56,6 +57,7 @@ function renderDiary(url = '/diary') {
     [
       { path: '/diary', element: <DiaryDayScreen /> },
       { path: '/diary/week', element: <Probe name="Week" /> },
+      { path: '/diary/search', element: <Probe name="Search" /> },
       { path: '/diary/entry/:id', element: <Probe name="Entry" /> },
       { path: '/more/weight', element: <Probe name="Weight" /> },
       { path: '/more/soon/:what', element: <Probe name="Soon" /> },
@@ -86,11 +88,12 @@ afterEach(async () => {
 });
 
 describe('DiaryDayScreen (S12)', () => {
-  it('has the search button in its TopBar (search itself comes in a later build)', async () => {
+  it('opens Search from the TopBar button', async () => {
     const user = userEvent.setup();
     const router = renderDiary();
     await user.click(screen.getByRole('button', { name: 'Search your diary' }));
-    expect(router.state.location.pathname).toBe('/more/soon/search');
+    expect(router.state.location.pathname).toBe(PATHS.search);
+    expect(await screen.findByText('Search at /diary/search')).toBeInTheDocument();
   });
 
   it('shows today in progress with the timeline, meals, weight and no workout', async () => {
