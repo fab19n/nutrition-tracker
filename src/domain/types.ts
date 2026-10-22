@@ -437,13 +437,41 @@ export interface WeekPlan {
 
 export interface InsightFeedback {
   ruleId: string;
-  /** 'keepCurrent' is "Keep current" on the target suggestion (ruleId 'targetSuggestion'). */
-  feedback: 'useful' | 'notForMe' | 'keepCurrent';
+  /**
+   * 'keepCurrent' is "Keep current" on the target suggestion (ruleId 'targetSuggestion');
+   * 'dishCheck' is the top dishes check (ruleId 'topDishes').
+   */
+  feedback: 'useful' | 'notForMe' | 'keepCurrent' | 'dishCheck';
   at: Instant;
-  /** "Not for me" pauses the rule for about 4 weeks; "Keep current" hides the suggestion as long. */
+  /** "Not for me" pauses the rule for about 4 weeks; "Keep current" hides the suggestion as long; "Not now" hides the top dishes card. */
   pausedUntil?: LogicalDay;
   /** "Keep current" on the target suggestion (ruleId 'targetSuggestion'): the day, the estimate and the version it answered. */
   keptTarget?: { keptOn: LogicalDay; maintenanceKcal: number; versionId: Id };
+  /** The top dishes check (S34): the list frozen when it started, the answers, and when it was finished. Missing on older rows and app versions. */
+  dishCheck?: DishCheck;
+}
+
+/** One dish on the top dishes check, frozen when the check starts. */
+export interface DishCheckEntry {
+  /** The catalogue id, or `name:` + the normalised name for a dish the catalogue doesn't have. */
+  key: string;
+  name: string;
+  /** Meals it was in over the 8 weeks before the check started. */
+  times: number;
+  /** The Place its value belongs to, when most of its logs were there (frozen with the list). */
+  placeId?: Id;
+  answer?: 'right' | 'more' | 'less';
+  /** kcal a portion before the answer (the "was ~200" in the result line). */
+  fromKcal?: number;
+  /** True when the answer wrote a PersonalItem (so "Looks right" on an AI guess says it was saved). */
+  saved?: boolean;
+}
+
+export interface DishCheck {
+  startedOn: LogicalDay;
+  dishes: DishCheckEntry[];
+  /** Set by Done; nothing is asked after it. */
+  doneAt?: Instant;
 }
 
 export interface SuggestionEvent {

@@ -222,15 +222,22 @@ export function timingTag(
 
   const baseline = ctx.baselines[meal.slot];
   const useOwn = baseline.samples >= MIN_BASELINE_SAMPLES;
-  const centre = usualSlotMinute(meal.slot, ctx.baselines);
   const tolerance = useOwn ? Math.max(MIN_TOLERANCE_MIN, 2 * baseline.spreadMin) : MIN_TOLERANCE_MIN;
-  const parts = zonedParts(meal.eatenAt, tz);
-  const offset = clockOffset(parts.hour * 60 + parts.minute, centre);
+  const offset = slotOffsetMinutes(meal, ctx.baselines, tz);
   if (offset > tolerance) return 'lateForYou';
   if (offset < -tolerance) return 'earlyForYou';
 
-  if (parts.hour < rolloverHour) return 'afterMidnight';
+  if (zonedParts(meal.eatenAt, tz).hour < rolloverHour) return 'afterMidnight';
   return 'onTime';
+}
+
+/**
+ * Signed minutes a meal sits from your usual time for its slot (positive = later), the short
+ * way round the clock: the offset timingTag judges. S35 shows it for the first meal.
+ */
+export function slotOffsetMinutes(meal: Pick<MealLog, 'eatenAt' | 'slot'>, baselines: SlotBaselines, tz: string = DEFAULT_TZ): number {
+  const parts = zonedParts(meal.eatenAt, tz);
+  return clockOffset(parts.hour * 60 + parts.minute, usualSlotMinute(meal.slot, baselines));
 }
 
 /** Signed minutes from `centre` to `minute` the short way round the clock (−720 … 719). */

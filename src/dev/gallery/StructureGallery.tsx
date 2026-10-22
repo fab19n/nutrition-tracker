@@ -643,6 +643,19 @@ function TimelineSpecimens() {
           <CheckInTimelineSample captions={CHECK_IN_CAPTIONS} />
         </Card>
       </Specimen>
+      <Specimen caption="C12 DayTimeline / Expanded (Timing detail): hour lines, 4-hour captions, Going to sleep marker">
+        <Card padding="12px 16px">
+          <DayTimeline
+            size="expanded"
+            {...dayWindow}
+            dots={[breakfast, lunch, dinner]}
+            ticks={[1, 2, 3, 4, 5].map((k) => ((k * 240) / 1440) * 100)}
+            sleep={{ pct: pctOfDay(25, 30) }}
+            captions={['5am', '9am', '1pm', '5pm', '9pm', '1am', '5am']}
+            ariaLabel="Window 10:40am to 10:40pm. Breakfast 10:40am, late for you. Lunch 2:15pm. Dinner 7:10pm. Going to sleep tap at 1:30am."
+          />
+        </Card>
+      </Specimen>
       <Specimen caption="C12 DayTimeline / Empty day (now marker only)">
         <Card padding="12px 16px">
           <DayTimeline dots={[]} nowPct={pctOfDay(8, 5)} captions={['5am', 'now', '5am']} ariaLabel="Nothing logged yet today" />
@@ -704,6 +717,15 @@ function UnlockSpecimens() {
       </Specimen>
       <Specimen caption="C15 UnlockProgress / Unlocked">
         <UnlockList items={[{ label: 'Timing patterns', have: 14, need: 14 }]} />
+      </Specimen>
+      <Specimen caption="C15 UnlockProgress / Tappable rows: ready · in progress · checked">
+        <UnlockList
+          items={[
+            { label: 'Top dishes check', have: 0, need: 1, valueLabel: 'Ready', onPress: () => {} },
+            { label: 'Top dishes check (in progress)', have: 12, need: 30, valueLabel: '12 of 30 checked', onPress: () => {} },
+            { label: 'Top dishes check (done)', have: 30, need: 30, valueLabel: 'Checked', onPress: () => {} },
+          ]}
+        />
       </Specimen>
     </Group>
   );

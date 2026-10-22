@@ -6,6 +6,7 @@ import {
   eatingWindow,
   isUsualSlot,
   slotBaselines,
+  slotOffsetMinutes,
   suggestSlot,
   timingTag,
   usualSlotMinute,
@@ -152,6 +153,35 @@ describe('usualSlotMinute', () => {
   });
 });
 
+describe('slotOffsetMinutes', () => {
+  const tight: SlotBaselines = slotBaselines(history('breakfast', [[9, 25], [9, 30], [9, 30], [9, 35], [9, 30]]));
+
+  it('is signed minutes from your usual time for the slot (positive = later)', () => {
+    expect(slotOffsetMinutes(at(FRI, 10, 40, 'breakfast'), tight)).toBe(70);
+    expect(slotOffsetMinutes(at(FRI, 9, 30, 'breakfast'), tight)).toBe(0);
+    expect(slotOffsetMinutes(at(FRI, 8, 50, 'breakfast'), tight)).toBe(-40);
+  });
+
+  it('goes the short way round midnight', () => {
+    // A usual 11:30pm supper (from 5 days of history) and a 12:30am one is an hour later, not 23 hours earlier.
+    const supper = slotBaselines(history('supper', [[23, 30], [23, 30], [23, 30], [23, 30], [23, 30]]));
+    expect(supper.supper.medianMin).toBe(23 * 60 + 30);
+    expect(slotOffsetMinutes(at(FRI, 24, 30, 'supper'), supper)).toBe(60);
+    expect(slotOffsetMinutes(at(FRI, 22, 30, 'supper'), supper)).toBe(-60);
+  });
+
+  it('falls back to the default time under 5 days of history', () => {
+    const few = slotBaselines(history('breakfast', [[7, 0], [7, 0], [7, 0], [7, 0]]));
+    expect(slotOffsetMinutes(at(FRI, 10, 40, 'breakfast'), few)).toBe(10 * 60 + 40 - DEFAULT_SLOT_TIMES.breakfast);
+    expect(slotOffsetMinutes(at(FRI, 14, 15, 'lunch'), noHistory)).toBe(45);
+  });
+
+  it('reads the wall clock in the given zone', () => {
+    const london = { eatenAt: '2026-10-16T09:30:00.000Z', slot: 'breakfast' as const }; // 10:30am BST
+    expect(slotOffsetMinutes(london, noHistory, 'Europe/London')).toBe(60);
+  });
+});
+
 describe('timingTag', () => {
   const tight: SlotBaselines = slotBaselines(history('breakfast', [[9, 25], [9, 30], [9, 30], [9, 35], [9, 30]]));
 
@@ -198,6 +228,14 @@ describe('timingTag', () => {
     expect(timingTag(at(FRI, 7, 0, 'breakfast'), { baselines: few })).toBe('earlyForYou');
     expect(timingTag(at(FRI, 10, 40, 'breakfast'), { baselines: noHistory })).toBe('lateForYou');
     expect(timingTag(at(FRI, 14, 15, 'lunch'), { baselines: noHistory })).toBe('onTime');
+  });
+
+  it('judges by the same offset slotOffsetMinutes reports', () => {
+    // Tolerance is max(60, 2 × spread) = 60 here: +60 is on time, +61 is late, -61 is early.
+    expect(timingTag(at(FRI, 10, 30, 'breakfast'), { baselines: tight })).toBe('onTime');
+    expect(timingTag(at(FRI, 10, 31, 'breakfast'), { baselines: tight })).toBe('lateForYou');
+    expect(timingTag(at(FRI, 8, 29, 'breakfast'), { baselines: tight })).toBe('earlyForYou');
+    expect(timingTag(at(FRI, 8, 30, 'breakfast'), { baselines: tight })).toBe('onTime');
   });
 
   it('respects the time zone and rollover hour', () => {

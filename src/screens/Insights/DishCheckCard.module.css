@@ -1,0 +1,44 @@
+/* The "Check your top dishes" card on Insights. Tokens only. */
+
+.card {
+  margin: 8px var(--pad-card-x) 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.text {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+}
+
+.body {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}

@@ -618,6 +618,31 @@ describe('restoreBackup', () => {
     expect((await target.meals.get(DEMO_IDS.meals.todayLunch))?.name).toBe((await todayLunch(source)).name);
   });
 
+  it('carries the top dishes check row through the file and back', async () => {
+    const check = {
+      ruleId: 'topDishes',
+      feedback: 'dishCheck' as const,
+      at: DEMO_EXPECTED.now,
+      pausedUntil: '2026-11-13',
+      dishCheck: {
+        startedOn: '2026-10-16',
+        dishes: [
+          { key: 'rice-economy', name: 'Rice (economy rice)', times: 25, placeId: DEMO_IDS.places.home, answer: 'more' as const, fromKcal: 200, saved: true },
+          { key: 'name:sup sayur', name: 'Sup sayur', times: 5 },
+        ],
+        doneAt: DEMO_EXPECTED.now,
+      },
+    };
+    await source.insightFeedback.put(check);
+
+    // The file passes the checks (it is a row with a feedback string) and the row is in it as it is.
+    const backup = await parsed();
+    expect(backup.rows.get('insightFeedback')?.find((r) => r.ruleId === 'topDishes')).toEqual(check);
+
+    await restoreBackup(target, backup, DEVICE);
+    expect(await target.insightFeedback.get('topDishes')).toEqual(check);
+  });
+
   it('refuses a file with no diary or the sample week, and writes nothing', async () => {
     await target.meals.put({ ...(await todayLunch(source)), id: 'keep-me' });
     const before = await dumpTables(target);

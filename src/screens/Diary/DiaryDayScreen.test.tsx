@@ -60,6 +60,7 @@ function renderDiary(url = '/diary') {
       { path: '/diary/search', element: <Probe name="Search" /> },
       { path: '/diary/entry/:id', element: <Probe name="Entry" /> },
       { path: '/more/weight', element: <Probe name="Weight" /> },
+      { path: '/insights/timing', element: <Probe name="Timing" /> },
       { path: '/more/soon/:what', element: <Probe name="Soon" /> },
     ],
     { initialEntries: [url] },
@@ -224,6 +225,57 @@ describe('DiaryDayScreen (S12)', () => {
     expect(screen.getByText('of 1,800 kcal')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log a meal' }));
     expect(router.state.location.search).toContain('sheet=log');
+  });
+
+  it('links to Timing detail from the status card, for the day on screen', async () => {
+    const user = userEvent.setup();
+    const router = renderDiary();
+    const link = await screen.findByRole('button', { name: 'Timing details' }, SLOW);
+    // Inside the status card, under the timeline.
+    expect(screen.getByRole('img', { name: /Breakfast 10:40am/ }).compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(link);
+    expect(await screen.findByText('Timing at /insights/timing')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('carries the day to Timing detail for a past day', async () => {
+    const user = userEvent.setup();
+    const router = renderDiary('/diary?day=2026-10-15');
+    await user.click(await screen.findByRole('button', { name: 'Timing details' }, SLOW));
+    expect(await screen.findByText('Timing at /insights/timing?day=2026-10-15')).toBeInTheDocument();
+    expect(router.state.location.search).toBe('?day=2026-10-15');
+  });
+
+  it('has no Timing details link on an empty day', async () => {
+    await db.meals.bulkDelete([DEMO_IDS.meals.todayBreakfast, DEMO_IDS.meals.todayLunch]);
+    renderDiary();
+    expect(await screen.findByRole('heading', { name: 'Nothing logged yet today' }, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
+  });
+
+  it('has no Timing details link on a day with only a guess entry', async () => {
+    for (const id of [DEMO_IDS.meals.todayBreakfast, DEMO_IDS.meals.todayLunch]) await db.meals.update(id, { isGuess: true });
+    renderDiary();
+    expect(await screen.findByText('In progress', {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
+  });
+
+  it('has no Timing details link on a paused day', async () => {
+    await db.days.put({ logicalDay: '2026-10-14', status: 'paused' });
+    renderDiary('/diary?day=2026-10-14');
+    expect(await screen.findByText('Paused', { selector: 'span' }, SLOW)).toBeInTheDocument();
+    expect(await screen.findByText(/Logging is optional, and this day stays out of trends/, {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
+  });
+
+  it('has no Timing details link on a day the goal paused', async () => {
+    // Cut until the 14th, Pause for the 14th, Cut again from the 15th.
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: '2026-10-14' });
+    await db.goalPeriods.put({ id: 'pause-period', goalId: DEMO_IDS.goals.pause, from: '2026-10-14', to: '2026-10-15' });
+    await db.goalPeriods.put({ id: 'cut-again', goalId: DEMO_IDS.goals.cut, from: '2026-10-15' });
+    renderDiary('/diary?day=2026-10-14');
+    expect(await screen.findByText(/Logging is optional, and this day stays out of trends/, {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
   });
 
   it('opens an entry when a meal is tapped', async () => {

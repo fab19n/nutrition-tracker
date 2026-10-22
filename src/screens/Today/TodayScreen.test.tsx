@@ -57,6 +57,7 @@ function renderToday() {
       { path: '/more/soon/:what', element: <p>Soon screen</p> },
       { path: '/more/goals', element: <p>Goals screen</p> },
       { path: '/insights/target', element: <p>Target suggestion screen</p> },
+      { path: '/insights/timing', element: <p>Timing detail screen</p> },
     ],
     { initialEntries: ['/'] },
   );
@@ -254,6 +255,49 @@ describe('TodayScreen (S08)', () => {
     expect(screen.getByText('Nothing logged yet')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log a meal' }));
     expect(router.state.location.search).toBe('?sheet=log');
+  });
+
+  it('links to Timing detail under the nudge, and before the sleep tap', async () => {
+    for (const day of ['2026-10-12', '2026-10-13', '2026-10-14', YESTERDAY]) {
+      await putDayRecord(db, { logicalDay: day, status: 'complete', sleepAt: instantAt(day, 19, 30) });
+    }
+    const user = userEvent.setup();
+    const router = renderToday();
+
+    const link = await screen.findByRole('button', { name: 'Timing details' });
+    const nudge = screen.getByText('Protein is behind: ~68g left. A protein-heavy dinner helps.');
+    const sleep = await screen.findByRole('button', { name: 'Going to sleep' });
+    expect(nudge.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.compareDocumentPosition(sleep) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(link);
+    expect(await screen.findByText('Timing detail screen')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/insights/timing');
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('has no Timing details link on a first day', async () => {
+    await db.meals.clear();
+    renderToday();
+    expect(await screen.findByText('Log your first meal')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
+  });
+
+  it('has no Timing details link when the only meals are guesses', async () => {
+    for (const id of [DEMO_IDS.meals.todayBreakfast, DEMO_IDS.meals.todayLunch]) await db.meals.update(id, { isGuess: true });
+    renderToday();
+    expect(await screen.findByText('Roti canai + teh tarik')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
+  });
+
+  it('has no Timing details link on a paused day', async () => {
+    // Cut until the 16th, Pause for the 16th, Cut again from the 17th.
+    await db.goalPeriods.update(DEMO_IDS.goalPeriods.cut, { to: '2026-10-16' });
+    await db.goalPeriods.put({ id: 'pause-period', goalId: DEMO_IDS.goals.pause, from: '2026-10-16', to: '2026-10-17' });
+    await db.goalPeriods.put({ id: 'cut-again', goalId: DEMO_IDS.goals.cut, from: '2026-10-17' });
+    renderToday();
+    expect(await screen.findByText('Roti canai + teh tarik')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
   });
 
   it('shows Waiting to sync on a meal still queued here while sync is stuck, not while it runs', async () => {

@@ -169,6 +169,79 @@ describe('timelineFor', () => {
   });
 });
 
+describe('timelineFor on the expanded strip (S35)', () => {
+  const breakfast = meal('b', '2026-10-16T02:40:00.000Z', 560, { slot: 'breakfast' });
+  const input = {
+    day: TODAY,
+    isToday: true,
+    meals: [breakfast],
+    tags: { b: 'onTime' as const },
+    window: { opensAt: breakfast.eatenAt, closesAt: '2026-10-16T14:40:00.000Z', lengthHours: 0, occasions: 1 },
+    now: new Date('2026-10-16T11:10:00.000Z'),
+    tz: TZ,
+    rolloverHour: 5,
+  };
+
+  it('leaves the compact output exactly as it was when asked for neither', () => {
+    const compact = timelineFor(input);
+    expect(compact.captions).toEqual(['5am', 'now', '5am']);
+    expect(compact.sleep).toBeUndefined();
+    expect(compact.ticks).toBeUndefined();
+    expect(compact.ariaLabel).toBe('Eating window 10:40am to 10:40pm. Breakfast 10:40am. Now 7:10pm.');
+    expect(Object.keys(compact).sort()).toEqual(['ariaLabel', 'captions', 'dots', 'header', 'nowPct', 'windowEndPct', 'windowStartPct']);
+  });
+
+  it('captions every 4 hours from the rollover, with hour lines between them', () => {
+    const model = timelineFor({ ...input, expanded: true });
+    expect(model.captions).toEqual(['5am', '9am', '1pm', '5pm', '9pm', '1am', '5am']);
+    expect(model.ticks?.map((t) => Math.round(t * 100) / 100)).toEqual([16.67, 33.33, 50, 66.67, 83.33]);
+    // The strip and its labels are the same ones the compact view uses.
+    expect(model.dots).toEqual(timelineFor(input).dots);
+    expect(model.nowPct).toBe(timelineFor(input).nowPct);
+  });
+
+  it('starts the captions at a different rollover hour', () => {
+    const model = timelineFor({ ...input, expanded: true, rolloverHour: 4 });
+    expect(model.captions).toEqual(['4am', '8am', '12pm', '4pm', '8pm', '12am', '4am']);
+  });
+
+  it('puts the Going to sleep tap on the strip and in the spoken summary, before "Now"', () => {
+    // 1:30am on Sat 17 Oct is 20.5 hours into the day that began at 5am on the 16th.
+    const model = timelineFor({ ...input, expanded: true, sleepAt: '2026-10-16T17:30:00.000Z' });
+    expect(model.sleep?.pct).toBeCloseTo((20.5 * 60 / 1440) * 100, 6);
+    expect(model.ariaLabel).toBe('Eating window 10:40am to 10:40pm. Breakfast 10:40am. Going to sleep tap at 1:30am. Now 7:10pm.');
+  });
+
+  it('works on a finished day without a now marker', () => {
+    const model = timelineFor({
+      ...input,
+      day: '2026-10-15',
+      isToday: false,
+      meals: [],
+      tags: {},
+      window: { lengthHours: 0, occasions: 0 },
+      expanded: true,
+      sleepAt: '2026-10-15T17:30:00.000Z',
+    });
+    expect(model.ariaLabel).toBe('No meals logged. Going to sleep tap at 1:30am.');
+    expect(model.nowPct).toBeUndefined();
+    expect(model.sleep?.pct).toBeCloseTo((20.5 * 60 / 1440) * 100, 6);
+    expect(model.header).toBeUndefined();
+  });
+
+  it('sits a tap after the next rollover at the right edge', () => {
+    const model = timelineFor({ ...input, day: '2026-10-15', isToday: false, meals: [], tags: {}, window: { lengthHours: 0, occasions: 0 }, sleepAt: '2026-10-15T21:30:00.000Z' });
+    expect(model.sleep?.pct).toBe(100);
+  });
+
+  it('puts the compact strip’s marker in too when asked for just the tap', () => {
+    const model = timelineFor({ ...input, sleepAt: '2026-10-16T16:00:00.000Z' });
+    expect(model.sleep?.pct).toBeCloseTo((19 * 60 / 1440) * 100, 6);
+    expect(model.captions).toEqual(['5am', 'now', '5am']);
+    expect(model.ticks).toBeUndefined();
+  });
+});
+
 describe('entries', () => {
   const rice: MealItem = {
     id: 'r',

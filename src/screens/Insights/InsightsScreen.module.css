@@ -26,6 +26,25 @@
   margin: 0 var(--pad-card-x);
 }
 
+/* "When you ate" and its Details link. */
+.headingRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-right: var(--pad-text-x);
+}
+
+.details {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
 /* "Your weekly review is ready": the dark --nav card. */
 .review {
   display: flex;

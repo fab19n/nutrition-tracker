@@ -16,6 +16,8 @@ const SearchScreen = lazy(() => import('@/screens/Search/SearchScreen'));
 const InsightsScreen = lazy(() => import('@/screens/Insights/InsightsScreen'));
 const WeeklyReviewScreen = lazy(() => import('@/screens/Insights/WeeklyReviewScreen'));
 const TargetScreen = lazy(() => import('@/screens/Insights/TargetScreen'));
+const DishCheckScreen = lazy(() => import('@/screens/Insights/DishCheckScreen'));
+const TimingDetailScreen = lazy(() => import('@/screens/Insights/TimingDetailScreen'));
 const MoreScreen = lazy(() => import('@/screens/More/MoreScreen'));
 const WeightScreen = lazy(() => import('@/screens/More/WeightScreen'));
 const SettingsScreen = lazy(() => import('@/screens/More/SettingsScreen'));
@@ -63,6 +65,8 @@ export const routes: RouteObject[] = [
       { path: '/insights', element: page(InsightsScreen), handle: tab('insights') },
       { path: '/insights/weekly', element: page(WeeklyReviewScreen), handle: tab(false) },
       { path: '/insights/target', element: page(TargetScreen), handle: tab(false) },
+      { path: '/insights/dishes', element: page(DishCheckScreen), handle: tab(false) },
+      { path: '/insights/timing', element: page(TimingDetailScreen), handle: tab(false) },
       { path: '/more', element: page(MoreScreen), handle: tab('more') },
       { path: '/more/weight', element: page(WeightScreen), handle: tab(false) },
       { path: '/more/settings', element: page(SettingsScreen), handle: tab(false) },

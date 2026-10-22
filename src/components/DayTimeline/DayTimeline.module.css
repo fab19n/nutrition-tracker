@@ -37,6 +37,42 @@
   border-radius: 50%;
 }
 
+/* Expanded (S35): a taller strip with hour lines behind the meals. */
+.expanded .track {
+  height: 36px;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--dash);
+  opacity: 0.6;
+}
+
+/* The "Going to sleep" tap: a dark disc with a moon, 16px on the compact strip. */
+.sleep {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+}
+
+.expanded .sleep {
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+}
+
 .onTime {
   background: var(--accent);
 }
@@ -80,4 +116,26 @@
   margin-top: 6px;
   font-size: 11px;
   color: var(--muted);
+}
+
+/* Expanded: each caption is placed at its hour line's percentage, so the label sits under the line it names. */
+.captionsAligned {
+  display: block;
+  position: relative;
+  height: 14px;
+}
+
+.caption {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.captionFirst {
+  transform: none;
+}
+
+.captionLast {
+  transform: translateX(-100%);
 }

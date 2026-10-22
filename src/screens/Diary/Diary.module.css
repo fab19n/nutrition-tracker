@@ -55,6 +55,19 @@
   margin-top: 12px;
 }
 
+/* "Timing details ›" under the strip, left-aligned. */
+.timingLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  /* The card pads its bottom already: pull the 44px hit area into it. */
+  margin: 4px 0 -10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
 .bannerWrap {
   padding: 8px var(--pad-card-x) 0;
 }

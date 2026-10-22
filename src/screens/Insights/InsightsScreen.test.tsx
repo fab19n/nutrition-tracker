@@ -4,11 +4,14 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { PATHS } from '@/app/paths';
 import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
+import { DISH_CHECK_FEEDBACK_ID, answerDish, finishDishCheck } from '@/db/dishCheck';
 import { getInsightFeedback } from '@/db/repo';
 import { clearTargetNoticeSeen, TARGET_FEEDBACK_ID } from '@/db/targetSuggestion';
 import { resetUiState, useUiStore } from '@/state/ui';
 import { loadMaintenanceWorld, pinClock } from '@/test/maintenanceWorld';
 import InsightsScreen from './InsightsScreen';
+
+const SLOW = { timeout: 4000 };
 
 function renderInsights() {
   const router = createMemoryRouter(
@@ -16,6 +19,8 @@ function renderInsights() {
       { path: PATHS.insights, element: <InsightsScreen /> },
       { path: PATHS.weekly, element: <p>Weekly review route</p> },
       { path: PATHS.target, element: <p>Target suggestion route</p> },
+      { path: PATHS.dishes, element: <p>Top dishes route</p> },
+      { path: PATHS.timing, element: <p>Timing detail route</p> },
     ],
     { initialEntries: [PATHS.insights] },
   );
@@ -113,6 +118,144 @@ describe('S31 InsightsScreen on the demo world', () => {
     expect(screen.getByRole('list', { name: 'Where it came from' })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Weekly review and patterns' })).toBeInTheDocument();
     expect(screen.getByText('saved so far')).toBeInTheDocument();
+  });
+});
+
+describe('S31 InsightsScreen top dishes check (S34 entry)', () => {
+  const heading = () => screen.findByRole('heading', { name: 'Check your top dishes' }, SLOW);
+  const toastMessage = () => useUiStore.getState().toast?.message;
+
+  it('offers the check under the weekly review, and Start opens it', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    const title = await heading();
+    expect(screen.getByText('Your 27 most-logged dishes, once. About 2 minutes.')).toBeInTheDocument();
+    const review = screen.getByRole('button', { name: /Your weekly review is ready/ });
+    expect(review.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    expect(await screen.findByText('Top dishes route', {}, SLOW)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.dishes);
+    // Opening it writes nothing.
+    expect(await getInsightFeedback(db, DISH_CHECK_FEEDBACK_ID)).toBeUndefined();
+  });
+
+  it('lists the check in Unlocks as you log, as Ready, and it opens the check', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    await heading();
+    const row = await screen.findByRole('button', { name: /^Top dishes check/ }, SLOW);
+    expect(row).toHaveTextContent('Ready');
+    // After Timing patterns, before Your real maintenance.
+    const bars = screen.getAllByRole('progressbar').map((bar) => bar.getAttribute('aria-label'));
+    expect(bars.indexOf('Top dishes check')).toBe(bars.indexOf('Timing patterns') + 1);
+    expect(bars.indexOf('Your real maintenance')).toBe(bars.indexOf('Top dishes check') + 1);
+    await user.click(row);
+    expect(await screen.findByText('Top dishes route', {}, SLOW)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.dishes);
+  });
+
+  it('hides the card for 4 weeks on Not now, with Undo, and the row stays', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    await heading();
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(toastMessage()).toBe('Top dishes check hidden for 4 weeks'), SLOW);
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Check your top dishes' })).toBeNull(), SLOW);
+    expect((await getInsightFeedback(db, DISH_CHECK_FEEDBACK_ID))?.pausedUntil).toBe('2026-11-13');
+    const row = screen.getByRole('button', { name: /^Top dishes check/ });
+    expect(row).toHaveTextContent('Ready');
+
+    // Still the way back.
+    await user.click(row);
+    expect(await screen.findByText('Top dishes route', {}, SLOW)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.dishes);
+  });
+
+  it('brings the card back with Undo', async () => {
+    const user = userEvent.setup();
+    renderInsights();
+    await heading();
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Check your top dishes' })).toBeNull(), SLOW);
+    await act(async () => {
+      useUiStore.getState().toast?.undo?.();
+    });
+    expect(await heading()).toBeInTheDocument();
+    await waitFor(async () => expect(await getInsightFeedback(db, DISH_CHECK_FEEDBACK_ID)).toBeUndefined(), SLOW);
+  });
+
+  it('says how far you got after one answer, and offers Continue', async () => {
+    await answerDish('rice-economy', 'right');
+    const user = userEvent.setup();
+    const router = renderInsights();
+    expect(await screen.findByRole('heading', { name: 'Top dishes check' }, SLOW)).toBeInTheDocument();
+    expect(screen.getByText('1 of 27 checked. Pick up where you left off.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Top dishes check/ })).toHaveTextContent('1 of 27 checked');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('Top dishes route', {}, SLOW)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.dishes);
+  });
+
+  it('keeps the card hidden after Not now on a check under way, until you answer again', async () => {
+    await answerDish('rice-economy', 'right');
+    const user = userEvent.setup();
+    renderInsights();
+    await screen.findByText('1 of 27 checked. Pick up where you left off.', {}, SLOW);
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(screen.queryByText('1 of 27 checked. Pick up where you left off.')).toBeNull(), SLOW);
+    expect((await getInsightFeedback(db, DISH_CHECK_FEEDBACK_ID))?.dishCheck?.dishes).toHaveLength(27);
+    expect(screen.getByRole('button', { name: /^Top dishes check/ })).toHaveTextContent('1 of 27 checked');
+    await answerDish('teh-tarik', 'right');
+    expect(await screen.findByText('2 of 27 checked. Pick up where you left off.', {}, SLOW)).toBeInTheDocument();
+  });
+
+  it('drops the card once finished, and the row says Checked while something else is locked', async () => {
+    await answerDish('rice-economy', 'right');
+    await finishDishCheck();
+    renderInsights();
+    expect(await screen.findByRole('progressbar', { name: 'Your real maintenance' }, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Check your top dishes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Top dishes check/ })).toHaveTextContent('Checked');
+  });
+
+  it('shows the locked row with the days so far, and no card, on days 1-6', async () => {
+    await db.profile.update('me', { startedOn: '2026-10-14' });
+    await db.meals.where('logicalDay').below('2026-10-14').delete();
+    renderInsights();
+    expect(await screen.findByText('Week 1 · day 3', {}, SLOW)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Top dishes check' })).toHaveAttribute('aria-valuenow', '3');
+    expect(screen.getByText('3 of 14 days')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Check your top dishes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Top dishes check/ })).toBeNull();
+  });
+
+  it('keeps the card off the early state even when the dishes are ready', async () => {
+    await db.profile.update('me', { startedOn: '2026-10-14' });
+    renderInsights();
+    expect(await screen.findByText('Week 1 · day 3', {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Check your top dishes' })).toBeNull();
+  });
+});
+
+describe('S31 InsightsScreen timing details link', () => {
+  it('opens Timing detail from the When you ate heading', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    expect(await screen.findByRole('heading', { name: 'When you ate' }, SLOW)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Timing details' }));
+    expect(await screen.findByText('Timing detail route', {}, SLOW)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.timing);
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('has no When you ate section, so no link, on days 1-6', async () => {
+    await db.profile.update('me', { startedOn: '2026-10-14' });
+    renderInsights();
+    expect(await screen.findByText('Week 1 · day 3', {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Timing details' })).toBeNull();
   });
 });
 

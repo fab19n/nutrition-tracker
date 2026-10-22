@@ -23,6 +23,8 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByText('C01 BottomNav / Diary active')).toBeInTheDocument();
     expect(screen.getByText('C07 HeroCard / Over (covered by savings)')).toBeInTheDocument();
     expect(screen.getByText('C15 UnlockProgress / Unlocked')).toBeInTheDocument();
+    expect(screen.getByText('C15 UnlockProgress / Tappable rows: ready · in progress · checked')).toBeInTheDocument();
+    expect(screen.getByText('C12 DayTimeline / Expanded (Timing detail): hour lines, 4-hour captions, Going to sleep marker')).toBeInTheDocument();
     // Logging (C16–C28)
     expect(screen.getByText('C16 LogInput / Empty (type to see matches)')).toBeInTheDocument();
     expect(screen.getByText('C23 RangeTotal / Review, over and covered by savings')).toBeInTheDocument();
@@ -40,6 +42,9 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Suggestions and insights' })).toBeInTheDocument();
     expect(screen.getByText('C41 InsightCard / Marked useful')).toBeInTheDocument();
     expect(screen.getByText('C45 TargetSuggestionCard / Full · change pace instead')).toBeInTheDocument();
+    expect(screen.getByText('S34 DishCheckRow / Unanswered (tap an answer)')).toBeInTheDocument();
+    expect(screen.getByText('S34 DishCheckRow / Place default · answered Usually less')).toBeInTheDocument();
+    expect(screen.getByText('S34 DishCheckRow / AI guess · Looks right saved as yours')).toBeInTheDocument();
     // Phase 2: Places (C34–C36), Usuals (C37), Pots (C38–C39), Activity (C51–C52)
     for (const name of ['Places', 'Usuals', 'Pots', 'Activity']) {
       expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();

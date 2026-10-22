@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router';
-import { Utensils } from 'lucide-react';
+import { ChevronRight, Utensils } from 'lucide-react';
 import { useSheet } from '@/app/navigation';
 import { PATHS } from '@/app/paths';
 import { Banner } from '@/components/Banner/Banner';
@@ -276,6 +276,14 @@ export default function TodayScreen() {
           </section>
 
           {nudge ? <p className={styles.nudge}>{nudge}</p> : null}
+          {!paused && meals.some((m) => !m.isGuess) ? (
+            <div className={styles.timingLink}>
+              <button type="button" onClick={() => navigate(PATHS.timing)}>
+                Timing details
+                <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
         </>
       )}
 

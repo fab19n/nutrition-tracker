@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import { DishCheckRow } from '@/components/DishCheckRow/DishCheckRow';
 import { EvidenceList, type EvidenceItem } from '@/components/EvidenceList/EvidenceList';
 import { InsightCard } from '@/components/InsightCard/InsightCard';
 import { RecurringList } from '@/components/RecurringRow/RecurringRow';
@@ -248,6 +249,56 @@ function RecurringStates() {
   );
 }
 
+function DishCheckStates() {
+  const [answer, setAnswer] = useState<'right' | 'more' | 'less' | undefined>(undefined);
+  return (
+    <Group title="S34 DishCheckRow">
+      <State label="S34 DishCheckRow / Unanswered (tap an answer)">
+        <ul style={{ ...css.stack, listStyle: 'none', margin: 0, padding: 0 }}>
+          <DishCheckRow
+            name="Rice (economy rice)"
+            kcalLabel="~200"
+            source="catalogue"
+            detail="1 scoop · 25 times"
+            answer={answer}
+            resultLine={answer === 'more' ? 'Usually more. Now ~300 kcal (was ~200).' : answer === 'less' ? 'Usually less. Now ~100 kcal (was ~200).' : answer === 'right' ? 'Looks right. No change.' : undefined}
+            onAnswer={setAnswer}
+            onUndo={() => setAnswer(undefined)}
+          />
+        </ul>
+      </State>
+      <State label="S34 DishCheckRow / Place default · answered Usually less">
+        <ul style={{ ...css.stack, listStyle: 'none', margin: 0, padding: 0 }}>
+          <DishCheckRow
+            name="Rice (nasi kandar)"
+            kcalLabel="~330"
+            source="placeDefault"
+            placeName="Nasi kandar near home"
+            detail="Normal · Nasi kandar near home · 8 times"
+            answer="less"
+            resultLine="Usually less. Now ~330 kcal (was ~430)."
+            onAnswer={noop}
+            onUndo={noop}
+          />
+        </ul>
+      </State>
+      <State label="S34 DishCheckRow / AI guess · Looks right saved as yours">
+        <ul style={{ ...css.stack, listStyle: 'none', margin: 0, padding: 0 }}>
+          <DishCheckRow
+            name="Sup sayur"
+            kcalLabel="~90"
+            source="aiGuess"
+            detail="1 portion · 5 times"
+            answer="right"
+            resultLine="Looks right. Saved as yours at ~90 kcal."
+            onAnswer={noop}
+          />
+        </ul>
+      </State>
+    </Group>
+  );
+}
+
 /** /dev section: suggestions and insights (C40–C43, C45) in every state. */
 export function InsightsGallery() {
   return (
@@ -258,6 +309,7 @@ export function InsightsGallery() {
       <SuggestionStates />
       <InsightStates />
       <TargetStates />
+      <DishCheckStates />
       <EvidenceStates />
       <RecurringStates />
     </section>

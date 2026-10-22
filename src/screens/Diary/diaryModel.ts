@@ -212,6 +212,10 @@ function pctWithin(at: Instant, day: LogicalDay, tz: string, rolloverHour: numbe
   return pctOfDay(at, tz, rolloverHour);
 }
 
+/** The expanded strip is captioned every 4 hours: 5am 9am 1pm 5pm 9pm 1am 5am. */
+const EXPANDED_STEP_MIN = 240;
+const EXPANDED_CAPTIONS = MINUTES_PER_DAY / EXPANDED_STEP_MIN + 1;
+
 const LATE_TAGS: ReadonlySet<TimingTagKind> = new Set(['lateForYou', 'outsideWindow']);
 
 export interface TimelineModel {
@@ -219,6 +223,10 @@ export interface TimelineModel {
   windowEndPct?: number;
   dots: TimelineDot[];
   nowPct?: number;
+  /** The "Going to sleep" tap (only when `sleepAt` is given). */
+  sleep?: { pct: number };
+  /** Hour lines of the expanded strip (only when `expanded`). */
+  ticks?: number[];
   captions: string[];
   header?: { left: string; right?: string };
   ariaLabel: string;
@@ -236,6 +244,10 @@ const SLOT_WORD: Record<MealLog['slot'], string> = {
  * The Diary day strip: window band, one dot per timed meal (sized by kcal, amber when late
  * for you or outside the window), the now marker on today, and "5am · now · 5am" captions.
  * Guess entries have no real time, so they stay off the strip.
+ *
+ * S35 asks for the expanded strip (`expanded`): captions every 4 hours from the rollover, the
+ * hour lines to match, and with `sleepAt` the Going to sleep marker (a tap after the next
+ * rollover sits at the right edge). Without them the output is the Diary's, unchanged.
  */
 export function timelineFor(input: {
   day: LogicalDay;
@@ -246,6 +258,8 @@ export function timelineFor(input: {
   now: Date;
   tz: string;
   rolloverHour: number;
+  sleepAt?: Instant;
+  expanded?: boolean;
 }): TimelineModel {
   const { day, isToday, tz, rolloverHour, window } = input;
   const timed = input.meals.filter((m) => !m.isGuess);
@@ -257,6 +271,10 @@ export function timelineFor(input: {
   const edge = fmtClock(rolloverHour * 60, { compact: true });
   const middle = isToday ? 'now' : fmtClock((rolloverHour + 12) * 60, { compact: true });
   const model: TimelineModel = { dots, captions: [edge, middle, edge], ariaLabel: '' };
+  if (input.expanded) {
+    model.captions = Array.from({ length: EXPANDED_CAPTIONS }, (_, k) => fmtClock(rolloverHour * 60 + k * EXPANDED_STEP_MIN, { compact: true }));
+    model.ticks = Array.from({ length: EXPANDED_CAPTIONS - 2 }, (_, k) => (((k + 1) * EXPANDED_STEP_MIN) / MINUTES_PER_DAY) * 100);
+  }
 
   const sentences: string[] = [];
   if (window.opensAt && window.closesAt) {
@@ -275,6 +293,10 @@ export function timelineFor(input: {
     sentences.push(`${SLOT_WORD[m.slot]} ${fmtTime(m.eatenAt, tz)}${note}.`);
   }
   if (timed.length === 0) sentences.push('No meals logged.');
+  if (input.sleepAt) {
+    model.sleep = { pct: pctWithin(input.sleepAt, day, tz, rolloverHour) };
+    sentences.push(`Going to sleep tap at ${fmtTime(input.sleepAt, tz)}.`);
+  }
   if (isToday) {
     model.nowPct = pctOfDay(input.now, tz, rolloverHour);
     sentences.push(`Now ${fmtTime(input.now, tz)}.`);

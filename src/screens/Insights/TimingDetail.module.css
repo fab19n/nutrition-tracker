@@ -1,0 +1,203 @@
+/* S35 Timing detail. Tokens only. */
+
+.screen {
+  padding-bottom: 48px;
+}
+
+.loading {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.bannerWrap {
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.card {
+  margin: 8px var(--pad-card-x) 0;
+}
+
+.inset {
+  margin: 0 var(--pad-card-x);
+}
+
+.quiet {
+  margin: 0;
+  padding: 14px var(--pad-text-x) 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---------- Legend under the strip ---------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.markOn {
+  background: var(--accent);
+}
+
+.markLate {
+  background: var(--amber);
+}
+
+.markWindow {
+  width: 16px;
+  height: 8px;
+  border-radius: var(--r-bar);
+  background: var(--accent-soft);
+}
+
+.markSleep {
+  width: 16px;
+  height: 16px;
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ---------- The day in numbers ---------- */
+
+.metrics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.metric {
+  padding: 12px 0;
+}
+
+.metric + .metric {
+  border-top: 1px solid var(--line);
+}
+
+.metricHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.metricLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.metricValue {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.metricSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.statusOk {
+  color: var(--accent-text);
+}
+
+.statusOver {
+  color: var(--amber-text);
+}
+
+/* ---------- Meals ---------- */
+
+.meals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.meal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.meal + .meal {
+  border-top: 1px solid var(--line);
+}
+
+.mealText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mealName {
+  overflow-wrap: anywhere;
+}
+
+.mealTime {
+  font-weight: 700;
+}
+
+.mealSlot {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---------- Going to sleep ---------- */
+
+.explainer {
+  margin-top: 16px;
+}
+
+.explainerTitle {
+  margin: 0;
+}
+
+.explainerText {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.explainerTitle + .explainerText {
+  margin-top: 4px;
+}

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Utensils } from 'lucide-react';
+import { ChevronRight, Utensils } from 'lucide-react';
 import { useSheet } from '@/app/navigation';
 import { PATHS } from '@/app/paths';
 import { Banner } from '@/components/Banner/Banner';
@@ -45,6 +45,7 @@ import {
   parseDayParam,
   timelineFor,
 } from './diaryModel';
+import { timingDayPath } from '@/screens/Insights/timingDetailModel';
 import styles from './Diary.module.css';
 
 function mealKcalLabel(meal: MealLog): string {
@@ -229,6 +230,12 @@ export default function DiaryDayScreen() {
               header={timeline.header}
               ariaLabel={timeline.ariaLabel}
             />
+            {badge !== 'paused' && summary.meals.some((m) => !m.isGuess) ? (
+              <button type="button" className={styles.timingLink} onClick={() => navigate(timingDayPath(day, today))}>
+                Timing details
+                <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            ) : null}
           </Card>
 
           {badge === 'notCounted' ? (

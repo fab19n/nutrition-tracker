@@ -19,6 +19,30 @@
   font-size: 13px;
 }
 
+/* A row that opens something: one button for the label and the value, the same height as the other rows with a 44px hit area. */
+.press {
+  position: relative;
+  width: 100%;
+  align-items: center;
+  text-align: left;
+}
+
+.press::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .unlocked {
   display: inline-flex;
   align-items: center;

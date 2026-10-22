@@ -1,0 +1,88 @@
+.item {
+  list-style: none;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kcal {
+  flex: none;
+  white-space: nowrap;
+}
+
+.unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* The tag, then "Normal · 8 times". */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* Chip has no disabled look: an answered row keeps the chosen answer and dims the rest. */
+.answers > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.answers > button[aria-pressed='true']:disabled {
+  opacity: 1;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.result > span:not(:empty) {
+  margin-top: 8px;
+}
+
+.undo {
+  position: relative;
+  margin-top: 8px;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* A 13px text button with a 44px tall hit area. */
+.undo::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}

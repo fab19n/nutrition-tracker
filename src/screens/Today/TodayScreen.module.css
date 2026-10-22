@@ -55,3 +55,21 @@
 .sleep {
   padding: 14px var(--pad-card-x) 0;
 }
+
+/* "Timing details ›": a quiet text link under the nudge. */
+.timingLink {
+  display: flex;
+  justify-content: center;
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.timingLink button {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}

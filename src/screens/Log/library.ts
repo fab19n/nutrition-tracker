@@ -6,57 +6,17 @@
 import { SOURCE_LABEL } from '@/components/SourceTag/SourceTag';
 import { byId, normaliseName, searchCatalogue } from '@/data/catalogue';
 import type { OrderOption } from '@/db/logging';
-import { itemFromCatalogue } from '@/domain/meal';
+import { applicableCorrections, itemFromPersonal, learnedItem, newItemId } from '@/domain/learned';
 import type { CatalogueItem, MealItem, PersonalItem, Place, SourceTag, Usual } from '@/domain/types';
 import { GUESS_DEFAULT_KCAL, GUESS_NORMAL_INDEX, GUESS_QUESTION, GUESS_UNCERTAINTY, guessMacrosFor, guessVariants } from '@/estimate/local/guess';
 import { estimateLocally } from '@/estimate/localEstimator';
 
-export function newItemId(): string {
-  return globalThis.crypto.randomUUID();
-}
+export { applicableCorrections, itemFromPersonal, learnedItem, newItemId } from '@/domain/learned';
 
 export interface LibraryContext {
   place?: Place;
   personal: readonly PersonalItem[];
   usuals?: readonly Usual[];
-}
-
-/** Corrections that apply here: everywhere ones, and ones saved for this Place. */
-export function applicableCorrections(personal: readonly PersonalItem[], place: Place | undefined): PersonalItem[] {
-  return personal.filter((p) => p.scope === 'dish' || (place !== undefined && p.placeId === place.id));
-}
-
-/** A review item from a saved correction. */
-export function itemFromPersonal(p: PersonalItem, id: string = newItemId()): MealItem {
-  const food = p.catalogueId ? byId(p.catalogueId) : undefined;
-  const variants = p.variants ?? food?.variants;
-  const item: MealItem = {
-    id,
-    name: p.name || food?.name || 'Item',
-    unitMacros: { ...p.unitMacros },
-    quantity: 1,
-    uncertainty: p.uncertainty,
-    source: 'yourCorrection',
-  };
-  if (p.catalogueId) item.catalogueId = p.catalogueId;
-  if (variants && p.selectedVariant !== undefined && variants[p.selectedVariant]) {
-    item.variants = variants.map((v) => ({ ...v, macros: { ...v.macros } }));
-    item.selectedVariant = p.selectedVariant;
-  }
-  return item;
-}
-
-/**
- * A catalogue entry as you'd have it here: your correction for this Place, then for the dish,
- * then the Place's learned portion, else the catalogue default.
- */
-export function learnedItem(food: CatalogueItem, ctx: Pick<LibraryContext, 'place' | 'personal'>, id: string = newItemId()): MealItem {
-  const mine = applicableCorrections(ctx.personal, ctx.place).filter((p) => p.catalogueId === food.id);
-  const chosen = mine.find((p) => p.scope === 'place') ?? mine.find((p) => p.scope === 'dish');
-  if (chosen) return itemFromPersonal(chosen, id);
-  const learned = ctx.place?.defaultVariants[food.id];
-  if (learned !== undefined && food.variants[learned]) return itemFromCatalogue(food, { variant: learned, source: 'yourCorrection', id });
-  return itemFromCatalogue(food, { id });
 }
 
 /** Copies of saved items for a new meal: new ids, no audit trail or open state carried over. */

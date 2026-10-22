@@ -5,6 +5,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db as appDb, newId, type KiraMakanDb } from '@/db/db';
+import { getDishCheckStatusIn, type DishCheckStatus } from '@/db/dishCheck';
 import { useNow, useProfile, useToday } from '@/db/hooks';
 import {
   addSuggestionEvent,
@@ -195,9 +196,13 @@ export interface InsightsView {
   recurring: RecurringItem[];
   timing: { rows: TimingRow[]; averageWindowHours: number | null; completeDays: number; earlyRead: boolean; rolloverHour: number };
   unlocks: UnlockItem[];
+  /** The top dishes check (S34): its phase and counts, for the Insights card and the Unlock list. */
+  dishCheck: DishCheckStatus;
 }
 
 const TIMING_SOLID_DAYS = 14;
+/** Before the first read finishes, or without data: nothing to check yet. */
+const NO_DISH_CHECK: DishCheckStatus = { phase: 'locked', loggedDays: 0, dishCount: 0, total: 0, answered: 0, hidden: false };
 
 export async function getInsightsView(db: KiraMakanDb, opts: ReadOptions = {}): Promise<InsightsView | undefined> {
   const state = await loadInsightState(db, opts, tabPeriod);
@@ -285,6 +290,7 @@ export async function getInsightsView(db: KiraMakanDb, opts: ReadOptions = {}): 
       rolloverHour: ctx.rolloverHour,
     },
     unlocks: unlockProgress(ctx),
+    dishCheck: (await getDishCheckStatusIn(db, { today })) ?? NO_DISH_CHECK,
   };
   if (highlightCategory && !early) view.highlightCategory = highlightCategory;
   return view;
@@ -555,8 +561,8 @@ export function useMealIdeas(): MealIdeasView | undefined {
 // Actions
 // ---------------------------------------------------------------------------
 
-/** Answers on an insight card ("Keep current" belongs to the target suggestion, src/db/targetSuggestion.ts). */
-type InsightAnswer = Exclude<InsightFeedback['feedback'], 'keepCurrent'>;
+/** Answers on an insight card ("Keep current" belongs to the target suggestion, src/db/targetSuggestion.ts; 'dishCheck' to src/db/dishCheck.ts). */
+type InsightAnswer = Exclude<InsightFeedback['feedback'], 'keepCurrent' | 'dishCheck'>;
 
 /** "Useful" or "Not for me" (which pauses the rule for about 4 weeks). The undo puts back the previous answer. */
 async function recordFeedbackIn(db: KiraMakanDb, ruleId: string, feedback: InsightAnswer, today?: LogicalDay): Promise<Undo> {

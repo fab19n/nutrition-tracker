@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { fmtInt } from '@/domain/format';
 import styles from './UnlockProgress.module.css';
 
@@ -11,6 +11,10 @@ export interface UnlockProgressProps {
   need: number;
   /** What `have` and `need` count: "days" (default), "weigh-ins". */
   unit?: string;
+  /** Replaces the right-hand text ("9 of 14 days", "Unlocked"): "Ready", "12 of 30 checked". */
+  valueLabel?: string;
+  /** Makes the label and value one button, for a row that opens something (the Top dishes check). */
+  onPress?: () => void;
   className?: string;
 }
 
@@ -25,23 +29,34 @@ export function unlockPct(have: number, need: number): number {
 }
 
 /** @design C15 UnlockProgress — "9 of 14 days" toward an insight that needs more data. */
-export function UnlockProgress({ label, have, need, unit = 'days', className }: UnlockProgressProps) {
+export function UnlockProgress({ label, have, need, unit = 'days', valueLabel, onPress, className }: UnlockProgressProps) {
   const unlocked = isUnlocked(have, need);
+  const value = unlocked ? (
+    <span className={styles.unlocked}>
+      <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+      {valueLabel ?? 'Unlocked'}
+    </span>
+  ) : (
+    <span className="muted">
+      {valueLabel ?? `${fmtInt(have)} of ${fmtInt(need)} ${unit}`}
+    </span>
+  );
   return (
     <div className={[styles.row, className].filter(Boolean).join(' ')}>
-      <div className={styles.text}>
-        <span>{label}</span>
-        {unlocked ? (
-          <span className={styles.unlocked}>
-            <Check size={12} strokeWidth={2.5} aria-hidden="true" />
-            Unlocked
+      {onPress ? (
+        <button type="button" className={[styles.text, styles.press].join(' ')} onClick={onPress}>
+          <span>{label}</span>{' '}
+          <span className={styles.value}>
+            {value}
+            <ChevronRight size={14} strokeWidth={2.5} className="muted" aria-hidden="true" />
           </span>
-        ) : (
-          <span className="muted">
-            {fmtInt(have)} of {fmtInt(need)} {unit}
-          </span>
-        )}
-      </div>
+        </button>
+      ) : (
+        <div className={styles.text}>
+          <span>{label}</span>
+          {value}
+        </div>
+      )}
       <div
         className={styles.track}
         role="progressbar"

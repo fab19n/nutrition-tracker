@@ -5,6 +5,7 @@ import { DEMO_EXPECTED, loadDemo } from '@/db/seed/demo';
 import { setDemoClock } from '@/domain/clock';
 import { instantAt } from '@/domain/day';
 import { loadMaintenanceWorld, MAINTENANCE_WORLD } from '@/test/maintenanceWorld';
+import { createDishCheckActions } from './dishCheck';
 import { createInsightsActions, getEvidence, getInsightsView, getMealIdeas, getWeeklyReview } from './insightsData';
 import { createTargetActions, getTargetCheck } from './targetSuggestion';
 
@@ -47,6 +48,21 @@ describe('getInsightsView', () => {
     expect(view!.timing.rows.slice(5).every((r) => r.dots.length === 0)).toBe(true);
     expect(view!.timing.averageWindowHours).toBeGreaterThan(0);
     expect(view!.highlightCategory).toBe(view!.top[0]?.category);
+  });
+
+  it('carries the top dishes check: ready on the demo Friday, in progress after one answer', async () => {
+    expect((await getInsightsView(db, { now }))!.dishCheck).toEqual({ phase: 'ready', loggedDays: 19, dishCount: 27, total: 27, answered: 0, hidden: false });
+    await createDishCheckActions(db).answerDish('rice-economy', 'right', { today: DEMO_EXPECTED.today.day });
+    const after = (await getInsightsView(db, { now }))!.dishCheck;
+    expect(after).toMatchObject({ phase: 'inProgress', total: 27, answered: 1, hidden: false, startedOn: DEMO_EXPECTED.today.day });
+  });
+
+  it('keeps the top dishes check out of the paused insights and the useful ones', async () => {
+    await createDishCheckActions(db).dismissDishCheck({ today: DEMO_EXPECTED.today.day });
+    const view = (await getInsightsView(db, { now }))!;
+    expect(view.dishCheck.hidden).toBe(true);
+    expect(view.top).toHaveLength(3);
+    expect(view.feedback.topDishes?.pausedUntil).toBe('2026-11-13');
   });
 
   it('offers last week’s review until a focus is picked for this week', async () => {

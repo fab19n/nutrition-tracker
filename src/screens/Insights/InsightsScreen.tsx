@@ -18,6 +18,8 @@ import { clearFeedback, recordFeedback, useInsights, type InsightsView, type Und
 import { useTargetView, type TargetView } from '@/db/targetSuggestion';
 import { fmtClock, fmtInt, fmtKg, fmtKgDelta, fmtRm, fmtSigned, roundTo10 } from '@/domain/format';
 import { fmtHours, type RankedInsight } from '@/domain/insights';
+import { DishCheckCard } from './DishCheckCard';
+import { unlockListModel } from './dishCheckModel';
 import { targetCardModel } from './targetModel';
 import { useTargetDecisions } from './useTargetDecisions';
 import styles from './InsightsScreen.module.css';
@@ -139,19 +141,29 @@ function PlaceList({ view }: { view: InsightsView }) {
 }
 
 function WhenYouAte({ view }: { view: InsightsView }) {
+  const navigate = useNavigate();
   const { timing } = view;
   const headerLeft = timing.averageWindowHours === null ? 'Average window —' : `Average window ${fmtHours(timing.averageWindowHours)}`;
   const headerRight = timing.earlyRead ? `Early read · ${fmtInt(timing.completeDays)} days` : 'This week';
   const late = timing.rows.filter((r) => r.dots.some((d) => d.late)).length;
   return (
-    <TimingGrid
-      className={styles.inset}
-      rows={timing.rows}
-      headerLeft={headerLeft}
-      headerRight={headerRight}
-      axisLabels={[fmtClock(timing.rolloverHour * 60, { compact: true }), 'noon', '6pm', 'midnight']}
-      ariaLabel={`${headerLeft}. Late meals on ${fmtInt(late)} days this week.`}
-    />
+    <>
+      <div className={styles.headingRow}>
+        <SectionHeading>When you ate</SectionHeading>
+        <button type="button" className={styles.details} aria-label="Timing details" onClick={() => navigate(PATHS.timing)}>
+          Details
+          <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />
+        </button>
+      </div>
+      <TimingGrid
+        className={styles.inset}
+        rows={timing.rows}
+        headerLeft={headerLeft}
+        headerRight={headerRight}
+        axisLabels={[fmtClock(timing.rolloverHour * 60, { compact: true }), 'noon', '6pm', 'midnight']}
+        ariaLabel={`${headerLeft}. Late meals on ${fmtInt(late)} days this week.`}
+      />
+    </>
   );
 }
 
@@ -176,6 +188,7 @@ function TargetCard({ target }: { target: TargetView }) {
 
 /** @design S31 Insights — this week's numbers, top 3, where calories came from, timing, unlocks. */
 export default function InsightsScreen() {
+  const navigate = useNavigate();
   const view = useInsights();
   const target = useTargetView();
 
@@ -192,7 +205,8 @@ export default function InsightsScreen() {
 
   const budget = budgetTile(view);
   const { tiles } = view;
-  const locked = view.unlocks.filter((u) => u.have < u.need);
+  // The Top dishes check sits in the list as its durable way back (the card can be hidden).
+  const unlocks = unlockListModel(view.unlocks, view.dishCheck, () => navigate(PATHS.dishes));
 
   return (
     <div className={styles.screen}>
@@ -212,6 +226,7 @@ export default function InsightsScreen() {
       </MetricRow>
 
       <ReviewCard view={view} />
+      {view.early ? null : <DishCheckCard status={view.dishCheck} />}
 
       {view.early ? (
         <div className={styles.early}>
@@ -255,17 +270,12 @@ export default function InsightsScreen() {
         </>
       ) : null}
 
-      {!view.early ? (
-        <>
-          <SectionHeading>When you ate</SectionHeading>
-          <WhenYouAte view={view} />
-        </>
-      ) : null}
+      {!view.early ? <WhenYouAte view={view} /> : null}
 
-      {locked.length > 0 ? (
+      {unlocks.show ? (
         <>
           <SectionHeading>Unlocks as you log</SectionHeading>
-          <UnlockList className={styles.inset} items={view.unlocks} />
+          <UnlockList className={styles.inset} items={unlocks.items} />
         </>
       ) : null}
     </div>

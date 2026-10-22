@@ -12,6 +12,10 @@ export const PATHS = {
   weekly: '/insights/weekly',
   /** S37 Target suggestion (and the target history). */
   target: '/insights/target',
+  /** S34 Top dishes check: your 30 most-logged dishes, once. */
+  dishes: '/insights/dishes',
+  /** S35 Timing detail: one day's timing and the week's grid (?day=YYYY-MM-DD, default today). */
+  timing: '/insights/timing',
   more: '/more',
   weight: '/more/weight',
   settings: '/more/settings',
