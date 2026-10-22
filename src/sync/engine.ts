@@ -15,10 +15,11 @@
  * split until the rows it can't take are found and set aside.
  *
  * Triggers: a change (2 s debounce, 10 s at most), coming online, coming back to the app after
- * 30 s, a session change, Sync now, and a poll every 5 minutes while visible. After a refused
- * token, an auth event for the same session runs it again only with another token, and no more
- * than once a minute (then 2, 5 and 15 minutes apart). Going hidden pushes what's queued. Failures
- * back off (10 s up to 15 min) or wait for the user, by kind (./errors).
+ * 30 s, a session change, Sync now, catchUp (the Drive engine, before it writes a photo pointer),
+ * and a poll every 5 minutes while visible. After a refused token, an auth event for the same
+ * session runs it again only with another token, and no more than once a minute (then 2, 5 and 15
+ * minutes apart). Going hidden pushes what's queued. Failures back off (10 s up to 15 min) or wait
+ * for the user, by kind (./errors).
  *
  * Everything outside the database comes in through SyncEngineDeps, so tests drive the engine with
  * a fake account, session, timers and locks. src/sync/index.ts builds the app's engine.
@@ -174,6 +175,14 @@ export interface SyncEngine {
   request(reason: SyncReason): void;
   /** Resets the backoff and runs a cycle, online or not. Resolves when it's done (it never rejects). */
   syncNow(): Promise<void>;
+  /**
+   * Before a write made in the background lands on this device's copy of a row (the Drive photo
+   * pointer, §10.18): a cycle now, so what other devices changed is pulled first. Only on a linked
+   * device that isn't waiting for the user or a new sign-in; the gate decides the rest as for any
+   * automatic cycle (offline, or a token the account refused, asks nothing), and a backoff or a
+   * refusal streak is left as it was. Resolves when it's done; never rejects.
+   */
+  catchUp(): Promise<void>;
   /** One push-only round, given at most `timeoutMs`. Never rejects (before sign-out). */
   flush(timeoutMs: number): Promise<void>;
   /** A new device before setup: downloads the account's diary and writes it in one commit. */
@@ -1002,6 +1011,20 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
     return queueCycle(true);
   }
 
+  async function catchUp(): Promise<void> {
+    if (!live || disposed || stopDepth > 0) return;
+    const { phase } = state;
+    if (WAITING_FOR_USER.has(phase) || phase === 'notSetUp' || refusedSession()) return;
+    try {
+      const meta = await readMeta(db);
+      if (!meta.link || meta.paused) return;
+    } catch {
+      // The database closed: nothing to catch up with.
+      return;
+    }
+    await queueCycle(false);
+  }
+
   return {
     start() {
       if (started || disposed) return;
@@ -1070,6 +1093,7 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
 
     request,
     syncNow,
+    catchUp,
 
     async flush(timeoutMs) {
       if (disposed || stopDepth > 0) return;

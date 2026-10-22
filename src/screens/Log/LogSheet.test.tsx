@@ -6,7 +6,20 @@ import { DEMO_IDS } from '@/db/seed/demo';
 import { resetUiState, useUiStore } from '@/state/ui';
 import { renderLogRoutes } from './testHarness';
 
+/** The photo sheet's Estimate asks the Drive engine for a token inside the tap; recorded here with what had happened by then. */
+const drive = vi.hoisted(() => ({ renewals: [] as { draftSet: boolean }[] }));
+vi.mock('@/drive', async (importOriginal) => {
+  const { useUiStore: store } = await import('@/state/ui');
+  return {
+    ...(await importOriginal<typeof import('@/drive')>()),
+    renewDriveTokenOnTap: () => {
+      drive.renewals.push({ draftSet: store.getState().reviewDraft !== null });
+    },
+  };
+});
+
 beforeEach(async () => {
+  drive.renewals.length = 0;
   await resetAll();
   await loadDemoData();
   resetUiState();
@@ -339,5 +352,20 @@ describe('S09 Log sheet', () => {
     const photoId = draft?.meta.photoId;
     expect(photoId).toBeDefined();
     expect(await db.photos.get(photoId ?? '')).toBeDefined();
+  });
+
+  it("asks Drive for a token inside the Estimate tap, once, before going on", async () => {
+    const user = userEvent.setup();
+    renderLogRoutes('/?sheet=log');
+    await placeChip('Kedai near home');
+    await user.upload(screen.getByLabelText('Photo of your meal'), new File(['jpeg'], 'dinner.jpg', { type: 'image/jpeg' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add a photo' });
+    expect(drive.renewals).toEqual([]);
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Estimate' }));
+    // Synchronously in the click, before the photo is kept or the draft made.
+    expect(drive.renewals).toEqual([{ draftSet: false }]);
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(drive.renewals).toHaveLength(1);
   });
 });

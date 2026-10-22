@@ -1,6 +1,6 @@
 import { MealRow } from '@/components/MealRow/MealRow';
 import { SLOT_LABEL } from '@/components/SlotPicker/slots';
-import { usePhotoThumbUrl } from '@/db/today';
+import { useMealThumbUrl } from '@/db/diary';
 import { fmtApprox, fmtTime, roundTo10 } from '@/domain/format';
 import { mealMacros } from '@/domain/meal';
 import type { TimingTagKind } from '@/domain/timing';
@@ -20,7 +20,7 @@ export interface TodayMealRowProps {
 
 /** One of today's meals as a C29 MealRow: "Breakfast · 10:40am · Nasi kandar near home", "~560". */
 export function TodayMealRow({ meal, placeName, tag, tz, pending, onOpen, onDuplicate, onDelete }: TodayMealRowProps) {
-  const thumbUrl = usePhotoThumbUrl(meal.photoId);
+  const thumbUrl = useMealThumbUrl(meal);
   const kcal = roundTo10(mealMacros(meal).kcal);
   return (
     <MealRow

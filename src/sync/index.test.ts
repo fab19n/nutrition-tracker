@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     resume: vi.fn(),
     request: vi.fn(),
     syncNow: vi.fn(async () => undefined),
+    catchUp: vi.fn(async () => undefined),
     flush: vi.fn(async () => undefined),
     restoreFromAccount: vi.fn(async () => ({ result: 'empty' as const })),
     useAccountData: vi.fn(async () => undefined),
@@ -80,6 +81,7 @@ describe('the app sync engine', () => {
     await sync.stopSync();
     sync.resumeSync();
     await sync.syncNow();
+    await sync.catchUpSync();
     await sync.flushSync(5_000);
     await sync.restoreFromAccount(onProgress);
     await sync.useAccountData();
@@ -95,6 +97,7 @@ describe('the app sync engine', () => {
     expect(engine.stop).toHaveBeenCalledTimes(1);
     expect(engine.resume).toHaveBeenCalledTimes(1);
     expect(engine.syncNow).toHaveBeenCalledTimes(1);
+    expect(engine.catchUp).toHaveBeenCalledTimes(1);
     expect(engine.flush).toHaveBeenCalledWith(5_000);
     expect(engine.restoreFromAccount).toHaveBeenCalledWith(onProgress);
     for (const method of [engine.useAccountData, engine.keepThisDeviceData, engine.notNow, engine.turnSyncBackOn,

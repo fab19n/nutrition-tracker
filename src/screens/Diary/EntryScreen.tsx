@@ -16,14 +16,16 @@ import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { deleteMeal, duplicateMeal } from '@/db/actions';
-import { findMatchingUsual, saveMealAsUsual, useMealLookup, usePhotoUrl } from '@/db/diary';
+import { findMatchingUsual, saveMealAsUsual, useMealLookup } from '@/db/diary';
 import { useDaySummary, usePlace, useProfile, useToday, useUsuals } from '@/db/hooks';
 import { DEFAULT_TZ } from '@/domain/day';
 import { fmtApprox, fmtDayShort, fmtRange, fmtRm, fmtTime, roundTo10 } from '@/domain/format';
 import { itemMacros, mealMacros, mealRange } from '@/domain/meal';
 import type { Finished, LogMethod, MealLog } from '@/domain/types';
+import { useMealPhoto, type MealPhoto } from '@/drive/hooks';
 import { useUiStore, type ReviewMeta } from '@/state/ui';
 import { useInFlight } from '@/screens/inFlight';
+import { DriveConnectSheet } from '@/screens/More/DriveConnectSheet';
 import { diaryDayPath, itemDetail, originalEstimateKcal } from './diaryModel';
 import styles from './Entry.module.css';
 
@@ -62,6 +64,85 @@ function editDraftMeta(meal: MealLog): ReviewMeta {
   return meta;
 }
 
+const ELSEWHERE_NOTE = {
+  drive: 'This photo is on your other device. It shows here once it reaches Google Drive.',
+  device: 'This photo is on the device that took it.',
+};
+
+interface PhotoBlockProps {
+  meal: MealLog;
+  photo: MealPhoto;
+  onOpen: () => void;
+  onConnect: () => void;
+}
+
+/**
+ * The thumb under the header, by where the photo is (§10.18): here (tap for the full photo, and
+ * Continue when its upload waits for Google), in Google Drive (Show full photo, or Connect), or on
+ * the other device only.
+ */
+function PhotoBlock({ meal, photo, onOpen, onConnect }: PhotoBlockProps) {
+  const { view } = photo;
+  const note = (text: string) => (
+    <p className={styles.photoNote} role="status">
+      {text}
+    </p>
+  );
+
+  if (view.kind === 'local') {
+    return (
+      <>
+        <PhotoThumb url={photo.thumbUrl} finished={meal.finished} size={120} alt={meal.name} onPress={onOpen} />
+        {view.waitingForTap ? (
+          <>
+            {note(photo.problem ?? 'Waiting for Google Drive.')}
+            <Button variant="ghost" size="sm" className={styles.photoAction} onClick={photo.continueUpload} disabled={photo.busy} aria-busy={photo.busy || undefined}>
+              Continue
+            </Button>
+          </>
+        ) : null}
+      </>
+    );
+  }
+
+  if (view.kind === 'remote') {
+    const show = () => {
+      void photo.showFull().then((ok) => {
+        if (ok) onOpen();
+      });
+    };
+    return (
+      <>
+        <PhotoThumb url={photo.thumbUrl} finished={meal.finished} size={120} alt={meal.name} onPress={view.action === 'show' ? show : undefined} />
+        {view.action === 'show' ? (
+          <>
+            {photo.problem ? note(photo.problem) : null}
+            <Button variant="ghost" size="sm" className={styles.photoAction} onClick={show} disabled={photo.busy} aria-busy={photo.busy || undefined}>
+              {photo.busy ? 'Getting the photo…' : 'Show full photo'}
+            </Button>
+          </>
+        ) : null}
+        {view.action === 'connect' ? (
+          <Button variant="ghost" size="sm" className={styles.photoAction} onClick={onConnect}>
+            Connect Google Drive to see full photos
+          </Button>
+        ) : null}
+        {view.action === 'offline' ? note("Full photo when you're back online.") : null}
+      </>
+    );
+  }
+
+  if (view.kind === 'elsewhere') {
+    return (
+      <>
+        <PhotoThumb finished={meal.finished} size={120} alt={meal.name} />
+        {note(view.driveConfigured ? ELSEWHERE_NOTE.drive : ELSEWHERE_NOTE.device)}
+      </>
+    );
+  }
+  return null;
+}
+
 interface EntryDetailProps {
   meal: MealLog;
   onDeleted: (meal: MealLog) => void;
@@ -76,9 +157,9 @@ function EntryDetail({ meal, onDeleted }: EntryDetailProps) {
   const place = usePlace(meal.placeId);
   const usuals = useUsuals();
   const summary = useDaySummary(meal.logicalDay);
-  const thumbUrl = usePhotoUrl(meal.photoId, 'thumb');
-  const photoUrl = usePhotoUrl(meal.photoId, 'full');
+  const photo = useMealPhoto(meal);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // A double tap on Duplicate or Save as Usual writes once.
   const inFlight = useInFlight();
@@ -134,12 +215,12 @@ function EntryDetail({ meal, onDeleted }: EntryDetailProps) {
     <>
       {meal.photoId ? (
         <div className={styles.photo}>
-          {photoOpen && photoUrl ? (
+          {photoOpen && photo.fullUrl ? (
             <button type="button" className={styles.fullPhoto} onClick={() => setPhotoOpen(false)} aria-label="Close photo">
-              <img src={photoUrl} alt={meal.name} />
+              <img src={photo.fullUrl} alt={meal.name} />
             </button>
           ) : (
-            <PhotoThumb url={thumbUrl} finished={meal.finished} size={120} alt={meal.name} onPress={() => setPhotoOpen(true)} />
+            <PhotoBlock meal={meal} photo={photo} onOpen={() => setPhotoOpen(true)} onConnect={() => setConnectOpen(true)} />
           )}
         </div>
       ) : null}
@@ -247,6 +328,8 @@ function EntryDetail({ meal, onDeleted }: EntryDetailProps) {
           Delete entry
         </Button>
       </div>
+
+      <DriveConnectSheet open={connectOpen} onClose={() => setConnectOpen(false)} />
 
       <ConfirmDialog
         open={confirmDelete}

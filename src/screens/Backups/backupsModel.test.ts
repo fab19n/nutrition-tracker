@@ -2,15 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { TABLE_NAMES } from '@/db/db';
 import { BackupImportError, type BackupPreview, type DeviceComparison } from '@/db/export';
 import type { BackupStatus } from '@/domain/backup';
+import type { DriveEngineState } from '@/drive/engine';
+import { describeDrive, drivePhase, type DriveCopy } from '@/drive/status';
 import type { SyncPhase } from '@/sync/engine';
 import { describeSync, type SyncView } from '@/sync/status';
 import {
   accountNote,
   backupActions,
+  backupFileCaption,
   backupsRowSub,
   CatchUpFailed,
   confirmCopy,
   deviceWord,
+  driveBackupActions,
   exportCardCopy,
   lostNote,
   mealsLabel,
@@ -547,5 +551,64 @@ describe('mealsLabel', () => {
     expect(mealsLabel(1)).toBe('1 meal');
     expect(mealsLabel(0)).toBe('0 meals');
     expect(mealsLabel(1240)).toBe('1,240 meals');
+  });
+});
+
+describe('driveBackupActions', () => {
+  const NOW = Date.parse(SAVED_AT);
+  const base: DriveEngineState = {
+    configured: true,
+    profile: 'real',
+    keepPhotos: true,
+    connected: true,
+    email: 'you@example.com',
+    gisReady: true,
+    tokenExpiresAt: NOW + 30 * 60_000,
+    authBusy: false,
+    running: false,
+    online: true,
+    counts: { uploads: 0, files: 0, failed: 0 },
+  };
+  const copyOf = (patch: Partial<DriveEngineState>): DriveCopy => {
+    const state = { ...base, ...patch };
+    return describeDrive({ ...state, phase: drivePhase(state, NOW), now: NOW }, TZ);
+  };
+  const waiting = { counts: { uploads: 2, files: 0, failed: 0 } };
+
+  it('runs Continue and Try again in place', () => {
+    expect(driveBackupActions(copyOf({ ...waiting, tokenExpiresAt: undefined }))).toEqual([{ id: 'continue', label: 'Continue', variant: 'primary' }]);
+    expect(driveBackupActions(copyOf({ ...waiting, error: 'unreachable' }))).toEqual([{ id: 'retry', label: 'Try again', variant: 'primary' }]);
+    expect(driveBackupActions(copyOf({ ...waiting, error: 'driveFull' }))).toEqual([{ id: 'retry', label: 'Try again', variant: 'primary' }]);
+  });
+
+  it('makes Connect and Disconnect one Open Settings, primary only when the card needs you', () => {
+    expect(driveBackupActions(copyOf({ connected: false }))).toEqual([{ id: 'manage', label: 'Open Settings', variant: 'secondary' }]);
+    expect(driveBackupActions(copyOf({}))).toEqual([{ id: 'manage', label: 'Open Settings', variant: 'secondary' }]);
+    expect(driveBackupActions(copyOf({ keepPhotos: false }))).toEqual([{ id: 'manage', label: 'Open Settings', variant: 'secondary' }]);
+    const attention: DriveCopy = {
+      tone: 'attention',
+      pill: 'Needs you',
+      title: 'x',
+      facts: [],
+      actions: [{ id: 'connect', label: 'Connect Google Drive', variant: 'primary' }],
+    };
+    expect(driveBackupActions(attention)).toEqual([{ id: 'manage', label: 'Open Settings', variant: 'primary' }]);
+  });
+
+  it('offers nothing where the card has nothing to do', () => {
+    expect(driveBackupActions(copyOf({ profile: 'demo' }))).toEqual([]);
+    expect(driveBackupActions(copyOf({ running: true }))).toEqual([]);
+    expect(driveBackupActions(copyOf(waiting))).toEqual([]);
+  });
+});
+
+describe('backupFileCaption', () => {
+  it('says where the meal photos are', () => {
+    expect(backupFileCaption('phone', false)).toBe(
+      "The file goes to your downloads. Meal photos stay on this phone and aren't in it. Keep a copy somewhere off this phone.",
+    );
+    expect(backupFileCaption('device', true)).toBe(
+      "The file goes to your downloads. Meal photos aren't in it; they're in your Google Drive. Keep a copy somewhere off this device.",
+    );
   });
 });

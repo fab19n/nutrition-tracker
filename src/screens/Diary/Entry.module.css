@@ -13,6 +13,18 @@
   padding: 14px var(--pad-card-x) 0;
 }
 
+/* Where the photo is, under the thumb (§10.18). */
+.photoNote {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.photoAction {
+  margin-top: 4px;
+}
+
 .fullPhoto {
   display: block;
   width: 100%;

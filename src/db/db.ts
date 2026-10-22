@@ -21,6 +21,7 @@ import type {
   Workout,
 } from '@/domain/types';
 import { createCaptureMiddleware } from './capture';
+import type { DriveJob, DriveMeta } from './driveTypes';
 import type { OutboxEntry, RowRev, SyncMeta } from './syncTypes';
 
 export const DB_NAME = 'kira-makan';
@@ -79,7 +80,10 @@ export type TableName = keyof TableRows;
 
 export const TABLE_NAMES = Object.keys(SCHEMA_V1) as TableName[];
 
-/** Every data table except photos (a later step). All keys are strings. */
+/**
+ * Every data table except photos: photo bytes go to Google Drive and the meal carries the pointer
+ * (decision §10.18). All keys are strings.
+ */
 export type SyncTable = Exclude<TableName, 'photos'>;
 export const SYNC_TABLES = TABLE_NAMES.filter((t): t is SyncTable => t !== 'photos');
 /** Version a device has synced against; bump it (and the cursor goes back to 0 once) when a table starts syncing. */
@@ -90,6 +94,12 @@ export const SYNC_STORES = {
   syncOutbox: '[table+key], changedAt',
   syncRevs: '[table+key]',
   syncMeta: 'id',
+} as const;
+
+/** Drive photo sync bookkeeping (§10.18): local only, never exported, never captured, cleared by every wipe. */
+export const DRIVE_STORES = {
+  driveJobs: 'id, notBefore',
+  driveMeta: 'id',
 } as const;
 
 export interface DbOptions {
@@ -118,12 +128,15 @@ export class KiraMakanDb extends Dexie {
   declare syncOutbox: Table<OutboxEntry, [string, string]>;
   declare syncRevs: Table<RowRev, [string, string]>;
   declare syncMeta: Table<SyncMeta, 'sync'>;
+  declare driveJobs: Table<DriveJob, string>;
+  declare driveMeta: Table<DriveMeta, 'drive'>;
 
   constructor(name: string = DB_NAME, options: DbOptions = {}) {
     super(name);
     this.use(createCaptureMiddleware({ tables: new Set<string>(SYNC_TABLES), enabled: options.capture ?? (() => false) }));
     this.version(1).stores(SCHEMA_V1);
     this.version(2).stores(SYNC_STORES); // no upgrade function: existing rows are queued when the device links
+    this.version(3).stores(DRIVE_STORES); // no upgrade function: existing photos are queued when the device connects
   }
 }
 
@@ -135,8 +148,9 @@ export function createDb(name: string = DB_NAME, options?: DbOptions): KiraMakan
 export const db = createDb(DB_NAME, { capture: () => readSupabaseConfig() !== null });
 
 /**
- * Empties every table, sync bookkeeping included, in one transaction ("Delete everything",
- * leaving demo). clear() is never captured, so a wipe stays on this device.
+ * Empties every table, sync and Drive bookkeeping included, in one transaction ("Delete
+ * everything", leaving demo). clear() is never captured, so a wipe stays on this device, and the
+ * photos in Google Drive stay where they are.
  */
 export async function clearAllTables(database: KiraMakanDb): Promise<void> {
   await database.transaction('rw', database.tables, async () => {

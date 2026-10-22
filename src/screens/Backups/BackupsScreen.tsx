@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FileCheck, FileClock, FileDown, type LucideIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { FileCheck, FileClock, FileDown, HardDrive, type LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
@@ -13,6 +13,10 @@ import { db } from '@/db/db';
 import { useMealCount, useNow, useProfile, useToday } from '@/db/hooks';
 import { readLastBackupAt } from '@/db/settings';
 import { backupStatus } from '@/domain/backup';
+import { continueDrive, prepareDrive, retryDrive } from '@/drive';
+import { isDriveConfigured } from '@/drive/config';
+import { useDriveView } from '@/drive/hooks';
+import { authProblemCopy, describeDrive, type DriveView } from '@/drive/status';
 import { saveFullBackup } from '@/screens/More/exportFiles';
 import { useUiStore } from '@/state/ui';
 import { syncNow, type SyncPhase } from '@/sync';
@@ -22,11 +26,14 @@ import { BackupImportSheet } from './BackupImportSheet';
 import {
   accountNote,
   backupActions,
+  backupFileCaption,
   deviceWord,
+  driveBackupActions,
   exportCardCopy,
   restoreBlockedReason,
   restoreReach,
   type BackupAction,
+  type DriveBackupAction,
 } from './backupsModel';
 import { useBackupImport } from './useBackupImport';
 import styles from './BackupsScreen.module.css';
@@ -41,9 +48,63 @@ const EXPORT_ICONS: Record<ReturnType<typeof exportCardCopy>['icon'], LucideIcon
 const BUSY_PHASES: ReadonlySet<SyncPhase> = new Set<SyncPhase>(['syncing', 'uploading', 'restoring']);
 
 /**
+ * Backups › Meal photos (decision §10.18): the Drive card, read-mostly like the account card.
+ * Continue and Try again run in place; Connect and Disconnect are Open Settings.
+ */
+function MealPhotosSection({ view, tz }: { view: DriveView; tz: string }) {
+  const navigate = useNavigate();
+  const showToast = useUiStore((s) => s.showToast);
+  const [running, setRunning] = useState(false);
+  const copy = describeDrive(view, tz);
+  const busy = running || view.phase === 'connecting';
+
+  const needsTap = view.phase === 'needsTap';
+  useEffect(() => {
+    // Loaded ahead, so Continue can open Google's window inside the tap.
+    if (needsTap) prepareDrive();
+  }, [needsTap]);
+  // Until the engine has read the profile there's nothing to say yet.
+  if (view.phase === 'unconfigured' || view.phase === 'noProfile') return null;
+
+  const press = (action: DriveBackupAction) => {
+    if (action.id === 'manage') {
+      navigate(PATHS.settings);
+      return;
+    }
+    if (action.id === 'continue') {
+      // Straight from the tap: Google's window opens only inside it.
+      const pending = continueDrive();
+      setRunning(true);
+      void pending.then((result) => {
+        setRunning(false);
+        const line = result.ok ? null : authProblemCopy(result.problem, { during: 'continue', email: view.email });
+        if (line) showToast(line);
+      });
+      return;
+    }
+    setRunning(true);
+    void retryDrive().finally(() => setRunning(false));
+  };
+
+  return (
+    <section>
+      <SectionHeading inset={20}>Meal photos</SectionHeading>
+      <div className={styles.card}>
+        <SyncStatus
+          {...copy}
+          icon={HardDrive}
+          actions={driveBackupActions(copy).map((action) => ({ ...action, busy, onPress: () => press(action) }))}
+        />
+      </div>
+    </section>
+  );
+}
+
+/**
  * S39 Backups: where a copy of the diary lives. The account's sync state (read-only here: Sync now
- * and Try again run in place, everything else is Open Settings), a backup file (Export now, with a
- * quiet monthly nudge), and Restore from a backup file. Meal photos stay on the device.
+ * and Try again run in place, everything else is Open Settings), the meal photos in Google Drive
+ * when the app has a Google client id, a backup file (Export now, with a quiet monthly nudge), and
+ * Restore from a backup file. Meal photos go to Google Drive when it's connected (§10.18).
  */
 export default function BackupsScreen() {
   const navigate = useNavigate();
@@ -53,6 +114,7 @@ export default function BackupsScreen() {
   const today = useToday();
   const mealCount = useMealCount();
   const view = useSyncView();
+  const driveView = useDriveView();
   const showToast = useUiStore((s) => s.showToast);
   const [lastBackupAt, setLastBackupAt] = useState(readLastBackupAt);
   const [exporting, setExporting] = useState(false);
@@ -144,6 +206,8 @@ export default function BackupsScreen() {
         </section>
       ) : null}
 
+      {isDriveConfigured() ? <MealPhotosSection view={driveView} tz={profile.timeZone} /> : null}
+
       <section>
         <SectionHeading inset={20}>Backup file</SectionHeading>
         <div className={styles.card}>
@@ -156,9 +220,7 @@ export default function BackupsScreen() {
             actions={[{ id: 'export', label: 'Export now', variant: exportCopy.action, busy: exporting, onPress: () => void exportNow() }]}
           />
         </div>
-        <p className={styles.caption}>
-          The file goes to your downloads. Meal photos stay on this {word} and aren't in it. Keep a copy somewhere off this {word}.
-        </p>
+        <p className={styles.caption}>{backupFileCaption(word, driveView.connected && isDriveConfigured())}</p>
         <SettingsGroup>
           <SettingsRow
             label="Other export options"

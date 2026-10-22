@@ -30,12 +30,14 @@ import {
   updatePlace,
   upsertWeekPlan,
 } from '@/db/repo';
+import { dropUploadIn, queueTrashIn, queueUploadIn, undoTrashIn } from '@/db/driveQueue';
 import { buildStarterGoals } from '@/db/seed/defaults';
 import { loadDemo, type DemoWorld } from '@/db/seed/demo';
 import { byId, normaliseName } from '@/data/catalogue';
 import { isDemoClock, now, setDemoClock } from '@/domain/clock';
 import { compareDays, logicalDayOf, weekStartOf } from '@/domain/day';
 import { itemFromCatalogue, scaleMacros, sumMacros } from '@/domain/meal';
+import { drivePointerOf } from '@/domain/photoSync';
 import { dailyTargetFor, defaultMacroTargets, startingMaintenance } from '@/domain/targets';
 import { clipText } from '@/domain/text';
 import { suggestSlot } from '@/domain/timing';
@@ -96,6 +98,16 @@ function dayOf(at: Instant, settings: Settings): LogicalDay {
 /** Drops keys whose value is undefined, so a patch can clear an optional field. */
 function withoutUndefined<T extends object>(row: T): T {
   return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined)) as T;
+}
+
+/**
+ * A meal's Drive pointer belongs to its photo (decision §10.18): a write that changes the photoId
+ * drops it. The old Drive file stays (the UI can't change a meal's photo today).
+ */
+function pointerAfter(before: Pick<MealLog, 'photoId'>, after: MealLog): MealLog {
+  if (after.photoId === before.photoId || after.photoDrive === undefined) return after;
+  const { photoDrive: _drive, ...rest } = after;
+  return rest;
 }
 
 /** An edit to a synced row has to go up again; local rows stay local until the first sync. */
@@ -233,19 +245,23 @@ export type MealPatch = Partial<
 
 async function updateMealIn(db: KiraMakanDb, id: Id, patch: MealPatch): Promise<MealLog | undefined> {
   const settings = await loadSettings(db);
-  return db.transaction('rw', db.meals, async () => {
+  return db.transaction('rw', [db.meals, db.driveJobs, db.driveMeta], async () => {
     const meal = await getMeal(db, id);
     if (!meal) return undefined;
-    const next: MealLog = withoutUndefined({
-      ...meal,
-      ...patch,
-      items: patch.items ? patch.items.map(withOriginal) : meal.items,
-      updatedAt: stampNow(),
-      syncState: touchedSyncState(meal.syncState),
-    });
+    const next: MealLog = pointerAfter(
+      meal,
+      withoutUndefined({
+        ...meal,
+        ...patch,
+        items: patch.items ? patch.items.map(withOriginal) : meal.items,
+        updatedAt: stampNow(),
+        syncState: touchedSyncState(meal.syncState),
+      }),
+    );
     if (patch.eatenAt) next.logicalDay = dayOf(patch.eatenAt, settings);
     if (next.items.length === 0) throw new RangeError('A meal needs at least one item');
     await db.meals.put(next);
+    if (next.photoId && next.photoId !== meal.photoId) await queueUploadIn(db, next);
     return next;
   });
 }
@@ -254,8 +270,8 @@ export interface SavedMeal {
   meal: MealLog;
   /**
    * Takes the save back ("Saved · ~560 kcal · Undo"). A new meal is removed with what it
-   * taught (Usual count, Place price and trays, a Place it created); an edit gets its previous
-   * version back.
+   * taught (Usual count, Place price and trays, a Place it created), and its photo leaves the
+   * Drive queue, or Google Drive if it already went up; an edit gets its previous version back.
    */
   undo: Undo;
 }
@@ -274,7 +290,7 @@ async function saveMealIn(db: KiraMakanDb, draft: ReviewDraft): Promise<SavedMea
   const stamp = stampNow();
   const items = draft.items.map(withOriginal);
 
-  return db.transaction('rw', [db.meals, db.places, db.usuals], async () => {
+  return db.transaction('rw', [db.meals, db.places, db.usuals, db.driveJobs, db.driveMeta], async () => {
     let createdPlaceId: Id | undefined;
     const draftPlaceId = async (): Promise<Id | undefined> => {
       if (meta.placeId) return meta.placeId;
@@ -290,7 +306,8 @@ async function saveMealIn(db: KiraMakanDb, draft: ReviewDraft): Promise<SavedMea
     const editing = meta.editingMealId ? await getMeal(db, meta.editingMealId) : undefined;
     if (editing) {
       const placeChosen = 'placeId' in meta || 'placeName' in meta;
-      const updated: MealLog = withoutUndefined({
+      // The stored meal is spread, so its Drive pointer stays unless the photo changed.
+      const updated: MealLog = pointerAfter(editing, withoutUndefined({
         ...editing,
         eatenAt: meta.eatenAt ?? editing.eatenAt,
         logicalDay: meta.eatenAt ? dayOf(meta.eatenAt, settings) : editing.logicalDay,
@@ -307,8 +324,10 @@ async function saveMealIn(db: KiraMakanDb, draft: ReviewDraft): Promise<SavedMea
         finished: meta.finished ?? editing.finished,
         updatedAt: stamp,
         syncState: touchedSyncState(editing.syncState),
-      });
+      }));
       await db.meals.put(updated);
+      // A stray job left by the undo drops itself when it runs (its meal no longer holds the photo).
+      if (updated.photoId && updated.photoId !== editing.photoId) await queueUploadIn(db, updated);
       const undo: Undo = async () => {
         await db.transaction('rw', [db.meals, db.places], async () => {
           await db.meals.put(editing);
@@ -345,10 +364,16 @@ async function saveMealIn(db: KiraMakanDb, draft: ReviewDraft): Promise<SavedMea
       syncState: 'local' as const,
     });
     await db.meals.put(meal);
+    await queueUploadIn(db, meal);
     const learned = await learnFromMeal(db, meal);
     const undo: Undo = async () => {
-      await db.transaction('rw', [db.meals, db.places, db.usuals], async () => {
+      await db.transaction('rw', [db.meals, db.places, db.usuals, db.driveJobs], async () => {
+        // The photo may have reached Google Drive since the save: that file goes to Drive's trash.
+        const stored = await getMeal(db, meal.id);
+        const pointer = stored ? drivePointerOf(stored) : undefined;
         await db.meals.delete(meal.id);
+        if (meal.photoId) await dropUploadIn(db, meal.photoId);
+        if (pointer) await queueTrashIn(db, pointer.fileId);
         if (learned.usual) await db.usuals.put(learned.usual);
         if (learned.place) await db.places.put(learned.place);
         await removeCreatedPlace();
@@ -385,33 +410,40 @@ async function returnToPot(db: KiraMakanDb, meal: MealLog): Promise<number> {
 }
 
 /**
- * Deletes a meal (and its photo). A pot serving goes back into its pot. The undo puts all of
- * it back as it was.
+ * Deletes a meal (and its photo). A pot serving goes back into its pot. A photo waiting to upload
+ * leaves the queue, and one already in Google Drive goes to Drive's trash a minute later (§10.18).
+ * The undo puts all of it back as it was: the upload job, and the Drive file (the trash is
+ * cancelled, or undone if it already ran).
  */
 async function deleteMealIn(db: KiraMakanDb, id: Id): Promise<Undo> {
-  const removed = await db.transaction('rw', [db.meals, db.photos, db.pots], async () => {
+  const removed = await db.transaction('rw', [db.meals, db.photos, db.pots, db.driveJobs], async () => {
     const meal = await getMeal(db, id);
     if (!meal) return undefined;
     const photo: PhotoRecord | undefined = meal.photoId ? await getPhoto(db, meal.photoId) : undefined;
     await db.meals.delete(id);
     if (photo) await db.photos.delete(photo.id);
     const returned = await returnToPot(db, meal);
-    return { meal, photo, returned };
+    const removedJob = meal.photoId ? await dropUploadIn(db, meal.photoId) : undefined;
+    const pointer = drivePointerOf(meal);
+    if (pointer) await queueTrashIn(db, pointer.fileId);
+    return { meal, photo, returned, removedJob, pointer };
   });
   if (!removed) return NO_UNDO;
   return async () => {
-    await db.transaction('rw', [db.meals, db.photos, db.pots], async () => {
+    await db.transaction('rw', [db.meals, db.photos, db.pots, db.driveJobs], async () => {
       await db.meals.put(removed.meal);
       if (removed.photo) await db.photos.put(removed.photo);
       const pot = removed.meal.fromPot;
       if (pot && removed.returned > 0) await takePotServings(db, pot.potId, removed.returned);
+      if (removed.removedJob) await db.driveJobs.put(removed.removedJob);
+      if (removed.pointer) await undoTrashIn(db, removed.pointer.fileId);
     });
   };
 }
 
 /**
  * Logs the same meal again, now (or at `at`). The copy gets new ids, a fresh slot and no
- * photo. A copied "typical one" is a meal you logged yourself, so it's no longer a guess.
+ * photo (nor its Drive pointer). A copied "typical one" is a meal you logged yourself, so it's no longer a guess.
  * A pot serving takes the same servings out of its pot again while the pot is still in the
  * fridge (as many as are left); otherwise the copy is a plain meal with no pot link.
  */
@@ -422,7 +454,7 @@ async function duplicateMealIn(db: KiraMakanDb, id: Id, at?: Instant): Promise<M
     if (!source) return undefined;
     const stamp = stampNow();
     const eatenAt = at ?? stamp;
-    const { photoId: _photo, isGuess: _guess, fromPot, ...rest } = source;
+    const { photoId: _photo, photoDrive: _drive, isGuess: _guess, fromPot, ...rest } = source;
     const copy: MealLog = {
       ...rest,
       method: source.method === 'guess' ? 'manual' : source.method,

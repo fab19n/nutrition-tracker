@@ -57,6 +57,14 @@ export function syncNow(): Promise<void> {
   return getEngine().syncNow();
 }
 
+/**
+ * Pulls what other devices changed before a write made in the background (the Drive photo pointer,
+ * §10.18): a cycle now, on a linked device only. Never rejects.
+ */
+export function catchUpSync(): Promise<void> {
+  return getEngine().catchUp();
+}
+
 /** Pushes what's queued, waiting at most `timeoutMs` (before signing out). Never rejects. */
 export function flushSync(timeoutMs: number): Promise<void> {
   return getEngine().flush(timeoutMs);

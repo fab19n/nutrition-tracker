@@ -30,6 +30,13 @@
   color: var(--muted);
 }
 
+.error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
 .actions {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { FileCheck, FileClock, FileDown, MapPin, Scale, Utensils } from 'lucide-react';
+import { FileCheck, FileClock, FileDown, HardDrive, MapPin, Scale, Utensils } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MealRow } from '@/components/MealRow/MealRow';
 import { EmptySlot, MealSectionHeader } from '@/components/EmptySlot/EmptySlot';
@@ -25,6 +25,8 @@ import type { CheckInChoice } from '@/db/selectors';
 import type { BackupStatus as BackupFileStatus } from '@/domain/backup';
 import { DEMO_NOW_ISO } from '@/domain/clock';
 import { DEFAULT_TZ } from '@/domain/day';
+import type { DriveEngineState } from '@/drive/engine';
+import { describeDrive, drivePhase, DRIVE_PRIMER } from '@/drive/status';
 import { exportCardCopy, previewCard, type ExportCardCopy } from '@/screens/Backups/backupsModel';
 import { describeSync, type SyncView } from '@/sync/status';
 import { CHECK_IN_CAPTIONS, CheckInTimelineSample } from './checkInSample';
@@ -95,6 +97,34 @@ const SYNC_STATES: { label: string; view: Partial<SyncView> }[] = [
   { label: 'Signed in to another account', view: { phase: 'otherAccount', sessionEmail: 'other@example.com' } },
   { label: 'Account copy deleted', view: { phase: 'cloudReset' } },
   { label: "Getting the account's data", view: { phase: 'restoring', linked: false, progress: { done: 600, total: 1840 } } },
+];
+
+/** The Drive photo card: its copy comes from describeDrive, so each state here is the app's own. */
+const DRIVE_CONNECTED: DriveEngineState = {
+  configured: true,
+  profile: 'real',
+  keepPhotos: true,
+  connected: true,
+  email: 'you@example.com',
+  gisReady: true,
+  tokenExpiresAt: SYNC_NOW_MS + 40 * 60_000,
+  authBusy: false,
+  running: false,
+  online: true,
+  counts: { uploads: 0, files: 0, failed: 0 },
+};
+const DRIVE_STATES: { label: string; state: Partial<DriveEngineState> }[] = [
+  { label: 'Not connected', state: { connected: false, email: undefined, tokenExpiresAt: undefined } },
+  { label: 'Connecting', state: { connected: false, authBusy: true } },
+  { label: 'Uploading 3 of 12', state: { running: true, progress: { done: 3, total: 12 }, counts: { uploads: 9, files: 0, failed: 0 } } },
+  { label: 'Up to date, last upload 5 min ago', state: { lastUploadAt: SYNC_NOW_MS - 5 * 60_000 } },
+  { label: 'Photos waiting', state: { counts: { uploads: 2, files: 0, failed: 0 } } },
+  { label: 'Offline, 2 waiting', state: { online: false, counts: { uploads: 2, files: 0, failed: 0 } } },
+  { label: 'Needs you, 3 waiting', state: { tokenExpiresAt: undefined, counts: { uploads: 3, files: 0, failed: 0 } } },
+  { label: 'Keep photos off', state: { keepPhotos: false } },
+  { label: "Can't reach Google Drive", state: { error: 'unreachable', retryAt: SYNC_NOW_MS + 5 * 60_000, counts: { uploads: 4, files: 0, failed: 0 } } },
+  { label: 'Drive full', state: { error: 'driveFull', counts: { uploads: 4, files: 0, failed: 0 } } },
+  { label: "1 photo couldn't upload", state: { counts: { uploads: 0, files: 0, failed: 1 } } },
 ];
 
 /** The backup-file card on Backups: its copy comes from exportCardCopy, so each state here is the app's own. */
@@ -570,6 +600,22 @@ function SyncStates() {
   );
 }
 
+function DriveStates() {
+  return (
+    <Group title="Drive photo sync (SyncStatus)">
+      {DRIVE_STATES.map(({ label, state }) => {
+        const engine = { ...DRIVE_CONNECTED, ...state };
+        const copy = describeDrive({ ...engine, phase: drivePhase(engine, SYNC_NOW_MS), now: SYNC_NOW_MS }, DEFAULT_TZ);
+        return (
+          <State key={label} label={`SyncStatus / Drive (${label})`}>
+            <SyncStatus {...copy} icon={HardDrive} actions={copy.actions.map((action) => ({ ...action, onPress: noop }))} />
+          </State>
+        );
+      })}
+    </Group>
+  );
+}
+
 function EmptyAndLoadingStates() {
   return (
     <>
@@ -637,9 +683,31 @@ function PrimerAndInstallStates() {
         <State label="C58 PermissionPrimer / Google Drive">
           <PermissionPrimer
             kind="drive"
-            title="Back up to Google Drive"
-            body="Saves a weekly copy to a folder in your Google Drive. The app can only see files it creates."
-            allowLabel="Connect Google Drive"
+            title={DRIVE_PRIMER.title}
+            body={DRIVE_PRIMER.body}
+            allowLabel={DRIVE_PRIMER.allowLabel}
+            onAllow={noop}
+            onNotNow={noop}
+          />
+        </State>
+        <State label="C58 PermissionPrimer / Google Drive (getting ready)">
+          <PermissionPrimer
+            kind="drive"
+            title={DRIVE_PRIMER.title}
+            body={DRIVE_PRIMER.body}
+            allowLabel={DRIVE_PRIMER.readyingLabel}
+            allowDisabled
+            onAllow={noop}
+            onNotNow={noop}
+          />
+        </State>
+        <State label="C58 PermissionPrimer / Google Drive (window blocked)">
+          <PermissionPrimer
+            kind="drive"
+            title={DRIVE_PRIMER.title}
+            body={DRIVE_PRIMER.body}
+            allowLabel={DRIVE_PRIMER.allowLabel}
+            error="The Google window didn't open. Try again."
             onAllow={noop}
             onNotNow={noop}
           />
@@ -772,6 +840,7 @@ export function LedgerGallery() {
       <BackupStates />
       <FileBackupStates />
       <SyncStates />
+      <DriveStates />
       <EmptyAndLoadingStates />
       <PrimerAndInstallStates />
       <ConfirmStates />

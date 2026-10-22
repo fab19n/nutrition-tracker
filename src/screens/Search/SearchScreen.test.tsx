@@ -96,6 +96,15 @@ afterEach(async () => {
 });
 
 describe('SearchScreen (S49)', () => {
+  it('shows the Drive thumbnail of a meal photographed on another device', async () => {
+    const thumb = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+    await db.meals.update(DEMO_IDS.meals.todayBreakfast, { photoId: 'photo-elsewhere', photoDrive: { fileId: 'drive-file-0001', thumb } });
+    const user = userEvent.setup();
+    renderSearch();
+    await user.type(await findField(), 'roti canai{Enter}');
+    await waitFor(() => expect(document.querySelector(`img[src="${thumb}"]`)).not.toBeNull(), SLOW);
+  });
+
   it('shows a skeleton while loading, then the focused field, the hint and what you log often', async () => {
     renderSearch();
     expect(screen.getByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument();

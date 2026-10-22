@@ -8,6 +8,7 @@ import { dailyTargetFor, startingMaintenance } from '@/domain/targets';
 import type { MealItem } from '@/domain/types';
 import type { ReviewDraft } from '@/state/ui';
 import { createActions, defaultMealName, mealNameFromText, type Actions, type SetupInput } from './actions';
+import { recordUpload } from './driveQueue';
 import { getCheckIn, getDaySummary, getWeekBudget } from './selectors';
 
 let db: KiraMakanDb;
@@ -636,5 +637,131 @@ describe('mealNameFromText', () => {
       meta: { method: 'text', text: 'nasi kandar ayam goreng, kuah banjir' },
     });
     expect(meal.name).toBe('Nasi kandar ayam goreng');
+  });
+});
+
+describe('meal photos and the Google Drive queue (§10.18)', () => {
+  const FILE = 'drive-file-0001';
+  const THUMB = 'data:image/jpeg;base64,/9j/4AAQ';
+
+  function photoDraft(photoId: string, meta: Partial<ReviewDraft['meta']> = {}): ReviewDraft {
+    return draft([item('p1', 'Nasi kandar', 700)], { method: 'photo', photoId, eatenAt: '2026-10-16T12:30:00.000Z', ...meta });
+  }
+
+  async function connectDrive() {
+    await db.driveMeta.put({ id: 'drive', connectedAt: Date.now() });
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '123-abc.apps.googleusercontent.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('saving a photo meal queues its upload when connected, and the undo drops it', async () => {
+    await connectDrive();
+    const { meal, undo } = await actions.saveMeal(photoDraft('p1'));
+    expect(await db.driveJobs.get('upload:p1')).toMatchObject({ kind: 'upload', photoId: 'p1', mealId: meal.id, attempts: 0 });
+    await undo();
+    expect(await db.driveJobs.count()).toBe(0);
+  });
+
+  it('the undo of a photo meal whose upload already finished sends the file to the trash', async () => {
+    await connectDrive();
+    const { meal, undo } = await actions.saveMeal(photoDraft('p1'));
+    const job = await db.driveJobs.get('upload:p1');
+    if (job?.kind !== 'upload') throw new Error('No upload job');
+    // The engine uploaded the photo within the toast's few seconds and wrote the pointer.
+    expect(await recordUpload(db, job, { fileId: FILE })).toBe('saved');
+
+    const before = Date.now();
+    await undo();
+    expect(await db.meals.get(meal.id)).toBeUndefined();
+    expect(await db.driveJobs.get('upload:p1')).toBeUndefined();
+    const trash = await db.driveJobs.get(`file:${FILE}`);
+    expect(trash).toMatchObject({ kind: 'file', fileId: FILE, trashed: true, attempts: 0 });
+    expect(trash?.notBefore).toBeGreaterThanOrEqual(before + 60_000);
+  });
+
+  it('queues nothing when not connected, or under the demo clock', async () => {
+    await actions.saveMeal(photoDraft('p1'));
+    expect(await db.driveJobs.count()).toBe(0);
+    await connectDrive();
+    setDemoClock(true);
+    await actions.saveMeal(photoDraft('p2'));
+    expect(await db.driveJobs.count()).toBe(0);
+  });
+
+  it('an edit keeps the Drive pointer; another photo drops it and queues the new one', async () => {
+    const { meal } = await actions.saveMeal(photoDraft('p1'));
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE, thumb: THUMB } });
+    await connectDrive();
+
+    const edited = await actions.saveMeal({ ...photoDraft('p1', { editingMealId: meal.id, name: 'Nasi kandar banjir' }) });
+    expect(edited.meal.photoDrive).toEqual({ fileId: FILE, thumb: THUMB });
+    expect((await db.meals.get(meal.id))?.photoDrive).toEqual({ fileId: FILE, thumb: THUMB });
+
+    const swapped = await actions.saveMeal(photoDraft('p2', { editingMealId: meal.id }));
+    expect(swapped.meal.photoId).toBe('p2');
+    expect(swapped.meal.photoDrive).toBeUndefined();
+    expect(await db.driveJobs.get('upload:p2')).toMatchObject({ mealId: meal.id });
+
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE } });
+    const patched = await actions.updateMeal(meal.id, { photoId: 'p3' });
+    expect(patched?.photoDrive).toBeUndefined();
+    expect(await db.driveJobs.get('upload:p3')).toMatchObject({ mealId: meal.id });
+    const renamed = await actions.updateMeal(meal.id, { name: 'Still p3' });
+    expect(renamed?.photoId).toBe('p3');
+  });
+
+  it('delete trashes the Drive file a minute later and drops the upload; undo puts both back', async () => {
+    await connectDrive();
+    const { meal } = await actions.saveMeal(photoDraft('p1'));
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE } });
+    const job = await db.driveJobs.get('upload:p1');
+
+    const before = Date.now();
+    const undo = await actions.deleteMeal(meal.id);
+    const after = Date.now();
+    expect(await db.driveJobs.get('upload:p1')).toBeUndefined();
+    const trash = await db.driveJobs.get(`file:${FILE}`);
+    expect(trash).toMatchObject({ kind: 'file', fileId: FILE, trashed: true, attempts: 0 });
+    expect(trash?.notBefore).toBeGreaterThanOrEqual(before + 60_000);
+    expect(trash?.notBefore).toBeLessThanOrEqual(after + 60_000);
+
+    await undo();
+    expect(await db.meals.get(meal.id)).toBeDefined();
+    expect(await db.driveJobs.get(`file:${FILE}`)).toBeUndefined();
+    expect(await db.driveJobs.get('upload:p1')).toEqual(job);
+  });
+
+  it('undo after the trash ran restores the file', async () => {
+    const { meal } = await actions.saveMeal(photoDraft('p1'));
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE } });
+    const undo = await actions.deleteMeal(meal.id);
+    // The engine ran the trash and removed its job.
+    await db.driveJobs.delete(`file:${FILE}`);
+
+    await undo();
+    expect(await db.driveJobs.get(`file:${FILE}`)).toMatchObject({ kind: 'file', trashed: false, attempts: 0 });
+  });
+
+  it('a delete under the demo clock queues nothing', async () => {
+    const { meal } = await actions.saveMeal(photoDraft('p1'));
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE } });
+    setDemoClock(true);
+    await actions.deleteMeal(meal.id);
+    expect(await db.driveJobs.count()).toBe(0);
+  });
+
+  it('a duplicate has neither the photo nor its pointer', async () => {
+    const { meal } = await actions.saveMeal(photoDraft('p1'));
+    await db.meals.update(meal.id, { photoDrive: { fileId: FILE, thumb: THUMB } });
+    const copy = await actions.duplicateMeal(meal.id);
+    expect(copy?.photoId).toBeUndefined();
+    expect(copy?.photoDrive).toBeUndefined();
+    expect((await db.meals.get(copy?.id ?? ''))?.photoDrive).toBeUndefined();
   });
 });

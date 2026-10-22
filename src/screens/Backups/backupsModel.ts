@@ -1,8 +1,8 @@
 /**
  * What the Backups screen says (S39) and when it lets you restore: the export card, the
- * Settings row's sub-line, the sync card's actions here, the problems a backup file can have, and
- * the preview, confirm and result copy of "Restore from a backup file". Pure, so every state and
- * string is tested without a database, an engine or a clock.
+ * Settings row's sub-line, the sync and meal photo cards' actions here, the problems a backup file
+ * can have, and the preview, confirm and result copy of "Restore from a backup file". Pure, so
+ * every state and string is tested without a database, an engine or a clock.
  */
 import type { BackupPreviewProps, BackupPreviewRow } from '@/components/BackupPreview/BackupPreview';
 import { BackupImportError, type BackupPreview, type DeviceComparison, type ImportSummary } from '@/db/export';
@@ -10,6 +10,7 @@ import type { BackupStatus } from '@/domain/backup';
 import { daysBetween, logicalDayOf } from '@/domain/day';
 import { ageText, fmtDateYear, fmtDayShort, fmtInt, fmtTime } from '@/domain/format';
 import type { Instant, Profile } from '@/domain/types';
+import type { DriveCopy } from '@/drive/status';
 import type { SyncPhase } from '@/sync/engine';
 import type { SyncCopy, SyncView } from '@/sync/status';
 
@@ -122,6 +123,36 @@ export function backupActions(copy: SyncCopy): BackupAction[] {
     return [{ id: 'manage', label: 'Open Settings', variant: copy.tone === 'attention' ? 'primary' : 'secondary' }];
   }
   return [];
+}
+
+export interface DriveBackupAction {
+  /** continue and retry run in place; manage opens Settings. */
+  id: 'continue' | 'retry' | 'manage';
+  label: string;
+  variant: 'primary' | 'secondary' | 'ghost';
+}
+
+/**
+ * The meal photo card's buttons here (decision §10.18). Continue and Try again run in place;
+ * Connect and Disconnect are one Open Settings (primary when the card needs you, else secondary),
+ * where the connect sheet and the disconnect confirm live.
+ */
+export function driveBackupActions(copy: DriveCopy): DriveBackupAction[] {
+  const inPlace = copy.actions.find((action) => action.id === 'continue' || action.id === 'retry');
+  if (inPlace && (inPlace.id === 'continue' || inPlace.id === 'retry')) {
+    return [{ id: inPlace.id, label: inPlace.label, variant: inPlace.variant }];
+  }
+  if (copy.actions.length > 0) {
+    return [{ id: 'manage', label: 'Open Settings', variant: copy.tone === 'attention' ? 'primary' : 'secondary' }];
+  }
+  return [];
+}
+
+/** The backup-file card's caption: where the file goes, and where the meal photos are. */
+export function backupFileCaption(word: DeviceWord, photosInDrive: boolean): string {
+  return photosInDrive
+    ? `The file goes to your downloads. Meal photos aren't in it; they're in your Google Drive. Keep a copy somewhere off this ${word}.`
+    : `The file goes to your downloads. Meal photos stay on this ${word} and aren't in it. Keep a copy somewhere off this ${word}.`;
 }
 
 /** A line under the sync card for the states where a file matters more than the account. */

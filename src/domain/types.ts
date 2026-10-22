@@ -312,6 +312,14 @@ export interface MealItem {
 
 export type SyncState = 'local' | 'pending' | 'synced';
 
+/** Where a meal's photo lives in the user's Google Drive (decision §10.18). Synced with the meal; optional. */
+export interface MealPhotoDrive {
+  /** Drive file id of the full photo: a file this app created (drive.file scope). */
+  fileId: string;
+  /** A square JPEG of about 128 px as a data URL (at most 16,000 characters), so lists show the photo on every device. */
+  thumb?: string;
+}
+
 export interface MealLog {
   id: Id;
   /** When it was eaten (UTC). */
@@ -325,6 +333,8 @@ export interface MealLog {
   placeId?: Id;
   priceRm?: number;
   photoId?: Id;
+  /** Set once the photo is in Google Drive. Belongs to `photoId`: a write that changes photoId drops it. */
+  photoDrive?: MealPhotoDrive;
   /** Original typed text (text and photo-caption flows). */
   text?: string;
   finished: Finished;

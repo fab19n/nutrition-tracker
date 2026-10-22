@@ -22,13 +22,30 @@ export interface PermissionPrimerProps {
   onAllow: () => void;
   onNotNow: () => void;
   notNowLabel?: string;
+  /** The allow button can't be pressed yet ("Getting ready…"). */
+  allowDisabled?: boolean;
+  /** The allow button's action is running ("Connecting…"): disabled, and says so to screen readers. */
+  allowBusy?: boolean;
+  /** Why the last try didn't work, under the body ("The Google window didn't open. Try again."). */
+  error?: string;
 }
 
 /**
  * @design C58 PermissionPrimer — a short explanation shown before the system prompt for location,
  * notifications, camera and Google Drive. Asked only when first needed.
  */
-export function PermissionPrimer({ kind, title, body, allowLabel, onAllow, onNotNow, notNowLabel = 'Not now' }: PermissionPrimerProps) {
+export function PermissionPrimer({
+  kind,
+  title,
+  body,
+  allowLabel,
+  onAllow,
+  onNotNow,
+  notNowLabel = 'Not now',
+  allowDisabled,
+  allowBusy,
+  error,
+}: PermissionPrimerProps) {
   const id = useId();
   const Icon = ICONS[kind];
   return (
@@ -42,8 +59,15 @@ export function PermissionPrimer({ kind, title, body, allowLabel, onAllow, onNot
       <p id={`${id}-body`} className={styles.body}>
         {body}
       </p>
+      {error ? (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className={styles.actions}>
-        <Button onClick={onAllow}>{allowLabel}</Button>
+        <Button onClick={onAllow} disabled={allowDisabled || allowBusy} aria-busy={allowBusy || undefined}>
+          {allowLabel}
+        </Button>
         <Button variant="ghost" size="md" onClick={onNotNow}>
           {notNowLabel}
         </Button>

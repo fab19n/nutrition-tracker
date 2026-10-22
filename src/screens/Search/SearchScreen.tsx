@@ -13,7 +13,7 @@ import { SubScreenHeader } from '@/components/TopBar/TopBar';
 import { Button } from '@/components/ui/Button';
 import { Chip, ChipGroup } from '@/components/ui/Chip';
 import { SectionHeading } from '@/components/ui/SectionHeading';
-import { usePhotoUrl } from '@/db/diary';
+import { useMealThumbUrl } from '@/db/diary';
 import { useProfile, useToday } from '@/db/hooks';
 import { useSearchIndex } from '@/db/search';
 import { DEFAULT_TZ } from '@/domain/day';
@@ -60,7 +60,7 @@ interface SearchResultRowProps {
 
 /** One result: the Diary's MealRow, read-only (no swipe actions, timing tag or sync badge). */
 function SearchResultRow({ entry, parsed, tz, onOpen }: SearchResultRowProps) {
-  const thumbUrl = usePhotoUrl(entry.photoId);
+  const thumbUrl = useMealThumbUrl({ photoId: entry.photoId, mealId: entry.id });
   return (
     <MealRow
       slotLabel={SLOT_LABEL[entry.slot]}

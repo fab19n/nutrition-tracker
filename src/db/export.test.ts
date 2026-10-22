@@ -17,6 +17,7 @@ import {
   type ParsedBackup,
 } from '@/db/export';
 import { DEMO_EXPECTED, DEMO_IDS, loadDemo } from '@/db/seed/demo';
+import { drivePointerOf } from '@/domain/photoSync';
 import { backupFileOf, jsonFile, type EditableBackup } from '@/test/backupFiles';
 
 let source: KiraMakanDb;
@@ -121,6 +122,28 @@ describe('JSON backup', () => {
     expect(await target.syncMeta.toArray()).toEqual([{ id: 'sync', lastSyncedAt: 2 }]);
     expect(await target.syncRevs.count()).toBe(0);
     expect(await target.syncOutbox.count()).toBe(0);
+  });
+
+  it("keeps a meal's Drive pointer in the file and through a restore", async () => {
+    const pointer = { fileId: 'drive-file-0001', thumb: 'data:image/jpeg;base64,/9j/4AAQ' };
+    await source.meals.update(DEMO_IDS.meals.todayLunch, { photoId: 'p1', photoDrive: pointer });
+    const file = await exportAll(source);
+    const backup = JSON.parse(await file.text()) as BackupFile;
+    expect(backup.tables.meals.find((m) => m.id === DEMO_IDS.meals.todayLunch)?.photoDrive).toEqual(pointer);
+
+    await restoreBackup(target, await parsed(), DEVICE);
+    expect((await todayLunch(target)).photoDrive).toEqual(pointer);
+  });
+
+  it('takes a malformed Drive pointer as it is, and readers ignore it', async () => {
+    const backup = await parsed((file) => {
+      const lunch = file.tables.meals?.find((m) => m.id === DEMO_IDS.meals.todayLunch);
+      if (lunch) lunch.photoDrive = { fileId: 'bad id!', thumb: 42 };
+    });
+    await restoreBackup(target, backup, DEVICE);
+    const lunch = await todayLunch(target);
+    expect(lunch.photoDrive).toEqual({ fileId: 'bad id!', thumb: 42 });
+    expect(drivePointerOf(lunch)).toBeUndefined();
   });
 
   it('rejects files that are not backups and changes nothing', async () => {

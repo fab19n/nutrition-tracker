@@ -30,7 +30,10 @@ import {
 import { backupStatus } from '@/domain/backup';
 import { fmtClock, fmtDayShort, fmtInt, fmtKcal, fmtKg } from '@/domain/format';
 import { logicalDayOf } from '@/domain/day';
+import { photosLabel } from '@/domain/photoSync';
 import type { AiEstimateMode, Profile, Sex, ThemePreference } from '@/domain/types';
+import { forgetDriveToken, resumeDrive, stopDrive } from '@/drive';
+import { useDriveView } from '@/drive/hooks';
 import { readEstimateUrl } from '@/estimate/aiClient';
 import { backupsRowSub } from '@/screens/Backups/backupsModel';
 import { SEX_OPTIONS } from '@/screens/Setup/AboutStep';
@@ -42,6 +45,7 @@ import { flushSync, resumeSync, stopSync, syncNow } from '@/sync';
 import { useSyncView } from '@/sync/hooks';
 import { pendingSummary, readMeta } from '@/sync/local';
 import setupStyles from '@/screens/Setup/Setup.module.css';
+import { PhotosGroup } from './PhotosGroup';
 import { SyncGroup } from './SyncGroup';
 import styles from './SettingsScreen.module.css';
 
@@ -298,7 +302,7 @@ const SHEET_TITLE: Record<SheetKind, string> = {
 
 /**
  * S19 Settings: account and sync, AI estimates (when to use AI), profile, budget, day, appearance,
- * privacy, data, demo, about and Delete everything.
+ * privacy, photos (Keep photos and Google Drive), data, demo, about and Delete everything.
  */
 export default function SettingsScreen() {
   const navigate = useNavigate();
@@ -309,6 +313,7 @@ export default function SettingsScreen() {
   const mealCount = useMealCount();
   const session = useSession();
   const syncView = useSyncView();
+  const driveView = useDriveView();
   const showToast = useUiStore((s) => s.showToast);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -371,12 +376,15 @@ export default function SettingsScreen() {
 
   const deleteEverything = async () => {
     setConfirmDelete(false);
-    // Sync stands still while this phone is wiped, and a wipe is never sent: the account's copy stays.
-    await stopSync();
+    // Sync and Drive stand still while this phone is wiped, and a wipe is never sent: the account's
+    // copy and the photos in Google Drive stay.
+    await Promise.all([stopSync(), stopDrive()]);
     try {
       await Promise.all([resetAll(), forgetAccount()]);
+      forgetDriveToken();
     } finally {
       resumeSync();
+      resumeDrive();
     }
     resetUiState();
     clearLastExport();
@@ -406,10 +414,17 @@ export default function SettingsScreen() {
   const unsynced = syncView.pending + syncView.failed;
   // Once linked the copy is about sync, so it says "device" (a laptop syncs too); before, "phone" as elsewhere.
   const deleteSub = syncView.linked ? 'Removes all data on this device. The copy in your account stays.' : 'Removes all data on this phone';
-  const deleteBody = syncView.linked
-    ? 'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, so signing in again brings it back.' +
-      (unsynced > 0 ? ` ${changes(unsynced)} ${unsynced === 1 ? "hasn't" : "haven't"} synced and will be lost.` : '')
-    : "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy.";
+  // Photos waiting to upload (or set aside) are only on this device: the wipe takes them with it.
+  const photosWaiting = driveView.counts.uploads + driveView.counts.failed;
+  const driveNote = driveView.connected
+    ? ' Photos in your Google Drive stay there.' +
+      (photosWaiting > 0 ? ` ${photosLabel(photosWaiting)} that ${photosWaiting === 1 ? "hasn't" : "haven't"} uploaded will be lost.` : '')
+    : '';
+  const deleteBody =
+    (syncView.linked
+      ? 'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, so signing in again brings it back.' +
+        (unsynced > 0 ? ` ${changes(unsynced)} ${unsynced === 1 ? "hasn't" : "haven't"} synced and will be lost.` : '')
+      : "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy.") + driveNote;
 
   return (
     <div className={styles.subScreen}>
@@ -502,12 +517,9 @@ export default function SettingsScreen() {
               sub="Suggests the nearest Place when you log. Only each Place's own spot is saved."
               toggle={{ checked: profile.useLocation, onChange: (useLocation) => void save({ useLocation }) }}
             />
-            <SettingsRow
-              label="Keep photos"
-              sub={profile.keepPhotos ? 'Kept as a visual diary' : 'Photos clear after estimating'}
-              toggle={{ checked: profile.keepPhotos, onChange: (keepPhotos) => void save({ keepPhotos }) }}
-            />
           </SettingsGroup>
+
+          <PhotosGroup profile={profile} />
 
           <SettingsGroup title="Reminders and data">
             <SettingsRow label="Reminders" sub="Weigh-in and meal nudges" onPress={() => navigate(PATHS.soon('reminders'))} />

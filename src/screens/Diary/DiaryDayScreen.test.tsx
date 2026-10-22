@@ -89,6 +89,14 @@ afterEach(async () => {
 });
 
 describe('DiaryDayScreen (S12)', () => {
+  it('shows the Drive thumbnail of a meal photographed on another device', async () => {
+    const thumb = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+    await db.meals.update(DEMO_IDS.meals.todayBreakfast, { photoId: 'photo-elsewhere', photoDrive: { fileId: 'drive-file-0001', thumb } });
+    renderDiary();
+    await screen.findByText('Roti canai + teh tarik', {}, SLOW);
+    await waitFor(() => expect(rowOf('Roti canai + teh tarik').querySelector('img')?.getAttribute('src')).toBe(thumb));
+  });
+
   it('opens Search from the TopBar button', async () => {
     const user = userEvent.setup();
     const router = renderDiary();

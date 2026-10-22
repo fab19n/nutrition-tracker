@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +13,7 @@ import { DEMO_IDS, loadDemo } from '@/db/seed/demo';
 import type { SyncLink, SyncMeta } from '@/db/syncTypes';
 import { DEMO_NOW_ISO, isDemoClock } from '@/domain/clock';
 import { logicalDayOf } from '@/domain/day';
+import type { AuthResult, DriveEngineState } from '@/drive';
 import { backupFileOf, jsonFile, type BackupFileOptions } from '@/test/backupFiles';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { EngineState } from '@/sync';
@@ -56,6 +57,43 @@ vi.mock('@/sync', async (importOriginal) => ({
     return () => sync.listeners.delete(listener);
   },
   syncNow: () => sync.syncNow(),
+}));
+
+/** Stands in for the Drive engine (src/drive/index.ts): the meal photo card reads it; Continue and Try again are mocks. */
+const drive = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const base = {
+    configured: true,
+    profile: 'real' as const,
+    keepPhotos: true,
+    connected: false,
+    gisReady: true,
+    authBusy: false,
+    running: false,
+    online: true,
+    counts: { uploads: 0, files: 0, failed: 0 },
+  };
+  const current: { state: DriveEngineState } = { state: base };
+  return {
+    base,
+    current,
+    listeners,
+    continueDrive: vi.fn<() => Promise<AuthResult>>(async () => ({ ok: true })),
+    retryDrive: vi.fn<() => Promise<void>>(async () => {}),
+    prepareDrive: vi.fn(),
+  };
+});
+
+vi.mock('@/drive', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/drive')>()),
+  getDriveState: () => drive.current.state,
+  subscribeDrive: (listener: () => void) => {
+    drive.listeners.add(listener);
+    return () => drive.listeners.delete(listener);
+  },
+  continueDrive: () => drive.continueDrive(),
+  retryDrive: () => drive.retryDrive(),
+  prepareDrive: () => drive.prepareDrive(),
 }));
 
 const EMAIL = 'fabian@example.com';
@@ -237,6 +275,79 @@ describe('BackupsScreen without an account (S39)', () => {
 
     await user.click(await screen.findByRole('button', { name: /^Other export options/ }));
     expect(router.state.location.pathname).toBe(PATHS.export);
+  });
+});
+
+describe('BackupsScreen meal photos', () => {
+  const CLIENT_ID = '123-abc.apps.googleusercontent.com';
+
+  beforeEach(() => {
+    drive.current.state = { ...drive.base };
+    drive.continueDrive.mockReset().mockResolvedValue({ ok: true });
+    drive.retryDrive.mockReset().mockResolvedValue(undefined);
+    drive.prepareDrive.mockClear();
+  });
+
+  it('has no Meal photos section without a Google client id', async () => {
+    renderBackups();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Backup file' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Meal photos' })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('Google Drive');
+  });
+
+  it('sits between the account and the file, and Connect is Open Settings', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', CLIENT_ID);
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    const user = userEvent.setup();
+    const router = renderBackups();
+
+    const photos = await screen.findByRole('heading', { level: 2, name: 'Meal photos' });
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf('Meal photos')).toBe(headings.indexOf('Your account') + 1);
+    expect(headings.indexOf('Backup file')).toBe(headings.indexOf('Meal photos') + 1);
+    const card = photos.closest('section') as HTMLElement;
+    expect(within(card).getByRole('status')).toHaveTextContent('Photos are on this device only');
+    expect(within(card).queryByRole('button', { name: 'Connect Google Drive' })).not.toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Open Settings' }));
+    expect(router.state.location.pathname).toBe(PATHS.settings);
+  });
+
+  it('runs Continue in place, and says where photos are under the file card once connected', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', CLIENT_ID);
+    drive.current.state = { ...drive.base, connected: true, email: 'you@example.com', counts: { uploads: 2, files: 0, failed: 0 } };
+    drive.continueDrive.mockResolvedValueOnce({ ok: false, problem: 'popupBlocked' });
+    const router = renderBackups();
+
+    const card = (await screen.findByRole('heading', { level: 2, name: 'Meal photos' })).closest('section') as HTMLElement;
+    expect(within(card).getByRole('status')).toHaveTextContent('2 photos waiting for Google Drive');
+    await waitFor(() => expect(drive.prepareDrive).toHaveBeenCalled());
+    fireEvent.click(within(card).getByRole('button', { name: 'Continue' }));
+    expect(drive.continueDrive).toHaveBeenCalledTimes(1);
+    expect(router.state.location.pathname).toBe(PATHS.backups);
+    await waitFor(() => expect(useUiStore.getState().toast?.message).toBe("The Google window didn't open. Try again."));
+
+    expect(
+      within(section('Backup file')).getByText(
+        "The file goes to your downloads. Meal photos aren't in it; they're in your Google Drive. Keep a copy somewhere off this phone.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('runs Try again in place', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', CLIENT_ID);
+    drive.current.state = {
+      ...drive.base,
+      connected: true,
+      error: 'unreachable',
+      tokenExpiresAt: Date.now() + 30 * 60_000,
+      counts: { uploads: 2, files: 0, failed: 0 },
+    };
+    const user = userEvent.setup();
+    renderBackups();
+    const card = (await screen.findByRole('heading', { level: 2, name: 'Meal photos' })).closest('section') as HTMLElement;
+    await user.click(within(card).getByRole('button', { name: 'Try again' }));
+    expect(drive.retryDrive).toHaveBeenCalledTimes(1);
   });
 });
 

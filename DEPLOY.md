@@ -5,19 +5,21 @@ This guide takes Kira Makan from your PC to your phone:
 - **Vercel** hosts the app as static files, built from your GitHub repo.
 - **Supabase** runs the sign-in (email and password), keeps the synced copy of your diary in its database, and runs the `estimate` Edge Function, which holds your Anthropic API key as a secret.
 - **Anthropic** (Claude) reads typed meals and photos the offline catalogue can't.
+- **Google Drive** (optional) keeps your meal photos, in a folder the app creates; the app can see only that folder's files.
 
 ```
 Phone (installed app from Vercel)
   ├─ your diary: on the phone (IndexedDB), works offline, no account needed
   ├─ sync (signed in) ──► Supabase database: sync_* functions ──► your rows in sync_rows
   │                         a laptop restores from the same copy and stays in step
-  └─ AI estimate ──► Supabase Edge Function "estimate" ──► Claude API
-                       checks: signed-in user, email on ALLOWED_EMAILS, web origin on ALLOWED_ORIGIN
+  ├─ AI estimate ──► Supabase Edge Function "estimate" ──► Claude API
+  │                    checks: signed-in user, email on ALLOWED_EMAILS, web origin on ALLOWED_ORIGIN
+  └─ meal photos (connected) ──► your Google Drive: "Kira Makan photos" (drive.file)
 ```
 
-Sign-in protects two things: the synced copy of your diary and the AI function. The app works fully without an account. Signing in keeps a copy of your diary in your Supabase database, so a second device such as a laptop can restore it and stay in sync, and it unlocks AI estimates. The copy holds your meals, weights, goals, Places and settings as plain JSON: through the app only your own account can read it, and you can see it yourself in the Supabase dashboard (so can anyone else you give access to the project). Photos stay on the phone. You sign in with your email and a password, typed in the app (your password manager fills it in), and the phone stays signed in. Supabase sends no email at all. An emailed link would open Safari instead of the installed iPhone app, and new free Supabase projects can't change the built-in email to carry a code instead. New sign-ups are blocked: only the account you create yourself can sign in.
+Sign-in protects two things: the synced copy of your diary and the AI function. The app works fully without an account. Signing in keeps a copy of your diary in your Supabase database, so a second device such as a laptop can restore it and stay in sync, and it unlocks AI estimates. The copy holds your meals, weights, goals, Places and settings as plain JSON: through the app only your own account can read it, and you can see it yourself in the Supabase dashboard (so can anyone else you give access to the project). Photos stay on the phone unless you connect Google Drive (Part 9). You sign in with your email and a password, typed in the app (your password manager fills it in), and the phone stays signed in. Supabase sends no email at all. An emailed link would open Safari instead of the installed iPhone app, and new free Supabase projects can't change the built-in email to carry a code instead. New sign-ups are blocked: only the account you create yourself can sign in.
 
-Plan on about 50 minutes. Steps are numbered straight through, so the troubleshooting table can point back at them.
+Plan on about 50 minutes, plus 15 for Part 9. Steps are numbered straight through, so the troubleshooting table can point back at them.
 
 ## Before you start
 
@@ -198,7 +200,7 @@ The key goes in exactly two places: `.env.local` on your PC (part 2) and the Sup
 38. Watch the first sync. The **Account and sync** card above the Account row reads **Backing up** with a count while the phone sends its diary to your account for the first time (a small diary shows **Syncing…** instead), then **Up to date**. Keep the app open until it does; if it closes first, it carries on next time. From then on the phone syncs by itself about 2 seconds after each change, when you open the app or come back to it, when it's back online, and every 5 minutes while it's open; **Sync now** on the card runs it straight away. If the card says "Sync isn't set up on the server", do steps 19 and 20, then tap **Try again**. "Sync is off in demo mode" means you're exploring sample data: sync starts once you leave demo and set up.
 39. Leave **AI estimates** on **When needed** (the default and the cheapest): the AI runs only when the offline catalogue can't match everything you typed, and for photos. **Always** sends every typed meal and photo; **Off** keeps estimates on the phone.
 40. Try a typed meal: tap **Log**, type something the catalogue may not know, such as `mee siput muar, kopi o kosong`, and tap **Estimate**. To see that the AI answered, open the Supabase dashboard → **Edge Functions → estimate** and look at its invocations or logs for a 200; the request also appears on the Anthropic Console's [Usage](https://platform.claude.com/usage) page.
-41. Your diary lives on this phone, with a synced copy in your account; photos stay on the phone only. Keep a file too: **More → Settings → Backups → Export now** saves the whole diary as one JSON file (no photos) to your downloads, so keep it somewhere off the phone. The Backups screen shows your account's sync state and when you last exported, and says so, once, quietly, when that is over 30 days. To use a file, tap **Choose a backup file** on that screen (or **Restore from a backup file** on the welcome screen of a fresh install): the app shows what's in it, then replaces everything on the device with it. On a device that syncs, that also replaces your account's copy and your other devices follow, so it asks you to type REPLACE and offers to export first. The app asks the browser to keep its storage once setup is done, but on iPhone, removing the Home Screen app also removes its data. What had synced comes back with **Restore from your account** (step 42); photos and changes that hadn't synced yet don't, so export first.
+41. Your diary lives on this phone, with a synced copy in your account; photos stay on the phone unless Google Drive is connected (Part 9); the backup file never holds them. Keep a file too: **More → Settings → Backups → Export now** saves the whole diary as one JSON file (no photos) to your downloads, so keep it somewhere off the phone. The Backups screen shows your account's sync state and when you last exported, and says so, once, quietly, when that is over 30 days. To use a file, tap **Choose a backup file** on that screen (or **Restore from a backup file** on the welcome screen of a fresh install): the app shows what's in it, then replaces everything on the device with it. On a device that syncs, that also replaces your account's copy and your other devices follow, so it asks you to type REPLACE and offers to export first. The app asks the browser to keep its storage once setup is done, but on iPhone, removing the Home Screen app also removes its data. What had synced comes back with **Restore from your account** (step 42); photos and changes that hadn't synced yet don't, so export first.
 
 ## Part 8 · A second device
 
@@ -238,6 +240,21 @@ The data on each device stays as it is. Their Settings cards then say "The copy 
 - Changed the food catalogue in `src/data` or the server code in `supabase/functions/estimate`: repeat steps 30 and 31.
 - Changed a Vercel environment variable: redeploy (Deployments → the latest one → **⋯ → Redeploy**). `VITE_` values are baked in at build time, so old builds keep the old values.
 - Changed a Supabase secret: nothing else to do.
+
+## Part 9 · Google Drive for meal photos (optional)
+
+Meal photos then go to a **Kira Makan photos** folder in your own Google Drive, and your other devices show them: a small preview in every list straight away, the full photo when you tap **Show full photo**. The app asks Google only for the `drive.file` permission, so it can see the files it creates and nothing else in your Drive. It uses no client secret and keeps no Google password: Google's own window asks you, and the access it gives lasts about an hour, in memory only.
+
+43. Open https://console.cloud.google.com signed in with the Google account whose Drive should hold the photos. Project picker (top bar) → **New project** → name `Kira Makan` → **Create**, and select it.
+44. **APIs & Services → Library** → search **Google Drive API** → **Enable**.
+45. **Google Auth Platform → Branding** (older consoles: **APIs & Services → OAuth consent screen**) → **Get started**: App name `Kira Makan`, User support email (yours) → **Audience: External** → Contact information (your email) → agree → **Create**.
+46. **Data access** (or **Scopes**) → **Add or remove scopes** → filter `drive.file` → tick `.../auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app") → **Update** → **Save**. It is listed as a non-sensitive scope. Add no other scope.
+47. **Audience** → **Publish app** → **Confirm** (status **In production**). With only a non-sensitive scope Google needs no verification. (Left in **Testing**, only accounts on the Test users list can connect.)
+48. **Clients** (or **Credentials → Create credentials → OAuth client ID**) → **Create client** → Application type **Web application**, name `Kira Makan web`. **Authorized JavaScript origins**: `https://kira-makan.vercel.app` (your production address from step 24, no trailing slash), `http://localhost:5173` and `http://localhost`. No redirect URIs. **Create**, and copy the **Client ID** (it ends in `.apps.googleusercontent.com`). The client secret is never used: don't copy it anywhere.
+49. Vercel → your project → **Settings → Environment Variables** → add `VITE_GOOGLE_CLIENT_ID` with the client ID, for **Production, Preview and Development** → **Save** → **Deployments → the latest → ⋯ → Redeploy** (`VITE_` values are baked in at build time).
+50. On your PC: add `VITE_GOOGLE_CLIENT_ID=<the client ID>` to `.env.local` and restart `npm run dev`. Use the same client ID as production, so the app on `localhost` sees the same photos.
+51. On the phone: open the app (it updates by itself; close and reopen if it looks old) → **More → Settings → Photos → Connect Google Drive → Continue with Google** → pick the account from step 43 → **Allow** (tick Google Drive if Google shows a box). The card shows **Uploading photos**, then **Up to date**; photos already on the phone upload while the app is open. Google asks again about once an hour: when you add a photo, a Google window may open and close by itself, and if photos wait, the card says **Needs you** with **Continue**.
+52. On the laptop: same as step 51 with the same Google account. Open a meal photographed on the phone and tap **Show full photo**. In Google Drive, **My Drive → Kira Makan photos** holds the files. Deleting a meal moves its photo to Drive's trash about a minute later; **Delete everything** never touches Drive.
 
 ---
 
@@ -283,8 +300,21 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 | `npx` refuses to run in PowerShell | Script execution policy | Use Git Bash, or `npx.cmd`. |
 | The Vercel build fails on the Node version | The project's Node.js version is older than Vite needs | Project **Settings → Build and Deployment → Node.js Version** (if the label differs, look for **Node.js Version** under **General**): pick 22.x or newer (24.x matches local development), then redeploy. |
 | `npx supabase link` or `deploy` says you're not logged in or lack access | Logged in to another Supabase account, or the ref is wrong | Repeat steps 27 and 28 with the ref from the dashboard address bar. |
+| "The Google window didn't open." | Pop-ups blocked for the app | Android Chrome: **⋮ → Settings → Site settings → Pop-ups and redirects**, allow the app's address; desktop Chrome: the blocked-pop-up icon in the address bar → **Always allow**. Then **Continue** again. |
+| Google says "Error 400: origin_mismatch" or "not a valid origin for the client" | The address isn't in Authorized JavaScript origins | Add the exact origin from the address bar (scheme, host, port; no path or trailing slash) in step 48. Google can take 5 minutes or more to apply it. Preview deployments need their own entries. |
+| "Error 403: access_denied" or "has not completed the Google verification process" | The app is still in Testing and the account isn't a test user | Step 47 (publish), or add the account under **Audience → Test users**. |
+| "Google Drive wasn't connected." / "Tick Google Drive on Google's screen, then try again." | Access was declined, or the Drive box was left unticked | Connect again and allow Drive. |
+| The Photos card says **Needs you** · "Google asks again about once an hour" | Google's access lasts about an hour and the app keeps none on the device | Tap **Continue**. Expected. |
+| "Can't reach Google Drive" | Offline, or Google is having trouble | Nothing to do: it retries; **Try again** runs it now. |
+| "Your Google Drive is full" | No space left in the account | Free up space or add storage, then **Try again**. |
+| "Couldn't find this photo in your Google Drive…" | The file was deleted in Drive, this device is connected to another Google account, or a build with another client ID uploaded it | Connect with the same account on both devices, with the same `VITE_GOOGLE_CLIENT_ID` (step 50). |
+| No **Photos** card under Settings, only Keep photos | `VITE_GOOGLE_CLIENT_ID` missing or mistyped, or not redeployed | Step 49. |
+| Console says "Refused to load the script 'https://accounts.google.com/gsi/client'" or "Refused to connect … googleapis.com" | `vercel.json` without the Drive CSP | Push the current `vercel.json` and redeploy. (A blocked `accounts.google.com/gsi/style` line is harmless.) |
+| Want to remove the app's access completely | **Disconnect** only forgets Drive on that device | https://myaccount.google.com/connections → Kira Makan → **Delete all connections**. Photos already in Drive stay there. |
 
 ## Costs
+
+**Google Drive**: photos use your Drive storage, about 250 KB each (roughly 270 MB a year at 3 a day). The Drive API itself is free.
 
 **Vercel and Supabase**: the free plans cover one person comfortably (static hosting; a few Edge Function calls a day; one auth user; a synced diary of a few thousand rows, a few megabytes of database). Supabase pauses free projects that go unused for a while; restoring one from the dashboard takes a click, and sync waits meanwhile with nothing lost.
 
@@ -305,5 +335,6 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY` | Vercel environment variables, baked into the app | Yes, by design |
 | `ANTHROPIC_API_KEY` | Supabase secrets, and `.env.local` on your PC | No: never in Vercel, a `VITE_` variable or Git |
 | `ALLOWED_EMAILS`, `ALLOWED_ORIGIN` | Supabase secrets | Not secret, but only you set them |
+| `VITE_GOOGLE_CLIENT_ID` | Vercel environment variables, `.env.local` | Yes, by design (the client secret is never used) |
 | Your diary, weights, goals, Places and settings | IndexedDB on the phone and, once you sign in, the synced copy in your Supabase database (`sync_rows`) | No. Through the app only your account can read the copy. You, and anyone you give access to the Supabase project, can see it in the dashboard. The meal text and portion hints also go to the AI for an estimate |
-| Your photos | IndexedDB on the phone | Never synced. A photo leaves the phone only when it's sent for an AI estimate |
+| Your photos | IndexedDB on each device; once connected, the "Kira Makan photos" folder in your Google Drive (the app can see only the files it created there); a small preview (about 10 KB) of each uploaded photo syncs with its meal through Supabase | No. A photo also goes to the AI when it's sent for an estimate |

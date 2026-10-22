@@ -2,7 +2,7 @@
  * Diary and weight reads and writes the shared data layer doesn't have (S12–S16).
  *
  * - A meal lookup that tells "missing" apart from "still loading" (S14's friendly empty state).
- * - Object URLs for stored photos (MealRow thumbs, the entry photo).
+ * - A meal's list thumbnail: this device's photo, else the one synced with the meal (§10.18).
  * - Save as Usual from a diary entry (plan §9.5).
  * - The week re-budgeted under another target ("View under: Current goal", S45).
  * - The goal in force on each day of a week (marker on a goal-switch day, S13).
@@ -21,7 +21,8 @@ import { getActiveGoal, getWeightTrend, todayFor, type WeekBudgetView } from '@/
 import { computeWeekBudget, type WeekBudget } from '@/domain/budget';
 import { now } from '@/domain/clock';
 import { weekDays } from '@/domain/day';
-import type { Goal, Id, Instant, LogicalDay, MealItem, MealLog, Usual, WeightLog } from '@/domain/types';
+import { drivePointerOf } from '@/domain/photoSync';
+import type { Goal, Id, Instant, LogicalDay, MealItem, MealLog, MealPhotoDrive, Usual, WeightLog } from '@/domain/types';
 
 // ---------------------------------------------------------------------------
 // Meal lookup
@@ -45,29 +46,59 @@ export function useMealLookup(id: Id | undefined): MealLookup | undefined {
 // Photos
 // ---------------------------------------------------------------------------
 
-export type PhotoSize = 'thumb' | 'full';
+/** An object URL for the blob, or undefined where the browser can't make one (or it isn't a blob it knows). */
+function objectUrlOf(blob: Blob): string | undefined {
+  if (typeof URL.createObjectURL !== 'function') return undefined;
+  try {
+    return URL.createObjectURL(blob);
+  } catch {
+    return undefined;
+  }
+}
 
 /**
- * An object URL for a stored photo (its thumbnail by default), revoked when the photo or the
- * component goes away. Undefined while loading, without a photo, or where the browser can't
- * make object URLs.
+ * An object URL for a Blob, revoked when the blob or the component goes away. Undefined without
+ * a blob, or where the browser can't make object URLs.
  */
-export function usePhotoUrl(photoId: Id | undefined, size: PhotoSize = 'thumb'): string | undefined {
-  const record = useLiveQuery(() => (photoId ? getPhoto(appDb, photoId) : undefined), [photoId]);
-  const blob = record ? (size === 'thumb' ? record.thumb : record.blob) : undefined;
+export function useObjectUrl(blob: Blob | undefined): string | undefined {
   const [url, setUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!blob || typeof URL.createObjectURL !== 'function') {
-      setUrl(undefined);
-      return undefined;
-    }
-    const next = URL.createObjectURL(blob);
+    const next = blob ? objectUrlOf(blob) : undefined;
     setUrl(next);
+    if (!next) return undefined;
     return () => URL.revokeObjectURL(next);
   }, [blob]);
 
   return url;
+}
+
+interface ThumbSource {
+  /** This device's thumbnail. */
+  blob?: Blob;
+  /** The thumbnail synced with the meal (a data URL), when there's no photo here. */
+  synced?: string;
+}
+
+/**
+ * A meal's list thumbnail: this device's photo (object URL), else the synced Drive thumbnail (data URL), else undefined
+ * (the hatched placeholder). With only `mealId`, the pointer is read from the meal row when there is no local photo (Search).
+ */
+export function useMealThumbUrl(ref: { photoId?: Id; photoDrive?: MealPhotoDrive; mealId?: Id }): string | undefined {
+  const { photoId, photoDrive, mealId } = ref;
+  const fileId = photoDrive?.fileId;
+  const thumb = photoDrive?.thumb;
+  const source = useLiveQuery(async (): Promise<ThumbSource> => {
+    if (!photoId) return {};
+    const photo = await getPhoto(appDb, photoId);
+    if (photo) return { blob: photo.thumb };
+    if (fileId !== undefined || thumb !== undefined) return { synced: drivePointerOf({ photoDrive: { fileId: fileId ?? '', thumb } })?.thumb };
+    if (!mealId) return {};
+    const meal = await getMeal(appDb, mealId);
+    return { synced: meal?.photoId === photoId ? drivePointerOf(meal)?.thumb : undefined };
+  }, [photoId, mealId, fileId, thumb]);
+  const local = useObjectUrl(source?.blob);
+  return source?.blob ? local : source?.synced;
 }
 
 // ---------------------------------------------------------------------------

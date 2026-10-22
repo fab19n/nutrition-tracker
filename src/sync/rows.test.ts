@@ -141,6 +141,20 @@ describe('fromServerRow', () => {
     });
   });
 
+  it("carries a meal's Drive pointer whole, and still strips syncState", () => {
+    const withPhoto: MealLog = {
+      ...meal,
+      photoId: 'p1',
+      photoDrive: { fileId: 'drive-file-0001', thumb: 'data:image/jpeg;base64,/9j/4AAQ' },
+      syncState: 'pending',
+    };
+    const data = toServerRow('meals', withPhoto);
+    expect(data.photoDrive).toEqual({ fileId: 'drive-file-0001', thumb: 'data:image/jpeg;base64,/9j/4AAQ' });
+    expect(data).not.toHaveProperty('syncState');
+    expect(fromServerRow('meals', 'm1', data, withPhoto, defaults)).toEqual(withPhoto);
+    expect(fromServerRow('meals', 'm1', data, undefined, defaults)).toEqual({ ...withPhoto, syncState: 'synced' });
+  });
+
   it('round-trips with toServerRow, so an echo compares equal', () => {
     const back = fromServerRow('meals', 'm1', toServerRow('meals', meal), meal, defaults);
     expect(canonicalJson(back)).toBe(canonicalJson(meal));

@@ -14,7 +14,7 @@ import { DateSwitcher, TopBar } from '@/components/TopBar/TopBar';
 import { Card } from '@/components/ui/Card';
 import { Segmented } from '@/components/ui/Segmented';
 import { deleteMeal, duplicateMeal } from '@/db/actions';
-import { usePhotoUrl } from '@/db/diary';
+import { useMealThumbUrl } from '@/db/diary';
 import {
   useCheckIn,
   useDaySummary,
@@ -64,9 +64,9 @@ interface DiaryMealRowProps {
   onDelete: (meal: MealLog) => void;
 }
 
-/** One ledger row: MealRow with its photo thumbnail and price. */
+/** One ledger row: MealRow with its photo thumbnail (this device's, or the one synced from another) and price. */
 function DiaryMealRow({ meal, tag, placeName, tz, pending, onOpen, onDuplicate, onDelete }: DiaryMealRowProps) {
-  const thumbUrl = usePhotoUrl(meal.photoId);
+  const thumbUrl = useMealThumbUrl(meal);
   return (
     <MealRow
       slotLabel={SLOT_LABEL[meal.slot]}

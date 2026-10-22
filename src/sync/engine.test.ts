@@ -1334,6 +1334,47 @@ describe('triggers', () => {
     expect(fnsSince(from)).toEqual(['sync_pull']);
     expect(d.engine.getState()).toEqual({ phase: 'idle' });
   });
+
+  it('catchUp pulls what another device changed, and resolves once it is here', async () => {
+    const d = await linkedDevice();
+    server.seed(USER, [{ t: 'weights', k: 'w9', data: toServerRow('weights', weight('w9', 77)) }], 'laptop');
+    const from = attempts.length;
+    await d.engine.catchUp();
+    expect(fnsSince(from)).toEqual(['sync_pull']);
+    expect(await d.db.weights.get('w9')).toEqual(weight('w9', 77));
+    expect(d.engine.getState()).toEqual({ phase: 'idle' });
+  });
+
+  it('catchUp asks nothing before start, while waiting for a choice, or with sync off', async () => {
+    seedOtherDiary();
+    const d = device();
+    await setUp(d.db);
+    await d.engine.catchUp();
+    expect(attempts).toEqual([]);
+
+    d.engine.start();
+    await timers.advance(1_500);
+    expect(d.engine.getState().phase).toBe('choose');
+    const from = attempts.length;
+    await d.engine.catchUp();
+    expect(fnsSince(from)).toEqual([]);
+
+    await d.engine.notNow();
+    expect(d.engine.getState().phase).toBe('paused');
+    await d.engine.catchUp();
+    await settle();
+    expect(fnsSince(from)).toEqual([]);
+  });
+
+  it('catchUp leaves a backoff going, where Sync now starts it again', async () => {
+    const d = await linkedDevice();
+    fail('unavailable');
+    await d.engine.syncNow();
+    expect(retryDelay(d)).toBe(10_000);
+    await d.engine.catchUp();
+    expect(d.engine.getState()).toMatchObject({ phase: 'error', error: 'unavailable' });
+    expect(retryDelay(d)).toBe(30_000);
+  });
 });
 
 describe('failures', () => {

@@ -9,6 +9,7 @@ import { db } from '@/db/db';
 import { readLastBackupAt, readLastExport, writeLastBackupAt, writeLastExport } from '@/db/settings';
 import type { OutboxEntry, SyncLink, SyncMeta } from '@/db/syncTypes';
 import { logicalDayOf } from '@/domain/day';
+import type { DriveEngineState } from '@/drive';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { EngineState } from '@/sync';
 import { SyncError } from '@/sync/errors';
@@ -83,6 +84,43 @@ vi.mock('@/sync', async (importOriginal) => ({
   switchToSignedInAccount: () => sync.switchToSignedInAccount(),
   uploadAfterReset: () => sync.uploadAfterReset(),
   turnOffAfterReset: () => sync.turnOffAfterReset(),
+}));
+
+/** Stands in for the Drive engine (src/drive/index.ts): its state, and the calls around Delete everything. */
+const drive = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const base = {
+    configured: false,
+    profile: 'real' as const,
+    keepPhotos: true,
+    connected: false,
+    gisReady: false,
+    authBusy: false,
+    running: false,
+    online: true,
+    counts: { uploads: 0, files: 0, failed: 0 },
+  };
+  const current: { state: DriveEngineState } = { state: base };
+  return { base, current, listeners };
+});
+
+vi.mock('@/drive', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/drive')>()),
+  getDriveState: () => drive.current.state,
+  subscribeDrive: (listener: () => void) => {
+    drive.listeners.add(listener);
+    return () => drive.listeners.delete(listener);
+  },
+  stopDrive: async () => {
+    sync.order.push('stopDrive');
+  },
+  resumeDrive: () => {
+    sync.order.push('resumeDrive');
+  },
+  forgetDriveToken: () => {
+    sync.order.push('forgetDriveToken');
+  },
+  prepareDrive: () => {},
 }));
 
 // The real wipe, recorded so a test can check it runs while sync is stopped.
@@ -200,6 +238,7 @@ beforeEach(async () => {
   auth.signIn.mockReset().mockResolvedValue(undefined);
   auth.signOut.mockReset().mockResolvedValue(undefined);
   sync.current.state = { phase: 'starting' };
+  drive.current.state = { ...drive.base };
   sync.stopSync.mockClear();
   sync.resumeSync.mockClear();
   sync.flushSync.mockReset().mockResolvedValue(undefined);
@@ -274,6 +313,27 @@ describe('SettingsScreen (S19)', () => {
 
     await waitFor(async () => expect((await db.profile.get('me'))?.theme).toBe('dark'));
     await waitFor(() => expect(within(theme).getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true'));
+  });
+
+  it('keeps Location under Privacy and Keep photos under Photos', async () => {
+    renderSettings();
+    await screen.findByRole('switch', { name: 'Keep photos' });
+    expect(within(group('Privacy')).getByRole('switch', { name: 'Location' })).toBeInTheDocument();
+    expect(within(group('Privacy')).queryByRole('switch', { name: 'Keep photos' })).not.toBeInTheDocument();
+    expect(within(group('Photos')).getByRole('switch', { name: 'Keep photos' })).toBeInTheDocument();
+    // Without a Google client id there is no Drive card.
+    expect(within(group('Photos')).queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows the Drive card under Keep photos when the app has a Google client id', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '123-abc.apps.googleusercontent.com');
+    drive.current.state = { ...drive.base, configured: true };
+    renderSettings();
+    const photos = await screen.findByRole('heading', { level: 2, name: 'Photos' });
+    const section = photos.closest('section');
+    expect(section).not.toBeNull();
+    expect(await within(section as HTMLElement).findByText('Photos are on this device only')).toBeInTheDocument();
+    expect(within(section as HTMLElement).getByRole('button', { name: 'Connect Google Drive' })).toBeInTheDocument();
   });
 
   it('writes the location and photo toggles to the profile', async () => {
@@ -501,7 +561,7 @@ describe('SettingsScreen Delete everything and the account', () => {
     await confirmDeleteEverything(user);
 
     expect(await screen.findByRole('heading', { name: 'Setup screen' })).toBeInTheDocument();
-    expect(sync.order).toEqual(['stopSync', 'resetAll', 'resetAll done', 'resumeSync']);
+    expect(sync.order).toEqual(['stopSync', 'stopDrive', 'resetAll', 'resetAll done', 'forgetDriveToken', 'resumeSync', 'resumeDrive']);
     // The wipe is this phone's alone: nothing queued for the account, nothing linked.
     expect(await db.syncOutbox.count()).toBe(0);
     expect(await db.syncMeta.count()).toBe(0);
@@ -536,6 +596,62 @@ describe('SettingsScreen Delete everything and the account', () => {
     expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
       'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, ' +
         'so signing in again brings it back.',
+    );
+  });
+
+  it('says the photos in Google Drive stay, only when Drive is connected here', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    drive.current.state = { ...drive.base, configured: true, connected: true };
+    const user = userEvent.setup();
+    renderSettings();
+
+    const row = await screen.findByRole('button', { name: /^Delete everything/ });
+    await waitFor(() => expect(row).toHaveTextContent('The copy in your account stays.'));
+    await user.click(row);
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, ' +
+        'so signing in again brings it back. Photos in your Google Drive stay there.',
+    );
+  });
+
+  it('warns that photos still waiting to upload are lost, set-aside ones included', async () => {
+    deployed(SIGNED_IN);
+    await linkedPhone();
+    drive.current.state = { ...drive.base, configured: true, connected: true, counts: { uploads: 2, files: 1, failed: 1 } };
+    const user = userEvent.setup();
+    renderSettings();
+
+    const row = await screen.findByRole('button', { name: /^Delete everything/ });
+    await waitFor(() => expect(row).toHaveTextContent('The copy in your account stays.'));
+    await user.click(row);
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      'Every meal, weigh-in, Place and goal on this device goes, and this device signs out. The copy in your account stays, ' +
+        "so signing in again brings it back. Photos in your Google Drive stay there. 3 photos that haven't uploaded will be lost.",
+    );
+  });
+
+  it('says the photos in Google Drive stay before linking too', async () => {
+    await ownDiary();
+    drive.current.state = { ...drive.base, configured: true, connected: true };
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole('button', { name: /^Delete everything/ }));
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy. " +
+        'Photos in your Google Drive stay there.',
+    );
+  });
+
+  it('says one photo that has not uploaded will be lost', async () => {
+    await ownDiary();
+    drive.current.state = { ...drive.base, configured: true, connected: true, counts: { uploads: 1, files: 0, failed: 0 } };
+    const user = userEvent.setup();
+    renderSettings();
+    await user.click(await screen.findByRole('button', { name: /^Delete everything/ }));
+    expect(await screen.findByRole('alertdialog', { name: 'Delete everything?' })).toHaveAccessibleDescription(
+      "Every meal, weigh-in, Place and goal on this phone goes, and it can't be undone. Export a backup first if you want a copy. " +
+        "Photos in your Google Drive stay there. 1 photo that hasn't uploaded will be lost.",
     );
   });
 

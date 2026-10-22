@@ -5,6 +5,7 @@ import { BottomSheet, SheetTitle } from '@/components/BottomSheet/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { db } from '@/db/db';
 import { storePhoto } from '@/db/logging';
+import { renewDriveTokenOnTap } from '@/drive';
 import { useUiStore } from '@/state/ui';
 import { photoDraft } from './drafts';
 import { useBlobUrl } from './hooks';
@@ -40,6 +41,9 @@ function PhotoBody({ file, meal }: { file: File; meal: MealContext }) {
   const [busy, setBusy] = useState(false);
 
   const estimate = async () => {
+    // Inside the tap, before anything else: a Google token for the photo's upload, when one is due
+    // (Google's window may open and close by itself). The estimate never waits for it.
+    renewDriveTokenOnTap();
     setBusy(true);
     try {
       const { blob, thumb } = await compressPhoto(file);

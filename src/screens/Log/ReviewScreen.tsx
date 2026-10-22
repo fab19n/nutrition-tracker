@@ -14,6 +14,7 @@ import { SubScreenHeader } from '@/components/TopBar/TopBar';
 import { Toggle } from '@/components/ui/Toggle';
 import { deleteMeal, rememberCorrection, saveMeal } from '@/db/actions';
 import { db } from '@/db/db';
+import { useMealThumbUrl } from '@/db/diary';
 import { useMeal, useNow, usePersonalItems, useProfile, useToday, useUsuals, useWeekBudget } from '@/db/hooks';
 import { discardPhoto, findRepeatedCorrection, saveUsualFromMeal, type RepeatedCorrection } from '@/db/logging';
 import { now } from '@/domain/clock';
@@ -22,7 +23,7 @@ import { itemMacros, itemsRange, mealMacros, selectVariant } from '@/domain/meal
 import type { LogicalDay, MealItem } from '@/domain/types';
 import { useUiStore, type ReviewDraft } from '@/state/ui';
 import type { LogNavState } from './drafts';
-import { useOnline, usePhotoUrl, useRecentPlaces } from './hooks';
+import { useOnline, useRecentPlaces } from './hooks';
 import { ItemSearchSheet } from './ItemSearchSheet';
 import { MealContextChips } from './MealContextChips';
 import { mealDayOf, slotFor, timeSettings, type MealContext, type TimeId } from './mealTime';
@@ -88,7 +89,8 @@ function Review({ draft }: { draft: ReviewDraft }) {
   const isEdit = editingId !== undefined;
   const editing = useMeal(editingId);
   const finished = meta.finished ?? 'all';
-  const photoUrl = usePhotoUrl(meta.photoId, 'thumb');
+  // Editing a meal synced from another device shows its Drive thumbnail when the photo isn't here.
+  const photoUrl = useMealThumbUrl({ photoId: meta.photoId, mealId: meta.editingMealId });
   const priceId = useId();
   const online = useOnline();
   // Editing keeps the meal on its own day while its time changes; a new meal's day is decided
