@@ -162,7 +162,9 @@ describe('S37 TargetScreen with a suggestion (Fri 30 Oct)', () => {
     renderTarget();
     expect(await screen.findByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(await db.goalVersions.count()).toBe(1);
-    expect(await db.insightFeedback.count()).toBe(0);
+    // Opening it counts as seeing it: only the synced seen row (so it is never pushed), never a decision.
+    await waitFor(async () => expect((await db.insightFeedback.toArray()).map((r) => r.ruleId)).toEqual(['targetNoticeSeen']));
+    expect((await db.insightFeedback.get('targetNoticeSeen'))?.targetNoticeSeen?.key).toBe(W.expected.noticeKey);
   });
 
   it('goes back to Insights when opened directly', async () => {

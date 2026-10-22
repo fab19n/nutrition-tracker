@@ -539,7 +539,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 - TargetSuggestionCard [C45] in full: "Your real maintenance looks like **~2,100**, not 2,350" → the working: "You logged ~1,820 a day, and your trend dropped 0.25 kg a week" → new daily target **1,550** at your 0.5 kg/week pace (never below your 1,400 minimum) → **Approve** / Keep current → secondary: "Change pace instead" (e.g. 0.25 kg/week → ~1,825) → history of target versions.
 
 #### S38 Reminders
-- Morning check-in (on) · **Gap nudges** (locked until about day 14: "Switches on once the app knows your pattern") · Weekly review notification (Sunday night) · Quiet hours (from your sleep taps, or custom).
+- Morning check-in (on) · **Gap nudges** (locked until about day 14: "Switches on once the app knows your pattern") · Weekly review notification (Sunday night) · Quiet hours (from your sleep taps, or custom). (As built: plus Target suggestions and a This device card.)
 
 #### S39 Backups
 - **What it is:** where a copy of the diary lives. Settings › Backups opens it. It is built on the two-way sync and the JSON export; Google Drive is not involved (C55 and C58 stay as the designs for the later Drive photo sync).
@@ -553,7 +553,7 @@ Layouts run top to bottom. Component IDs are in brackets.
 |---|---|
 | Gap nudge | "6 hours since your last log. Dinner time for you?" |
 | Morning check-in | "Quick check: was yesterday's log complete?" |
-| Weekly review | "Your week is ready: +350 kcal, trend −0.4 kg" |
+| Weekly review | "Your week is ready: +350 kcal, trend −0.4 kg" (as built: 'Your week is ready' · 'See how it went and pick one thing to try next week.') |
 | Target suggestion | "New target suggestion based on 3 weeks of data" |
 | Backup failed | "Weekly backup couldn't reach Google Drive" (for the later Drive photo sync; no scheduled backup exists now) |
 

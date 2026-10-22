@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
       react(),
       devEstimatePlugin(env.ANTHROPIC_API_KEY || undefined),
       VitePWA({
+        // Our own worker (src/sw.ts): the precache, navigation fallback and auto-update the generated
+        // one had, plus reminders (decision §10.19). Still one classic script at /sw.js.
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
         registerType: 'autoUpdate',
         includeAssets: ['icons/icon.svg'],
         manifest: {
@@ -31,9 +36,9 @@ export default defineConfig(({ mode }) => {
             { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
-        workbox: {
+        injectManifest: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-          navigateFallbackDenylist: [/^\/api\//],
+          rollupFormat: 'iife',
         },
       }),
     ],
@@ -45,9 +50,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
-      // Tests run without Supabase or Google Drive whatever .env.local says, as in CI: no sign-in,
-      // no sync capture, no Drive card. A test that needs one stubs it with vi.stubEnv.
-      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_KEY: '', VITE_GOOGLE_CLIENT_ID: '' },
+      // Tests run without Supabase, Google Drive or reminders whatever .env.local says, as in CI: no
+      // sign-in, no sync capture, no Drive card, no push. A test that needs one stubs it with vi.stubEnv.
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_KEY: '', VITE_GOOGLE_CLIENT_ID: '', VITE_VAPID_PUBLIC_KEY: '' },
     },
   };
 });

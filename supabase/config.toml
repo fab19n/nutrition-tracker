@@ -8,3 +8,8 @@ project_id = "kira-makan"
 # answers 401/403 with CORS headers the app can read. That works with both the legacy anon/JWT
 # secret keys and the new publishable keys and signing keys, so the platform's check stays off.
 verify_jwt = false
+
+[functions.send-reminders]
+# Called by pg_cron with X-Cron-Secret and by the app for a test, with the user's token checked by
+# PostgREST inside push_test_target. The cron call has no JWT, so the platform's check stays off.
+verify_jwt = false

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Bell, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 import { goBack } from '@/app/history';
 import { PATHS } from '@/app/paths';
@@ -15,13 +15,7 @@ interface Area {
   action?: { label: string; to: string };
 }
 
-const AREAS: Record<string, Area> = {
-  reminders: {
-    title: 'Reminders',
-    icon: <Bell />,
-    body: 'Weigh-in and meal nudges, only at times you pick.',
-  },
-};
+const AREAS: Record<string, Area> = {};
 
 function fallbackArea(what: string): Area {
   const words = what.replace(/[-_]+/g, ' ').trim();
@@ -46,6 +40,8 @@ export default function ComingSoonScreen() {
   if (key === 'backups') return <Navigate to={PATHS.backups} replace />;
   // So does Search (S49).
   if (key === 'search') return <Navigate to={PATHS.search} replace />;
+  // And Reminders (S38).
+  if (key === 'reminders') return <Navigate to={PATHS.reminders} replace />;
 
   return (
     <div className={styles.subScreen}>

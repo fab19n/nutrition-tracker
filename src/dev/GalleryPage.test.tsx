@@ -36,6 +36,8 @@ describe('GalleryPage (/dev)', () => {
     expect(screen.getByText('C61 SleepTap / Shown')).toBeInTheDocument();
     expect(screen.getByText('SyncStatus / Up to date')).toBeInTheDocument();
     expect(screen.getByText('SyncStatus / File backup (Due)')).toBeInTheDocument();
+    expect(screen.getByText('S38 Reminders / On, last reminder this morning')).toBeInTheDocument();
+    expect(screen.getByText('S38 Reminders / Server not set up')).toBeInTheDocument();
     expect(screen.getByText('BackupPreview / Full')).toBeInTheDocument();
     expect(screen.getByText('BackupPreview / Amber note')).toBeInTheDocument();
     // Suggestions and insights (C40–C43)

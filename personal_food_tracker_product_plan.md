@@ -296,6 +296,7 @@ Every way of logging produces the same thing: a list of items, each with a porti
 - **From about day 14: gap nudges** based on your own pattern (*"6 hours since your last log, and you usually eat by now."*).
 - **Quiet hours** come from your "Going to sleep" taps and your usual overnight gap, so there are no 2am pings.
 - Delivered as web push notifications (Android; iPhone from iOS 16.4 for apps added to the home screen).
+- As built: check-in push at a time you pick (10am by default), only when yesterday isn't confirmed; gap nudges for breakfast, lunch and dinner from 14 complete days; weekly review Sunday from 8pm; quiet hours from sleep taps or your own; at most one reminder an hour.
 
 ---
 
@@ -502,6 +503,8 @@ Permissions are asked only when first needed: location (first time you open Log)
 | Maintenance recalculation | Weekly |
 | Backup file nudge | In the app, once a full backup is over 30 days old (no scheduled job; Google Drive is for photos, later) |
 | Expire old pots | Daily |
+
+As built: reminders (check-in, gap nudges, weekly review, target notice) are one Edge Function run every 5 minutes; each reminder goes at most once.
 
 ### 17.4 Time handling
 

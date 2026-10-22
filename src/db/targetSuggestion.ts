@@ -6,7 +6,8 @@
  *
  * Everything is stored in existing synced rows: an approval is a new goal version (from
  * tomorrow, with its pace), "Keep current" is the insightFeedback row 'targetSuggestion'. The
- * notice's "seen" key is per device (localStorage), like the Usual suggestions' "Not now".
+ * notice's "seen" key is per device (localStorage), like the Usual suggestions' "Not now"; seeing
+ * it is also recorded in the synced push rows (src/db/reminders.ts), so the push never goes.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useSyncExternalStore } from 'react';
@@ -25,6 +26,7 @@ import {
   listWorkoutsInRange,
   putInsightFeedback,
 } from '@/db/repo';
+import { markTargetPending, markTargetSeen } from '@/db/reminders';
 import { getActiveGoal, getWeekBudget, loadSettings, todayFor, type ActiveGoal, type Settings } from '@/db/selectors';
 import { proratedWeek, type ProratedWeek } from '@/domain/budget';
 import { now } from '@/domain/clock';
@@ -379,8 +381,18 @@ export function readTargetNoticeSeen(): string | null {
 
 /** The notice for `key` has been seen (tapped, S37 opened, or a decision made). */
 export function markTargetNoticeSeen(key: string): void {
-  if (readTargetNoticeSeen() === key) return;
-  writeNoticeSeen(key);
+  if (readTargetNoticeSeen() !== key) writeNoticeSeen(key);
+  // Every time, even when this device knew already: the synced rows may not say so yet (seen before
+  // the mark existed, or before this version). It stops the push on every device; it writes once.
+  void markTargetSeen(key).catch(() => undefined);
+}
+
+/**
+ * Today: a showing suggestion is marked for its push or, when this device has seen it already (the
+ * notice store above), recorded as seen instead, so a mark never goes out without what it knew.
+ */
+export function markTargetShowing(mark: { key: string; weekStart: LogicalDay; weeks: number }): Promise<boolean> {
+  return readTargetNoticeSeen() === mark.key ? markTargetSeen(mark.key) : markTargetPending(mark);
 }
 
 /** Forgets the seen key (tests, a fresh start), like clearDismissedSuggestions in usuals.ts. */

@@ -10,6 +10,7 @@ import { readLastBackupAt, readLastExport, writeLastBackupAt, writeLastExport } 
 import type { OutboxEntry, SyncLink, SyncMeta } from '@/db/syncTypes';
 import { logicalDayOf } from '@/domain/day';
 import type { DriveEngineState } from '@/drive';
+import type { PushEngineState } from '@/push';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { EngineState } from '@/sync';
 import { SyncError } from '@/sync/errors';
@@ -123,6 +124,31 @@ vi.mock('@/drive', async (importOriginal) => ({
   prepareDrive: () => {},
 }));
 
+/** Stands in for the reminders engine (src/push/index.ts): the Reminders row's state, and forgetPush around leaving. */
+const push = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const current: { state: PushEngineState } = { state: { phase: 'off', permission: 'default', hasRecord: false } };
+  return {
+    current,
+    listeners,
+    set(state: PushEngineState) {
+      current.state = state;
+      for (const listener of [...listeners]) listener();
+    },
+    forgetPush: vi.fn<(timeoutMs?: number) => Promise<void>>(async () => {}),
+  };
+});
+
+vi.mock('@/push', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/push')>()),
+  getPushState: () => push.current.state,
+  subscribePush: (listener: () => void) => {
+    push.listeners.add(listener);
+    return () => push.listeners.delete(listener);
+  },
+  forgetPush: (timeoutMs?: number) => push.forgetPush(timeoutMs),
+}));
+
 // The real wipe, recorded so a test can check it runs while sync is stopped.
 vi.mock('@/db/actions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/db/actions')>();
@@ -219,6 +245,7 @@ function renderSettings() {
       { path: '/more', element: <h1>More screen</h1> },
       { path: '/more/export', element: <h1>Export screen</h1> },
       { path: '/more/backups', element: <h1>Backups screen</h1> },
+      { path: '/more/reminders', element: <h1>Reminders screen</h1> },
       { path: '/more/weight', element: <h1>Weight screen</h1> },
       { path: '/more/soon/:what', element: <h1>Soon screen</h1> },
       { path: '/setup/*', element: <h1>Setup screen</h1> },
@@ -239,6 +266,10 @@ beforeEach(async () => {
   auth.signOut.mockReset().mockResolvedValue(undefined);
   sync.current.state = { phase: 'starting' };
   drive.current.state = { ...drive.base };
+  push.current.state = { phase: 'off', permission: 'default', hasRecord: false };
+  push.forgetPush.mockReset().mockImplementation(async () => {
+    sync.order.push('forgetPush');
+  });
   sync.stopSync.mockClear();
   sync.resumeSync.mockClear();
   sync.flushSync.mockReset().mockResolvedValue(undefined);
@@ -446,7 +477,29 @@ describe('SettingsScreen (S19)', () => {
     expect(await screen.findByRole('heading', { name: 'Backups screen' })).toBeInTheDocument();
     await router.navigate(PATHS.settings);
     await user.click(await screen.findByRole('button', { name: /^Reminders/ }));
-    expect(router.state.location.pathname).toBe(PATHS.soon('reminders'));
+    expect(router.state.location.pathname).toBe(PATHS.reminders);
+    expect(await screen.findByRole('heading', { name: 'Reminders screen' })).toBeInTheDocument();
+  });
+});
+
+describe('SettingsScreen Reminders row', () => {
+  const remindersRow = () => screen.findByRole('button', { name: /^Reminders/ });
+
+  it("says what this device's reminders are doing", async () => {
+    renderSettings();
+    expect(await remindersRow()).toHaveTextContent('Off on this device');
+    act(() => push.set({ phase: 'on', permission: 'granted', hasRecord: true, device: { failures: 0 } }));
+    await waitFor(async () => expect(await remindersRow()).toHaveTextContent('On · check-in at 10am'));
+    await db.profile.update('me', { reminders: { checkInAtMin: 540 } });
+    await waitFor(async () => expect(await remindersRow()).toHaveTextContent('On · check-in at 9am'));
+    act(() => push.set({ phase: 'on', permission: 'granted', hasRecord: true, device: { failures: 3 } }));
+    await waitFor(async () => expect(await remindersRow()).toHaveTextContent('Needs a look'));
+  });
+
+  it('says when this version has no reminders', async () => {
+    push.current.state = { phase: 'unconfigured', permission: 'unsupported', hasRecord: false };
+    renderSettings();
+    expect(await remindersRow()).toHaveTextContent('Not available in this version');
   });
 });
 
@@ -555,13 +608,27 @@ describe('SettingsScreen Delete everything and the account', () => {
   it('stops sync before the wipe and resumes it after', async () => {
     deployed(SIGNED_IN);
     await linkedPhone();
+    auth.signOut.mockImplementation(async () => {
+      sync.order.push('signOut');
+    });
     const user = userEvent.setup();
     renderSettings();
 
     await confirmDeleteEverything(user);
 
     expect(await screen.findByRole('heading', { name: 'Setup screen' })).toBeInTheDocument();
-    expect(sync.order).toEqual(['stopSync', 'stopDrive', 'resetAll', 'resetAll done', 'forgetDriveToken', 'resumeSync', 'resumeDrive']);
+    // This device's reminders go while the session's token still works, then the session.
+    expect(sync.order).toEqual([
+      'stopSync',
+      'stopDrive',
+      'resetAll',
+      'forgetPush',
+      'signOut',
+      'resetAll done',
+      'forgetDriveToken',
+      'resumeSync',
+      'resumeDrive',
+    ]);
     // The wipe is this phone's alone: nothing queued for the account, nothing linked.
     expect(await db.syncOutbox.count()).toBe(0);
     expect(await db.syncMeta.count()).toBe(0);
@@ -885,6 +952,10 @@ describe('SettingsScreen Account and sync', () => {
     expect(auth.signOut).toHaveBeenCalledTimes(1);
     expect(sync.flushSync).toHaveBeenCalledWith(5_000);
     expect(sync.flushSync.mock.invocationCallOrder[0]).toBeLessThan(auth.signOut.mock.invocationCallOrder[0] ?? 0);
+    // This device's reminders go after the flush, while the token still works.
+    expect(push.forgetPush).toHaveBeenCalledTimes(1);
+    expect(sync.flushSync.mock.invocationCallOrder[0]).toBeLessThan(push.forgetPush.mock.invocationCallOrder[0] ?? 0);
+    expect(push.forgetPush.mock.invocationCallOrder[0]).toBeLessThan(auth.signOut.mock.invocationCallOrder[0] ?? 0);
     await waitFor(() => expect(useUiStore.getState().toast?.message).toBe('Signed out'));
   });
 

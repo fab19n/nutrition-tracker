@@ -11,7 +11,8 @@
     "typecheck": "tsc -b --pretty",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:estimate-catalogue": "node scripts/build-estimate-catalogue.mjs"
+    "build:estimate-catalogue": "node scripts/build-estimate-catalogue.mjs",
+    "push:keys": "node scripts/generate-push-keys.mjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
@@ -39,6 +40,9 @@
     "vite": "^8.3.4",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5",
+    "workbox-core": "7.4.1",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
     "zod": "^4.6.7"
   }
 }

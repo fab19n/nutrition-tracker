@@ -7,7 +7,7 @@ import { deleteMeal, loadDemoData, resetAll, setWeeklyFocus } from '@/db/actions
 import { putDayRecord } from '@/db/repo';
 import { DEMO_IDS } from '@/db/seed/demo';
 import { clearGoalEndNoticeSeen, readGoalEndNoticeSeen } from '@/db/goals';
-import { clearTargetNoticeSeen, readTargetNoticeSeen } from '@/db/targetSuggestion';
+import { clearTargetNoticeSeen, markTargetNoticeSeen, readTargetNoticeSeen } from '@/db/targetSuggestion';
 import { instantAt } from '@/domain/day';
 import { FOCUS_RULES } from '@/domain/focus';
 import { resetUiState, useUiStore } from '@/state/ui';
@@ -366,6 +366,52 @@ describe('TodayScreen target suggestion notice (S40, in-app)', () => {
     renderToday();
     expect(await screen.findByText('1,300')).toBeInTheDocument();
     expect(screen.queryByText('New target suggestion')).not.toBeInTheDocument();
+  });
+
+  it('marks the suggestion once for its push, and seeing it stops the push', async () => {
+    const user = userEvent.setup();
+    const first = renderToday();
+    await screen.findByRole('button', { name: /New target suggestion/ });
+    await waitFor(async () => expect((await db.insightFeedback.get('targetNotice'))?.targetNotice).toBeDefined());
+    const row = await db.insightFeedback.get('targetNotice');
+    expect(row).toMatchObject({
+      ruleId: 'targetNotice',
+      feedback: 'notice',
+      targetNotice: { key: MAINTENANCE_WORLD.expected.noticeKey, weekStart: MAINTENANCE_WORLD.weekStart, weeks: 4, markedAt: MAINTENANCE_WORLD.now },
+    });
+    first.dispose();
+    cleanup();
+
+    // Shown again: the mark keeps its first time.
+    renderToday();
+    await user.click(await screen.findByRole('button', { name: /New target suggestion/ }));
+    await waitFor(async () => expect((await db.insightFeedback.get('targetNotice'))?.targetNotice?.seenAt).toBeDefined());
+    expect((await db.insightFeedback.get('targetNotice'))?.targetNotice?.markedAt).toBe(MAINTENANCE_WORLD.now);
+    expect((await db.insightFeedback.get('targetNoticeSeen'))?.targetNoticeSeen).toEqual({ key: MAINTENANCE_WORLD.expected.noticeKey, seenAt: MAINTENANCE_WORLD.now });
+    expect((await db.insightFeedback.toArray()).filter((r) => r.feedback === 'notice').map((r) => r.ruleId).sort()).toEqual(['targetNotice', 'targetNoticeSeen']);
+  });
+
+  it('records one this device saw already as seen, never as a mark for its push', async () => {
+    const key = MAINTENANCE_WORLD.expected.noticeKey;
+    markTargetNoticeSeen(key);
+    await waitFor(async () => expect(await db.insightFeedback.get('targetNoticeSeen')).toBeDefined());
+    // Seen before this version, which wrote nothing synced: only this device's record knows.
+    await db.insightFeedback.delete('targetNoticeSeen');
+    renderToday();
+    expect(await screen.findByText('1,300')).toBeInTheDocument();
+    expect(screen.queryByText('New target suggestion')).not.toBeInTheDocument();
+    await waitFor(async () => expect((await db.insightFeedback.get('targetNoticeSeen'))?.targetNoticeSeen?.key).toBe(key));
+    expect(await db.insightFeedback.get('targetNotice')).toBeUndefined();
+  });
+
+  it('never marks one in demo mode', async () => {
+    await db.profile.update('me', { demoMode: true });
+    renderToday();
+    expect(await screen.findByRole('button', { name: /New target suggestion/ })).toBeInTheDocument();
+    await act(async () => {
+      await db.insightFeedback.count();
+    });
+    expect(await db.insightFeedback.get('targetNotice')).toBeUndefined();
   });
 
   it('gives way to the check-in banner', async () => {

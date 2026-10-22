@@ -9,9 +9,11 @@ import { createDb, SYNC_TABLES, type KiraMakanDb } from '@/db/db';
 import { getActiveGoal } from '@/db/selectors';
 import type { SyncLink } from '@/db/syncTypes';
 import { createGoalActions } from '@/db/goals';
+import { markTargetPendingIn, markTargetSeenIn, TARGET_NOTICE_ID, TARGET_NOTICE_SEEN_ID } from '@/db/reminders';
 import { createTargetActions, getTargetView } from '@/db/targetSuggestion';
 import { setDemoClock } from '@/domain/clock';
 import { goalDraftFor } from '@/domain/goals';
+import { decideReminder, type ReminderTargetMark, type ReminderTargetSeen } from '@/domain/reminders';
 import type { DayRecord, MealLog } from '@/domain/types';
 import { SyncError } from './errors';
 import { ackPush, applyPage, applyRestore, collectPush, linkEmptyAccount, readMeta, recordSuccess } from './local';
@@ -580,6 +582,65 @@ describe('target suggestions on two devices', () => {
       expect(await device.db.goalVersions.count(), device.name).toBe(1);
     }
     await expectConverged(a, b);
+  });
+});
+
+describe('the target suggestion push on two devices', () => {
+  const lastWeek = { key: 'version-cut-setup:2026-10-19', weekStart: '2026-10-19', weeks: 3 };
+  const thisWeek = { key: MAINTENANCE_WORLD.expected.noticeKey, weekStart: MAINTENANCE_WORLD.weekStart, weeks: 4 };
+
+  /** What send-reminders decides from the account's rows at 1pm that Friday (no meals given: only the target push can be due). */
+  function accountPushDue(): boolean {
+    const rows = server.live(USER).insightFeedback ?? {};
+    const targetNotice = rows[TARGET_NOTICE_ID]?.targetNotice as ReminderTargetMark | undefined;
+    const targetNoticeSeen = rows[TARGET_NOTICE_SEEN_ID]?.targetNoticeSeen as ReminderTargetSeen | undefined;
+    const input = {
+      profile: { timeZone: 'Asia/Kuala_Lumpur', rolloverHour: 5, startedOn: MAINTENANCE_WORLD.startedOn },
+      days: [],
+      meals: [],
+      completeDays: 0,
+      periods: [],
+      goals: [],
+      sent: [],
+      ...(targetNotice ? { targetNotice } : {}),
+      ...(targetNoticeSeen ? { targetNoticeSeen } : {}),
+    };
+    return decideReminder(input, Date.parse('2026-10-30T05:00:00.000Z')).due?.kind === 'targetSuggestion';
+  }
+
+  it("seen on the phone, then marked again on the laptop before its first pull: the push never goes", async () => {
+    const phone = makeDevice('phone');
+    const laptop = makeDevice('laptop');
+    await on(phone, async () => {
+      await loadMaintenanceWorld(phone.db);
+      const summary = await phone.remote.hello(ctx());
+      await linkEmptyAccount(phone.db, { userId: USER, summary, now: Date.now() });
+    });
+    await sync(phone);
+    await restore(laptop);
+    // Last week's suggestion, marked and seen, is on both.
+    await on(phone, () => markTargetPendingIn(phone.db, lastWeek, '2026-10-19T02:00:00.000Z'));
+    await on(phone, () => markTargetSeenIn(phone.db, lastWeek.key, '2026-10-19T03:00:00.000Z'));
+    await sync(phone);
+    await sync(laptop);
+
+    // This week the phone shows it, and the user opens it.
+    later(MINUTE);
+    await on(phone, () => markTargetPendingIn(phone.db, thisWeek, '2026-10-30T01:00:00.000Z'));
+    await on(phone, () => markTargetSeenIn(phone.db, thisWeek.key, '2026-10-30T01:30:00.000Z'));
+    await sync(phone);
+    expect(accountPushDue()).toBe(false);
+
+    // The laptop's Today runs on its stale copy, before it has pulled: a fresh mark, no seenAt.
+    later(MINUTE);
+    expect(await on(laptop, () => markTargetPendingIn(laptop.db, thisWeek, '2026-10-30T02:00:00.000Z'))).toBe(true);
+    await sync(laptop);
+    // The later edit wins the mark row (§6.2 rule 4) ...
+    expect((server.live(USER).insightFeedback?.[TARGET_NOTICE_ID]?.targetNotice as ReminderTargetMark | undefined)?.seenAt).toBeUndefined();
+    // ... but the seen row is the phone's, which a mark never writes.
+    expect(accountPushDue()).toBe(false);
+    await sync(phone);
+    await expectConverged(phone, laptop);
   });
 });
 

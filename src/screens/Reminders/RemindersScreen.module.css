@@ -1,0 +1,44 @@
+/* S38 Reminders. Tokens only. */
+
+.subScreen {
+  padding-bottom: 48px;
+}
+
+.intro {
+  margin: 4px var(--pad-text-x) 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* The device card lines up with the SettingsGroup cards under it. */
+.status {
+  margin: 8px 16px;
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sheetNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}

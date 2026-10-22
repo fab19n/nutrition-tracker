@@ -23,6 +23,7 @@ const WeightScreen = lazy(() => import('@/screens/More/WeightScreen'));
 const SettingsScreen = lazy(() => import('@/screens/More/SettingsScreen'));
 const ExportScreen = lazy(() => import('@/screens/More/ExportScreen'));
 const BackupsScreen = lazy(() => import('@/screens/Backups/BackupsScreen'));
+const RemindersScreen = lazy(() => import('@/screens/Reminders/RemindersScreen'));
 const ComingSoonScreen = lazy(() => import('@/screens/More/ComingSoonScreen'));
 const EstimatingScreen = lazy(() => import('@/screens/Log/EstimatingScreen'));
 const ReviewScreen = lazy(() => import('@/screens/Log/ReviewScreen'));
@@ -72,6 +73,7 @@ export const routes: RouteObject[] = [
       { path: '/more/settings', element: page(SettingsScreen), handle: tab(false) },
       { path: '/more/export', element: page(ExportScreen), handle: tab(false) },
       { path: '/more/backups', element: page(BackupsScreen), handle: tab(false) },
+      { path: '/more/reminders', element: page(RemindersScreen), handle: tab(false) },
       { path: '/more/places', element: page(PlacesScreen), handle: tab(false) },
       { path: '/more/places/:id', element: page(PlaceDetailScreen), handle: tab(false) },
       { path: '/more/usuals', element: page(UsualsScreen), handle: tab(false) },

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { FileCheck, FileClock, FileDown, HardDrive, MapPin, Scale, Utensils } from 'lucide-react';
+import { Bell, BellOff, FileCheck, FileClock, FileDown, HardDrive, MapPin, Scale, Utensils } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MealRow } from '@/components/MealRow/MealRow';
 import { EmptySlot, MealSectionHeader } from '@/components/EmptySlot/EmptySlot';
@@ -27,6 +27,7 @@ import { DEMO_NOW_ISO } from '@/domain/clock';
 import { DEFAULT_TZ } from '@/domain/day';
 import type { DriveEngineState } from '@/drive/engine';
 import { describeDrive, drivePhase, DRIVE_PRIMER } from '@/drive/status';
+import { describePush, type PushView } from '@/push/status';
 import { exportCardCopy, previewCard, type ExportCardCopy } from '@/screens/Backups/backupsModel';
 import { describeSync, type SyncView } from '@/sync/status';
 import { CHECK_IN_CAPTIONS, CheckInTimelineSample } from './checkInSample';
@@ -125,6 +126,26 @@ const DRIVE_STATES: { label: string; state: Partial<DriveEngineState> }[] = [
   { label: "Can't reach Google Drive", state: { error: 'unreachable', retryAt: SYNC_NOW_MS + 5 * 60_000, counts: { uploads: 4, files: 0, failed: 0 } } },
   { label: 'Drive full', state: { error: 'driveFull', counts: { uploads: 4, files: 0, failed: 0 } } },
   { label: "1 photo couldn't upload", state: { counts: { uploads: 0, files: 0, failed: 1 } } },
+];
+
+/** S38's device card: its copy comes from describePush, so each state here is the app's own. */
+const PUSH_ON: PushView = {
+  phase: 'on',
+  permission: 'granted',
+  hasRecord: true,
+  device: { failures: 0, lastOkAt: new Date(SYNC_NOW_MS - 14 * 60 * 60_000).toISOString() },
+  now: SYNC_NOW_MS,
+  failing: false,
+};
+const PUSH_STATES: { label: string; view: Partial<PushView> }[] = [
+  { label: 'On, last reminder this morning', view: {} },
+  { label: "On, but reminders aren't arriving", view: { device: { failures: 3, lastError: 'http 403' }, failing: true } },
+  { label: 'Off on this device', view: { phase: 'off', device: undefined, hasRecord: false, permission: 'default' } },
+  { label: 'Notifications blocked', view: { phase: 'denied', permission: 'denied' } },
+  { label: 'Signed out', view: { phase: 'signedOut', hasRecord: false } },
+  { label: 'Demo mode', view: { phase: 'demo', hasRecord: false } },
+  { label: 'Server not set up', view: { phase: 'problem', error: 'notSetUp' } },
+  { label: 'Not in this version', view: { phase: 'unconfigured', hasRecord: false } },
 ];
 
 /** The backup-file card on Backups: its copy comes from exportCardCopy, so each state here is the app's own. */
@@ -712,6 +733,17 @@ function PrimerAndInstallStates() {
             onNotNow={noop}
           />
         </State>
+      </Group>
+      <Group title="S38 Reminders device card (SyncStatus)">
+        {PUSH_STATES.map(({ label, view }) => {
+          const push = { ...PUSH_ON, ...view };
+          const copy = describePush(push, DEFAULT_TZ);
+          return (
+            <State key={label} label={`S38 Reminders / ${label}`}>
+              <SyncStatus {...copy} icon={push.phase === 'on' ? Bell : BellOff} actions={copy.actions.map((action) => ({ ...action, onPress: noop }))} />
+            </State>
+          );
+        })}
       </Group>
       <Group title="C59 InstallPrompt">
         <State label="C59 InstallPrompt / iOS Safari">

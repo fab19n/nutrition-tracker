@@ -6,6 +6,7 @@ This guide takes Kira Makan from your PC to your phone:
 - **Supabase** runs the sign-in (email and password), keeps the synced copy of your diary in its database, and runs the `estimate` Edge Function, which holds your Anthropic API key as a secret.
 - **Anthropic** (Claude) reads typed meals and photos the offline catalogue can't.
 - **Google Drive** (optional) keeps your meal photos, in a folder the app creates; the app can see only that folder's files.
+- **Supabase** also sends reminders to the installed app (optional): a scheduled job runs the `send-reminders` Edge Function every 5 minutes.
 
 ```
 Phone (installed app from Vercel)
@@ -14,12 +15,13 @@ Phone (installed app from Vercel)
   │                         a laptop restores from the same copy and stays in step
   ├─ AI estimate ──► Supabase Edge Function "estimate" ──► Claude API
   │                    checks: signed-in user, email on ALLOWED_EMAILS, web origin on ALLOWED_ORIGIN
-  └─ meal photos (connected) ──► your Google Drive: "Kira Makan photos" (drive.file)
+  ├─ meal photos (connected) ──► your Google Drive: "Kira Makan photos" (drive.file)
+  └─ reminders (optional) ◄── Supabase: pg_cron every 5 min ──► send-reminders ──► the browser's push service
 ```
 
 Sign-in protects two things: the synced copy of your diary and the AI function. The app works fully without an account. Signing in keeps a copy of your diary in your Supabase database, so a second device such as a laptop can restore it and stay in sync, and it unlocks AI estimates. The copy holds your meals, weights, goals, Places and settings as plain JSON: through the app only your own account can read it, and you can see it yourself in the Supabase dashboard (so can anyone else you give access to the project). Photos stay on the phone unless you connect Google Drive (Part 9). You sign in with your email and a password, typed in the app (your password manager fills it in), and the phone stays signed in. Supabase sends no email at all. An emailed link would open Safari instead of the installed iPhone app, and new free Supabase projects can't change the built-in email to carry a code instead. New sign-ups are blocked: only the account you create yourself can sign in.
 
-Plan on about 50 minutes, plus 15 for Part 9. Steps are numbered straight through, so the troubleshooting table can point back at them.
+Plan on about 50 minutes, plus 15 for Part 9 and 20 for Part 10. Steps are numbered straight through, so the troubleshooting table can point back at them.
 
 ## Before you start
 
@@ -240,6 +242,9 @@ The data on each device stays as it is. Their Settings cards then say "The copy 
 - Changed the food catalogue in `src/data` or the server code in `supabase/functions/estimate`: repeat steps 30 and 31.
 - Changed a Vercel environment variable: redeploy (Deployments → the latest one → **⋯ → Redeploy**). `VITE_` values are baked in at build time, so old builds keep the old values.
 - Changed a Supabase secret: nothing else to do.
+- Changed `supabase/functions/send-reminders`, `supabase/functions/_shared` or `supabase/functions/estimate/auth.ts`: repeat step 60 (and step 31 for the estimate function when `auth.ts` changed).
+- `supabase/push.sql` changed: run it again (step 57), then step 59.
+- To stop reminders for everyone: `select cron.unschedule('kira-makan-reminders');` in the SQL Editor (step 57 brings it back). Each phone can also turn its own off in Reminders.
 
 ## Part 9 · Google Drive for meal photos (optional)
 
@@ -255,6 +260,66 @@ Meal photos then go to a **Kira Makan photos** folder in your own Google Drive, 
 50. On your PC: add `VITE_GOOGLE_CLIENT_ID=<the client ID>` to `.env.local` and restart `npm run dev`. Use the same client ID as production, so the app on `localhost` sees the same photos.
 51. On the phone: open the app (it updates by itself; close and reopen if it looks old) → **More → Settings → Photos → Connect Google Drive → Continue with Google** → pick the account from step 43 → **Allow** (tick Google Drive if Google shows a box). The card shows **Uploading photos**, then **Up to date**; photos already on the phone upload while the app is open. Google asks again about once an hour: when you add a photo, a Google window may open and close by itself, and if photos wait, the card says **Needs you** with **Continue**.
 52. On the laptop: same as step 51 with the same Google account. Open a meal photographed on the phone and tap **Show full photo**. In Google Drive, **My Drive → Kira Makan photos** holds the files. Deleting a meal moves its photo to Drive's trash about a minute later; **Delete everything** never touches Drive.
+
+## Part 10 · Reminders on the phone (optional)
+
+The installed app can then show a few gentle reminders as notifications: a quick check each morning when yesterday isn't confirmed, a nudge when a usual meal is hours late (from 14 complete days), the weekly review on Sunday night and a new target suggestion. Nothing goes during quiet hours, after a **Going to sleep** tap, or more than once an hour. A scheduled job in your Supabase database (pg_cron) calls the `send-reminders` Edge Function every 5 minutes while any device has reminders on; the function decides what is due and sends it through the browser's own push service (Google's, for Chrome on Android) with your VAPID keys. Each device turns notifications on for itself; what to send syncs.
+
+53. Make the keys. In the repo folder:
+
+    ```
+    npm run push:keys -- --subject https://kira-makan.vercel.app
+    ```
+
+    Use your production address from step 24 as the subject. It prints three blocks: the public key for the app, the four Supabase secrets, and one SQL line. Keep the whole output in your password manager as "Kira Makan reminder keys". Run it once: new keys mean every device turns reminders on again (the app does that by itself at its next start), and nothing is written to disk.
+
+54. Put block 2 in `supabase/.env.secrets` (the file from step 29; if you deleted it, create it again with just these four lines, since `secrets set` only adds or updates the names in the file):
+
+    ```
+    VAPID_PUBLIC_KEY=B...
+    VAPID_PRIVATE_KEY=...
+    VAPID_SUBJECT=https://kira-makan.vercel.app
+    CRON_SECRET=...
+    ```
+
+    Then push it and check the names are there:
+
+    ```
+    npx supabase secrets set --env-file supabase/.env.secrets
+    npx supabase secrets list
+    ```
+
+    The list now shows `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and `CRON_SECRET` as well. The private key and the cron secret never go anywhere else. Then delete `supabase/.env.secrets` again: the values now live in Supabase and your password manager.
+
+55. Vercel → your project → **Settings → Environment Variables** → add `VITE_VAPID_PUBLIC_KEY` with the public key from block 1, for **Production, Preview and Development** → **Save** → **Deployments → the latest → ⋯ → Redeploy**. It is public by design: it names your server to the push service.
+
+56. On your PC: add `VITE_VAPID_PUBLIC_KEY=B...` (the same key) to `.env.local` and restart `npm run dev`. The dev server has no service worker, so its Reminders screen says "Reminders work in the built app"; `npm run build` then `npm run preview` runs them on `http://localhost:4173`.
+
+57. Create the reminder storage and the job. **SQL Editor → New query** → paste the whole of `supabase/push.sql` → **Run** (after steps 19 and 20). It turns on the `pg_cron` and `pg_net` extensions, creates the `push_subscriptions` and `push_log` tables, the functions the app and the job call, and the `kira-makan-reminders` job. Like `sync.sql` it's safe to run again; confirm if the editor warns about `drop policy if exists`. "permission denied to create extension" → **Database → Extensions** (or **Integrations → Cron**), enable `pg_cron` and `pg_net`, then run it again.
+
+58. Tell the job where the function is. **New query** → paste block 3 from step 53 (`select public.push_configure('https://<project-ref>.supabase.co/functions/v1/send-reminders', '<CRON_SECRET>');`, with your ref and the cron secret) → **Run**. It answers "Reminders configured. The job calls the function every 5 minutes." Then delete that query from the editor: it holds the secret, which now lives in Supabase's Vault.
+
+59. Check it. **New query** → paste the whole of `supabase/push-selftest.sql` → **Run**. A success message means every check passed; it rolls everything back. A failed check stops with its name, such as `push_configure has run (the cron secret)`: repeat the step it points to. "Sign in to sync" means there's no user yet: do step 14 first.
+
+60. Deploy the function:
+
+    ```
+    npx supabase functions deploy send-reminders --no-verify-jwt --use-api
+    ```
+
+61. Check it's guarding the door (PowerShell `curl.exe`, Git Bash `curl`):
+
+    ```
+    curl.exe -i -X POST https://abcdefghijklmnopqrst.supabase.co/functions/v1/send-reminders
+    ```
+
+    Expect `401` and `{"code":"notSignedIn"}`. With the secret, the job's own call runs: add `-H "X-Cron-Secret: <CRON_SECRET>"` and expect `200` and `{"ok":true,"users":0,…}` (no device has reminders on yet).
+
+62. On the phone: open the app (it updates by itself; close and reopen if it looks old) → **More → Settings → Reminders → Turn on → Turn on reminders** → Chrome asks → **Allow**. The card says **On for this device**.
+
+63. Tap **Send a test notification**. "Test notification" arrives within a few seconds; tapping it opens Reminders.
+
+64. Pick the check-in time and quiet hours on the same screen; gap nudges switch on by themselves after 14 complete days. On Android, keep Kira Makan's notifications allowed (long-press the app icon › **App info › Notifications**) and its battery setting on **Optimised** or **Unrestricted**: Android's battery saving (Doze) can still hold a reminder back by a few minutes. A laptop can turn reminders on too, in Chrome; they arrive while Chrome is running.
 
 ---
 
@@ -311,10 +376,22 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 | No **Photos** card under Settings, only Keep photos | `VITE_GOOGLE_CLIENT_ID` missing or mistyped, or not redeployed | Step 49. |
 | Console says "Refused to load the script 'https://accounts.google.com/gsi/client'" or "Refused to connect … googleapis.com" | `vercel.json` without the Drive CSP | Push the current `vercel.json` and redeploy. (A blocked `accounts.google.com/gsi/style` line is harmless.) |
 | Want to remove the app's access completely | **Disconnect** only forgets Drive on that device | https://myaccount.google.com/connections → Kira Makan → **Delete all connections**. Photos already in Drive stay there. |
+| Reminders card says "Reminders aren't set up on the server" | `supabase/push.sql` hasn't run in this project | Steps 57–59, then **Try again** on the card. |
+| Test toast says "Reminders aren't set up on the server yet." | The function isn't deployed, or its VAPID secrets are missing | Step 60 (function missing) or step 54 (secrets missing). |
+| Test toast says the app and the server "use different reminder keys" | `VITE_VAPID_PUBLIC_KEY` on Vercel and `VAPID_PUBLIC_KEY` in Supabase differ | Steps 54 and 55 must use the same public key from step 53. Redeploy on Vercel, open the app, then **Set up again** (or **Turn off** and **Turn on**). |
+| Reminders card says "Notifications are blocked" | Notifications for the app were turned off in Android, or **Block** was tapped | Long-press the app icon › **App info › Notifications** › allow, then open Reminders again. |
+| Settings › Reminders says "Not available in this version" | `VITE_VAPID_PUBLIC_KEY` missing or mistyped, or not redeployed | Step 55. |
+| The test arrives but reminders never do | The job isn't calling the function: `push_configure` never ran, or its secret differs from `CRON_SECRET` | Step 58. Then, in the SQL Editor, `select * from cron.job_run_details order by start_time desc limit 5;` and `select * from net._http_response order by created desc limit 5;`: a 401 there means the secret in Vault differs from `CRON_SECRET`, so repeat step 58. Reminders also wait for something to be due: the check-in from 10am when yesterday isn't confirmed, gap nudges after 14 complete days. |
+| Reminders card says "Reminders aren't reaching this device" | The last few sends failed (the push service refused them) | **Set up again** on the card. |
+| Nothing arrives on a PC with the app open | Chrome must be running and allowed to show notifications | Allow notifications for the app's address in Chrome and in the system's notification settings. |
+| A reminder comes a few minutes late | Android's battery saving (Doze) holds notifications back | Expected. Set Kira Makan's battery use to **Optimised** or **Unrestricted** (step 64). |
+| No reminders for days, and sign-in and sync stop too | The free Supabase project was paused | Restore it in the dashboard; reminders pick up on the next run. |
 
 ## Costs
 
 **Google Drive**: photos use your Drive storage, about 250 KB each (roughly 270 MB a year at 3 a day). The Drive API itself is free.
+
+**Reminders**: the job runs every 5 minutes but calls the function only while a device has reminders on, about 8,700 calls a month, under 2% of the free plan's 500,000 Edge Function invocations. pg_cron and pg_net are included; each run is logged for a few hours (pg_net) or a week (`push_tick` cleans `cron.job_run_details`). Push delivery through Google's FCM is free. The job may not count as activity for the free plan's pause.
 
 **Vercel and Supabase**: the free plans cover one person comfortably (static hosting; a few Edge Function calls a day; one auth user; a synced diary of a few thousand rows, a few megabytes of database). Supabase pauses free projects that go unused for a while; restoring one from the dashboard takes a click, and sync waits meanwhile with nothing lost.
 
@@ -336,5 +413,9 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 | `ANTHROPIC_API_KEY` | Supabase secrets, and `.env.local` on your PC | No: never in Vercel, a `VITE_` variable or Git |
 | `ALLOWED_EMAILS`, `ALLOWED_ORIGIN` | Supabase secrets | Not secret, but only you set them |
 | `VITE_GOOGLE_CLIENT_ID` | Vercel environment variables, `.env.local` | Yes, by design (the client secret is never used) |
+| `VITE_VAPID_PUBLIC_KEY` | Vercel environment variables, `.env.local` | Yes, by design |
+| `VAPID_PRIVATE_KEY`, `CRON_SECRET` | Supabase secrets (the cron secret also in Vault, through `push_configure`) | No: never in Vercel, a `VITE_` variable or Git |
+| `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | Supabase secrets | Not secret |
+| Push subscriptions | `push_subscriptions` in your Supabase database: each device's push address and keys | No. Through the app only your account reads them |
 | Your diary, weights, goals, Places and settings | IndexedDB on the phone and, once you sign in, the synced copy in your Supabase database (`sync_rows`) | No. Through the app only your account can read the copy. You, and anyone you give access to the Supabase project, can see it in the dashboard. The meal text and portion hints also go to the AI for an estimate |
 | Your photos | IndexedDB on each device; once connected, the "Kira Makan photos" folder in your Google Drive (the app can see only the files it created there); a small preview (about 10 KB) of each uploaded photo syncs with its meal through Supabase | No. A photo also goes to the AI when it's sent for an estimate |

@@ -8,6 +8,7 @@ import { useBootstrap } from './bootstrap';
 import { takeProgrammaticBack } from './history';
 import { useSheet } from './navigation';
 import { useOnline } from './network';
+import { useNotificationOpens } from './notificationOpens';
 import { OfflineBanner } from './OfflineBanner';
 import { PATHS, type Tab } from './paths';
 import type { RouteHandle } from './routes';
@@ -77,6 +78,8 @@ function useBackClosesLocalSheets() {
 
 function ShellLayout() {
   useBackClosesLocalSheets();
+  // A notification tapped while the app is open opens its screen here (decision §10.19).
+  useNotificationOpens();
   const tab = useActiveTab();
   const online = useOnline();
   return (

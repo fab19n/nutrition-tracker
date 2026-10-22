@@ -1,9 +1,11 @@
 // @vitest-environment node
-import { createDb, type KiraMakanDb } from '@/db/db';
+import { clearAllTables, createDb, db as appDb, type KiraMakanDb } from '@/db/db';
+import { TARGET_NOTICE_ID, TARGET_NOTICE_SEEN_ID, markTargetPendingIn } from '@/db/reminders';
 import { getInsightFeedback, putGoalPeriod, updateGoalPeriod } from '@/db/repo';
 import { loadDemo } from '@/db/seed/demo';
 import { getActiveGoal, getWeekBudget } from '@/db/selectors';
 import { setDemoClock } from '@/domain/clock';
+import { decideReminder } from '@/domain/reminders';
 import type { GoalVersion, InsightFeedback } from '@/domain/types';
 import { loadMaintenanceWorld, MAINTENANCE_WORLD as W, type MaintenanceWorldOptions } from '@/test/maintenanceWorld';
 import {
@@ -14,6 +16,7 @@ import {
   getTargetCheck,
   getTargetView,
   markTargetNoticeSeen,
+  markTargetShowing,
   readTargetNoticeSeen,
   type TargetChoice,
 } from './targetSuggestion';
@@ -385,5 +388,100 @@ describe('the notice store', () => {
     markTargetNoticeSeen('version-cut-setup:2026-10-26');
     expect(storage.setItem).toHaveBeenCalled();
     expect(readTargetNoticeSeen()).toBe('version-cut-setup:2026-10-26');
+  });
+});
+
+describe('the synced push mark', () => {
+  const key = W.expected.noticeKey;
+  const mark = { key, weekStart: W.weekStart, weeks: 4 };
+
+  /** send-reminders' decision from the app's rows at 1pm that Friday: with no meals given, only the target push can be due. */
+  async function targetPushDue(): Promise<boolean> {
+    const targetNotice = (await getInsightFeedback(appDb, TARGET_NOTICE_ID))?.targetNotice;
+    const targetNoticeSeen = (await getInsightFeedback(appDb, TARGET_NOTICE_SEEN_ID))?.targetNoticeSeen;
+    const input = {
+      profile: { timeZone: 'Asia/Kuala_Lumpur', rolloverHour: 5, startedOn: W.startedOn },
+      days: [],
+      meals: [],
+      completeDays: 0,
+      periods: [],
+      goals: [],
+      sent: [],
+      ...(targetNotice ? { targetNotice } : {}),
+      ...(targetNoticeSeen ? { targetNoticeSeen } : {}),
+    };
+    return decideReminder(input, Date.parse('2026-10-30T05:00:00.000Z')).due?.kind === 'targetSuggestion';
+  }
+
+  const seenRow = async () => (await getInsightFeedback(appDb, TARGET_NOTICE_SEEN_ID))?.targetNoticeSeen?.key;
+
+  it('seen here first (S37 before Today), marked by Today, seen again: never pushed', async () => {
+    await loadMaintenanceWorld(appDb);
+    try {
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect(await seenRow()).toBe(key));
+      await markTargetPendingIn(appDb, mark, '2026-10-30T02:00:00.000Z');
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect(await targetPushDue()).toBe(false));
+      expect(await getInsightFeedback(appDb, TARGET_NOTICE_ID)).toBeUndefined();
+    } finally {
+      await clearAllTables(appDb);
+    }
+  });
+
+  it('a mark that arrives after this device saw the notice is seen the next time it shows', async () => {
+    await loadMaintenanceWorld(appDb);
+    try {
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect(await seenRow()).toBe(key));
+      // Another device's mark, and no seen row yet (this device saw it before this version).
+      await appDb.insightFeedback.delete(TARGET_NOTICE_SEEN_ID);
+      await appDb.insightFeedback.put({ ruleId: TARGET_NOTICE_ID, feedback: 'notice', at: '2026-10-30T02:00:00.000Z', targetNotice: { ...mark, markedAt: '2026-10-30T02:00:00.000Z' } });
+      expect(await targetPushDue()).toBe(true);
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect(await targetPushDue()).toBe(false));
+      expect((await getInsightFeedback(appDb, TARGET_NOTICE_ID))?.targetNotice?.seenAt).toBeDefined();
+      expect(await seenRow()).toBe(key);
+    } finally {
+      await clearAllTables(appDb);
+    }
+  });
+
+  it('Today records a suggestion this device saw already as seen, never as a mark', async () => {
+    await loadMaintenanceWorld(appDb);
+    try {
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect(await seenRow()).toBe(key));
+      // Seen before this version: only the device's own record knows.
+      await appDb.insightFeedback.delete(TARGET_NOTICE_SEEN_ID);
+      expect(await markTargetShowing(mark)).toBe(true);
+      expect(await getInsightFeedback(appDb, TARGET_NOTICE_ID)).toBeUndefined();
+      expect(await seenRow()).toBe(key);
+      expect(await targetPushDue()).toBe(false);
+
+      // Not seen here: marked for its push.
+      clearTargetNoticeSeen();
+      await clearAllTables(appDb);
+      await loadMaintenanceWorld(appDb);
+      expect(await markTargetShowing(mark)).toBe(true);
+      expect((await getInsightFeedback(appDb, TARGET_NOTICE_ID))?.targetNotice?.key).toBe(key);
+      expect(await seenRow()).toBeUndefined();
+    } finally {
+      await clearAllTables(appDb);
+    }
+  });
+
+  it('is seen on every device once the notice is seen here', async () => {
+    const key = W.expected.noticeKey;
+    await loadMaintenanceWorld(appDb);
+    try {
+      await markTargetPendingIn(appDb, { key, weekStart: W.weekStart, weeks: 4 });
+      markTargetNoticeSeen(key);
+      await vi.waitFor(async () => expect((await getInsightFeedback(appDb, TARGET_NOTICE_ID))?.targetNotice?.seenAt).toBeDefined());
+      // The banner's own record stays on this device.
+      expect(readTargetNoticeSeen()).toBe(key);
+    } finally {
+      await clearAllTables(appDb);
+    }
   });
 });

@@ -22,6 +22,8 @@ export const PATHS = {
   export: '/more/export',
   /** S39 Backups: sync state, Export now, Restore from a file. */
   backups: '/more/backups',
+  /** S38 Reminders: this device's notifications and what to send. */
+  reminders: '/more/reminders',
   places: '/more/places',
   place: (id: string) => `/more/places/${encodeURIComponent(id)}`,
   usuals: '/more/usuals',
@@ -36,7 +38,7 @@ export const PATHS = {
   goalNew: (template?: GoalTemplate) => (template ? `/more/goals/new?template=${template}` : '/more/goals/new'),
   /** S42 Goal detail / edit. */
   goal: (id: string) => `/more/goals/${encodeURIComponent(id)}`,
-  /** Placeholder for screens planned in later phases (Reminders). */
+  /** Placeholder for screens planned in later phases. */
   soon: (what: string) => `/more/soon/${encodeURIComponent(what)}`,
   estimating: '/log/estimating',
   review: '/log/review',

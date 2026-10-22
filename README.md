@@ -25,7 +25,7 @@ npm run build         # typecheck, then the production build in dist/
 npm run preview       # serve dist/ locally
 ```
 
-`npm run build:estimate-catalogue` regenerates the food catalogue the Edge Function bundles; run it whenever `src/data` changes.
+`npm run build:estimate-catalogue` regenerates the food catalogue the Edge Function bundles; run it whenever `src/data` changes. `npm run push:keys` prints the VAPID keys and cron secret for reminders (DEPLOY.md part 10); it writes no file.
 
 ## Docs
 
@@ -35,7 +35,7 @@ npm run preview       # serve dist/ locally
 | [design_handoff.md](design_handoff.md) | Every component and screen, with all their states |
 | [design/](design/) | The final visual design: [design/README.md](design/README.md) (tokens, sizes) and the prototype |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the code is built: stack, layout, contracts, conventions, decisions |
-| [DEPLOY.md](DEPLOY.md) | Putting it on your phone: Vercel, Supabase sign-in and sync, the AI estimate function, a second device, costs, troubleshooting |
+| [DEPLOY.md](DEPLOY.md) | Putting it on your phone: Vercel, Supabase sign-in and sync, the AI estimate function, a second device, Google Drive photos, reminders, costs, troubleshooting |
 
 ## Stack
 

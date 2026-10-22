@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { ChevronRight, Utensils } from 'lucide-react';
 import { useSheet } from '@/app/navigation';
@@ -27,7 +28,7 @@ import {
   useWeekBudget,
 } from '@/db/hooks';
 import { markGoalEndNoticeSeen, useGoalEnd, useGoalEndNoticeSeen } from '@/db/goals';
-import { markTargetNoticeSeen, useTargetNoticeSeen, useTargetView } from '@/db/targetSuggestion';
+import { markTargetNoticeSeen, markTargetShowing, useTargetNoticeSeen, useTargetView } from '@/db/targetSuggestion';
 import { useHasAnyMeal, useUsualSleepMinutes } from '@/db/today';
 import { now as clockNow } from '@/domain/clock';
 import { DEFAULT_ROLLOVER_HOUR, DEFAULT_TZ, addDays, minutesIntoLogicalDay, weekStartOf, zonedParts } from '@/domain/day';
@@ -37,6 +38,7 @@ import { mealMacros } from '@/domain/meal';
 import type { MealLog } from '@/domain/types';
 import { useUiStore } from '@/state/ui';
 import { useInFlight } from '@/screens/inFlight';
+import { weeksOfData } from '@/screens/Insights/targetModel';
 import { usePendingMealIds } from '@/sync/hooks';
 import { TodayMealRow } from './TodayMealRow';
 import {
@@ -86,6 +88,17 @@ export default function TodayScreen() {
   const noticeSeen = useTargetNoticeSeen();
   const goalEnd = useGoalEnd();
   const goalEndSeen = useGoalEndNoticeSeen();
+
+  // A showing target suggestion is marked (synced) so the server can push it once if no device sees it
+  // first (S40, decision §10.19); one this device has seen counts as seen instead. Nothing on screen
+  // changes; a key already marked or seen writes nothing.
+  const pendingKey = target?.check.kind === 'suggestion' ? target.check.proposal.noticeKey : undefined;
+  const daysUsed = target?.check.kind === 'suggestion' ? target.check.estimate.daysUsed : 0;
+  const realProfile = profile !== undefined && profile.demoMode !== true;
+  useEffect(() => {
+    if (!pendingKey || !realProfile) return;
+    void markTargetShowing({ key: pendingKey, weekStart: weekStartOf(today), weeks: weeksOfData(daysUsed) }).catch(() => undefined);
+  }, [pendingKey, realProfile, today, daysUsed]);
 
   const header = (
     <TopBar

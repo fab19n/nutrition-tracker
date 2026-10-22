@@ -136,6 +136,24 @@ export interface Profile {
   setupCompletedAt?: Instant;
   /** When true, the clock is pinned and sample data is shown (see src/domain/clock.ts). */
   demoMode?: boolean;
+  /** S38 Reminders. Synced. Missing on older rows and app versions: the defaults. */
+  reminders?: ReminderSettings;
+}
+
+/** S38 Reminders (decision §10.19). Every field is optional; a missing one is its default. Synced: every device and the server agree. */
+export interface ReminderSettings {
+  /** Morning check-in push. Default on. */
+  checkIn?: boolean;
+  /** When it may go, minutes after midnight on the wall clock; 360–720, a multiple of 15. Default 600 (10am). */
+  checkInAtMin?: number;
+  /** Gap nudges, once unlocked (14 complete days). Default on. */
+  gapNudges?: boolean;
+  /** Sunday-night weekly review push. Default on. */
+  weeklyReview?: boolean;
+  /** New target suggestion push. Default on. */
+  targetSuggestion?: boolean;
+  /** Your own quiet hours (wall-clock minutes after midnight, multiples of 15, from ≠ until). Missing = from your sleep taps. */
+  quiet?: { fromMin: number; untilMin: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -449,9 +467,10 @@ export interface InsightFeedback {
   ruleId: string;
   /**
    * 'keepCurrent' is "Keep current" on the target suggestion (ruleId 'targetSuggestion');
-   * 'dishCheck' is the top dishes check (ruleId 'topDishes').
+   * 'dishCheck' is the top dishes check (ruleId 'topDishes'); 'notice' is a target suggestion
+   * waiting for its push (ruleId 'targetNotice') or one some device has seen (ruleId 'targetNoticeSeen').
    */
-  feedback: 'useful' | 'notForMe' | 'keepCurrent' | 'dishCheck';
+  feedback: 'useful' | 'notForMe' | 'keepCurrent' | 'dishCheck' | 'notice';
   at: Instant;
   /** "Not for me" pauses the rule for about 4 weeks; "Keep current" hides the suggestion as long; "Not now" hides the top dishes card. */
   pausedUntil?: LogicalDay;
@@ -459,6 +478,32 @@ export interface InsightFeedback {
   keptTarget?: { keptOn: LogicalDay; maintenanceKcal: number; versionId: Id };
   /** The top dishes check (S34): the list frozen when it started, the answers, and when it was finished. Missing on older rows and app versions. */
   dishCheck?: DishCheck;
+  /** A target suggestion waiting for its push (ruleId 'targetNotice', decision §10.19). Missing on older rows and app versions. */
+  targetNotice?: TargetNoticeMark;
+  /** The target suggestion some device has seen last (ruleId 'targetNoticeSeen', decision §10.19). Missing on older rows and app versions. */
+  targetNoticeSeen?: TargetNoticeSeen;
+}
+
+/** The target suggestion the server may push about, once (decision §10.19). */
+export interface TargetNoticeMark {
+  /** The proposal's noticeKey, `${versionId}:${weekStart}`. */
+  key: string;
+  weekStart: LogicalDay;
+  /** "Based on 3 weeks of data": weeksOfData(estimate.daysUsed). */
+  weeks: number;
+  markedAt: Instant;
+  /** Set when any device has seen the notice (tapped, S37 opened, or a decision made); the push is then never sent. */
+  seenAt?: Instant;
+}
+
+/**
+ * Seen, in a row of its own that only seeing writes: a device that marks the same suggestion before
+ * its first pull overwrites the mark (later edit wins), never this, so the push still stays unsent.
+ */
+export interface TargetNoticeSeen {
+  /** The noticeKey seen. */
+  key: string;
+  seenAt: Instant;
 }
 
 /** One dish on the top dishes check, frozen when the check starts. */

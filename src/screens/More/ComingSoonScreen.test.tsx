@@ -13,6 +13,7 @@ function renderSoon(what: string) {
       { path: '/more', element: <h1>More screen</h1> },
       { path: '/more/export', element: <h1>Export screen</h1> },
       { path: '/more/backups', element: <h1>Backups screen</h1> },
+      { path: '/more/reminders', element: <h1>Reminders screen</h1> },
       { path: '/more/goals', element: <h1>Goals screen</h1> },
       { path: '/diary/search', element: <h1>Search screen</h1> },
     ],
@@ -32,13 +33,6 @@ afterEach(async () => {
 });
 
 describe('ComingSoonScreen', () => {
-  it.each([['reminders', 'Reminders', /nudges/]])('titles /more/soon/%s as %s with an honest line', (what, title, line) => {
-    renderSoon(what);
-    expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Coming in the next build' })).toBeInTheDocument();
-    expect(screen.getByText(line)).toBeInTheDocument();
-  });
-
   it('sends an old Goals link to the goal library (S41)', async () => {
     const router = renderSoon('goals');
     expect(await screen.findByRole('heading', { name: 'Goals screen' })).toBeInTheDocument();
@@ -63,9 +57,18 @@ describe('ComingSoonScreen', () => {
     expect(router.state.historyAction).toBe('REPLACE');
   });
 
+  it('sends an old Reminders link to Reminders (S38)', async () => {
+    const router = renderSoon('reminders');
+    expect(await screen.findByRole('heading', { name: 'Reminders screen' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.reminders);
+    expect(screen.queryByRole('heading', { name: 'Coming in the next build' })).toBeNull();
+    expect(router.state.historyAction).toBe('REPLACE');
+  });
+
   it('goes back to More when opened directly', async () => {
     const user = userEvent.setup();
-    const router = renderSoon('reminders');
+    const router = renderSoon('meal-plans');
+    expect(screen.getByRole('heading', { name: 'Coming in the next build' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(router.state.location.pathname).toBe(PATHS.more);
   });

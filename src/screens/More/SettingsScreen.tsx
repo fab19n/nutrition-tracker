@@ -31,11 +31,15 @@ import { backupStatus } from '@/domain/backup';
 import { fmtClock, fmtDayShort, fmtInt, fmtKcal, fmtKg } from '@/domain/format';
 import { logicalDayOf } from '@/domain/day';
 import { photosLabel } from '@/domain/photoSync';
+import { resolveReminderPrefs } from '@/domain/reminders';
 import type { AiEstimateMode, Profile, Sex, ThemePreference } from '@/domain/types';
 import { forgetDriveToken, resumeDrive, stopDrive } from '@/drive';
 import { useDriveView } from '@/drive/hooks';
 import { readEstimateUrl } from '@/estimate/aiClient';
+import { forgetPush } from '@/push';
+import { usePushView } from '@/push/hooks';
 import { backupsRowSub } from '@/screens/Backups/backupsModel';
+import { remindersRowSub } from '@/screens/Reminders/remindersModel';
 import { SEX_OPTIONS } from '@/screens/Setup/AboutStep';
 import { fieldError, parseNumber } from '@/screens/Setup/fields';
 import { NumberField } from '@/screens/Setup/NumberField';
@@ -314,6 +318,7 @@ export default function SettingsScreen() {
   const session = useSession();
   const syncView = useSyncView();
   const driveView = useDriveView();
+  const pushView = usePushView();
   const showToast = useUiStore((s) => s.showToast);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -356,6 +361,8 @@ export default function SettingsScreen() {
     try {
       // What's queued goes to the account first; whatever is left waits here for the next sign-in.
       await flushSync(SIGN_OUT_FLUSH_MS);
+      // This device's reminders go with the account, while its token still works (never longer than 3 s).
+      await forgetPush();
       await signOut();
       const waiting = await changesWaiting();
       showToast(waiting > 0 ? `Signed out. ${changes(waiting)} ${waiting === 1 ? 'waits' : 'wait'} on this device until you sign in.` : 'Signed out');
@@ -380,7 +387,8 @@ export default function SettingsScreen() {
     // copy and the photos in Google Drive stay.
     await Promise.all([stopSync(), stopDrive()]);
     try {
-      await Promise.all([resetAll(), forgetAccount()]);
+      // Reminders for this device go first, while the session's token still works.
+      await Promise.all([resetAll(), forgetPush().then(forgetAccount)]);
       forgetDriveToken();
     } finally {
       resumeSync();
@@ -522,7 +530,11 @@ export default function SettingsScreen() {
           <PhotosGroup profile={profile} />
 
           <SettingsGroup title="Reminders and data">
-            <SettingsRow label="Reminders" sub="Weigh-in and meal nudges" onPress={() => navigate(PATHS.soon('reminders'))} />
+            <SettingsRow
+              label="Reminders"
+              sub={remindersRowSub(pushView, resolveReminderPrefs(profile.reminders))}
+              onPress={() => navigate(PATHS.reminders)}
+            />
             <SettingsRow label="Backups" sub={backupsSub} onPress={() => navigate(PATHS.backups)} />
             <SettingsRow label="Export" sub={exportSub} onPress={() => navigate(PATHS.export)} />
           </SettingsGroup>
