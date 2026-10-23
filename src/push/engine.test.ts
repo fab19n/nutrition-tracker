@@ -131,6 +131,17 @@ describe('turnOn', () => {
     expect(denied.engine.getState().phase).toBe('denied');
   });
 
+  it("never saves a push address the server wouldn't send to, and unsubscribes the browser", async () => {
+    const w = setup({ permission: 'granted' });
+    w.manager.seed(KEY_BYTES, 'https://push.evil.example/collect');
+
+    expect(await w.engine.turnOn()).toEqual({ ok: false, problem: 'unsupportedService' });
+    expect(w.server.remote.subscribe).not.toHaveBeenCalled();
+    expect(w.store.read()).toBeNull();
+    expect(w.manager.current).toBeNull();
+    expect(w.engine.getState()).toMatchObject({ phase: 'problem', error: 'unsupportedService', hasRecord: false });
+  });
+
   it("doesn't ask again once permission is granted", async () => {
     const w = setup({ permission: 'granted' });
     expect(await w.engine.turnOn()).toEqual({ ok: true });

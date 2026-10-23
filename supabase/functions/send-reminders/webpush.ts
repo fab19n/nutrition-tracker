@@ -2,8 +2,9 @@
  * Web Push with WebCrypto only (Node 20+ and Deno): VAPID (RFC 8292) to name this server to the push
  * service, and aes128gcm message encryption (RFC 8291 over RFC 8188) so only the browser that
  * subscribed can read a reminder. No dependency: server/webpush.test.ts checks it against RFC 8291's
- * Appendix A vector.
+ * Appendix A vector. Only browser push services are ever sent to (../_shared/pushHosts.ts).
  */
+import { isAllowedPushEndpoint } from '../_shared/pushHosts.ts';
 
 export interface VapidConfig {
   /** 65-byte uncompressed P-256 point, base64url (starts with B). */
@@ -209,6 +210,8 @@ export function createWebPushSender(vapid: VapidConfig, deps: { fetch: typeof fe
   return {
     async send(target, payload, opts) {
       const endpoint = target.endpoint;
+      // push.sql refuses these when they're saved; this holds even for a row saved before that rule.
+      if (!isAllowedPushEndpoint(endpoint)) return { endpoint, outcome: 'skipped', error: 'host' };
       let body: Uint8Array<ArrayBuffer>;
       let authorization: string;
       try {

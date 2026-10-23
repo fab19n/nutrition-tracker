@@ -143,6 +143,17 @@ describe('describePush', () => {
       { tone: 'attention', pill: 'Needs you', title: 'Sign in again to get reminders', detail: "Your account didn't accept this device's sign-in.", actions: ['Sign in · primary'] },
     ],
     [
+      'problem unsupportedService',
+      { phase: 'problem', error: 'unsupportedService' },
+      {
+        tone: 'attention',
+        pill: 'Not supported',
+        title: "This browser's notifications can't be used",
+        detail: 'Reminders come through the push service of Chrome, Edge, Firefox or Safari. Open Kira Makan in one of those.',
+        actions: ['Turn off · ghost'],
+      },
+    ],
+    [
       'problem noWorker',
       { phase: 'problem', error: 'noWorker' },
       { tone: 'attention', pill: 'Needs a look', title: "The app isn't ready yet", detail: 'Close Kira Makan fully and open it again, then try again.', actions: ['Try again · primary'] },
@@ -212,7 +223,7 @@ describe('describePush', () => {
       { phase: 'off' },
       { phase: 'on', device: { failures: 0 } },
       { phase: 'on', failing: true },
-      ...(['notSetUp', 'offline', 'unreachable', 'needsSignIn', 'noWorker', 'failed'] as const).map((error) => ({ phase: 'problem' as const, error })),
+      ...(['notSetUp', 'offline', 'unreachable', 'needsSignIn', 'unsupportedService', 'noWorker', 'failed'] as const).map((error) => ({ phase: 'problem' as const, error })),
     ];
     for (const patch of phases) {
       const copy = describePush(view(patch), TZ, { syncOff: true });

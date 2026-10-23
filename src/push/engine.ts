@@ -19,6 +19,7 @@
 import type { SessionState } from '@/auth/session';
 import type { SyncErrorKind } from '@/db/syncTypes';
 import { isSyncError } from '@/sync/errors';
+import { isAllowedPushEndpoint } from '../../supabase/functions/_shared/pushHosts.ts';
 import { sameBytes } from './base64url';
 import { vapidKeyBytes } from './config';
 import type { PushRecord } from './local';
@@ -43,8 +44,8 @@ export type PushPhase =
 export interface PushEngineState {
   phase: PushPhase;
   permission: NotificationPermission | 'unsupported';
-  /** 'problem': why turning on or checking failed. */
-  error?: SyncErrorKind | 'noWorker';
+  /** 'problem': why turning on or checking failed. 'unsupportedService': the browser's push service isn't one the server sends to. */
+  error?: SyncErrorKind | 'noWorker' | 'unsupportedService';
   /** 'on': what the account says about this device. */
   device?: { lastOkAt?: string; lastError?: string; failures: number };
   /** This device has a saved (or pending) subscription record: reminders may still arrive while signed out. */
@@ -52,7 +53,7 @@ export interface PushEngineState {
   busy?: 'on' | 'off' | 'test' | 'check';
 }
 
-export type TurnOnResult = { ok: true } | { ok: false; problem: 'dismissed' | 'denied' | 'refused' | 'noWorker' | SyncErrorKind };
+export type TurnOnResult = { ok: true } | { ok: false; problem: 'dismissed' | 'denied' | 'refused' | 'noWorker' | 'unsupportedService' | SyncErrorKind };
 
 /** The parts of a PushSubscription the engine uses. */
 export interface PushSubscriptionLike {
@@ -262,6 +263,14 @@ export function createPushEngine(deps: PushEngineDeps): PushEngine {
     if (!wire) {
       problem = 'failed';
       return { ok: false, problem: 'failed' };
+    }
+    // The server only sends to browser push services (push.sql refuses the rest): don't save one it
+    // would refuse, and leave the browser unsubscribed.
+    if (!isAllowedPushEndpoint(wire.endpoint)) {
+      await unsubscribeBrowser();
+      deps.store.clear();
+      problem = 'unsupportedService';
+      return { ok: false, problem: 'unsupportedService' };
     }
     deps.store.write({ endpoint: wire.endpoint, userId, vapidKey: key, pending: true });
     const opts: Parameters<PushRemote['subscribe']>[1] = { vapidKey: key, label: deps.label() };
@@ -519,7 +528,7 @@ export function createPushEngine(deps: PushEngineDeps): PushEngine {
           const next = deps.store.read();
           if (!repaired.ok) {
             const kind = repaired.problem;
-            return kind === 'dismissed' || kind === 'denied' || kind === 'refused' || kind === 'noWorker' ? outcome : { ok: false, kind };
+            return kind === 'dismissed' || kind === 'denied' || kind === 'refused' || kind === 'noWorker' || kind === 'unsupportedService' ? outcome : { ok: false, kind };
           }
           if (next) outcome = await deps.remote.test(next.endpoint);
         }

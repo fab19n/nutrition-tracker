@@ -27,6 +27,25 @@ do $$ begin
                   where p.schemaname = 'public' and p.tablename = 'push_subscriptions' and p.policyname = 'push_subscriptions_select_own'),
          'each user reads only their own subscriptions';
 end $$;
+-- Only browser push services: never another site, a look-alike, a login in the address or another port.
+-- (Checked here: signed-in users only reach it through push_subscribe, in section 2.)
+do $$
+declare
+  key text := 'B' || repeat('A', 86);
+  sec text := repeat('a', 22);
+begin
+  assert public.push_valid_subscription('https://updates.push.services.mozilla.com/wpush/v2/x', key, sec, key)
+     and public.push_valid_subscription('https://wns2-par02p.notify.windows.com/w/?token=x', key, sec, key)
+     and public.push_valid_subscription('https://web.push.apple.com/x', key, sec, key)
+     and public.push_valid_subscription('https://FCM.googleapis.com:443/fcm/send/x', key, sec, key),
+         'the browsers'' push services are accepted';
+  assert not public.push_valid_subscription('https://evil.example/collect', key, sec, key)
+     and not public.push_valid_subscription('https://fcm.googleapis.com.evil.example/fcm/send/x', key, sec, key)
+     and not public.push_valid_subscription('https://fcm.googleapis.com@evil.example/fcm/send/x', key, sec, key)
+     and not public.push_valid_subscription('https://fcm.googleapis.com:8443/fcm/send/x', key, sec, key)
+     and not public.push_valid_subscription('https://www.googleapis.com/upload/drive/v3/files', key, sec, key),
+         'any other address is refused';
+end $$;
 
 -- 2. A device, as the first user ---------------------------------------------------------------------------
 select set_config('request.jwt.claims',
@@ -36,8 +55,8 @@ do $$
 declare
   key  text := 'B' || repeat('A', 86);
   sec  text := repeat('a', 22);
-  one  text := 'https://push.example.invalid/kira-makan-selftest-1';
-  two  text := 'https://push.example.invalid/kira-makan-selftest-2';
+  one  text := 'https://fcm.googleapis.com/fcm/send/kira-makan-selftest-1';
+  two  text := 'https://fcm.googleapis.com/fcm/send/kira-makan-selftest-2';
   r    jsonb;
 begin
   r := public.push_subscribe(one, key, sec, key, 'Self-test', null);
@@ -56,6 +75,12 @@ begin
   exception when sqlstate 'PT400' then
     null;
   end;
+  begin
+    perform public.push_subscribe('https://evil.example/collect', key, sec, key, null, null);
+    assert false, 'a subscription for another site is refused';
+  exception when sqlstate 'PT400' then
+    null;
+  end;
 end $$;
 
 -- 3. The job, as the service role -------------------------------------------------------------------------
@@ -64,7 +89,7 @@ set local role service_role;
 do $$
 declare
   uid uuid := (current_setting('request.jwt.claims')::jsonb ->> 'sub')::uuid;
-  two text := 'https://push.example.invalid/kira-makan-selftest-2';
+  two text := 'https://fcm.googleapis.com/fcm/send/kira-makan-selftest-2';
   r   jsonb;
 begin
   r := public.push_context(uid, current_date - 36);
@@ -87,8 +112,8 @@ set local role anon;
 do $$
 declare key text := 'B' || repeat('A', 86);
 begin
-  assert public.push_resubscribe('https://push.example.invalid/kira-makan-selftest-unknown', repeat('a', 22),
-           'https://push.example.invalid/kira-makan-selftest-3', key, repeat('a', 22), key) ->> 'saved' = 'false',
+  assert public.push_resubscribe('https://fcm.googleapis.com/fcm/send/kira-makan-selftest-unknown', repeat('a', 22),
+           'https://fcm.googleapis.com/fcm/send/kira-makan-selftest-3', key, repeat('a', 22), key) ->> 'saved' = 'false',
          'a rotation needs the old secret';
 end $$;
 

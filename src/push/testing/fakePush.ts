@@ -14,9 +14,10 @@ import type { PushDeviceInfo, PushRemote, PushSubscriptionWire, TestOutcome } fr
 
 let seq = 0;
 
+/** A host the app accepts (supabase/functions/_shared/pushHosts.ts) and not Google's, which stays in src/drive (src/drive/sources.test.ts). */
 function nextEndpoint(): string {
   seq += 1;
-  return `https://push.example.test/send/device-${seq}`;
+  return `https://updates.push.services.mozilla.com/wpush/v2/fake-device-${seq}`;
 }
 
 function randomKey(length: number): string {

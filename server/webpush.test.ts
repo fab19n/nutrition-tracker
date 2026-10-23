@@ -215,6 +215,17 @@ describe('createWebPushSender', () => {
     expect(await sender.send(target, '{}', { ttl: 60 })).toMatchObject({ endpoint: target.endpoint, status, ...expected });
   });
 
+  it.each([
+    ['another site', 'https://evil.example/collect'],
+    ['a look-alike host', 'https://fcm.googleapis.com.evil.example/fcm/send/device-1'],
+    ['a user and password before the host', 'https://fcm.googleapis.com@evil.example/fcm/send/device-1'],
+  ])('never posts to %s, even for a row saved before the rule', async (_name, endpoint) => {
+    const { target, fetchMock, sender } = await setup(() => new Response(null, { status: 201 }));
+    const report = await sender.send({ ...target, endpoint }, '{}', { ttl: 60 });
+    expect(report).toEqual({ endpoint, outcome: 'skipped', error: 'host' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reports a network failure and a timeout as worth retrying', async () => {
     const refused = await setup(() => Promise.reject(new TypeError('fetch failed')));
     expect(await refused.sender.send(refused.target, '{}', { ttl: 60 })).toEqual({ endpoint: refused.target.endpoint, outcome: 'failed', error: 'network', transient: true });

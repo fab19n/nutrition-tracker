@@ -178,6 +178,14 @@ function bodyFor(view: PushView, tz: string): PushCopy {
             detail: "Your account didn't accept this device's sign-in.",
             actions: [ACTIONS.signIn],
           };
+        case 'unsupportedService':
+          return {
+            tone: 'attention',
+            pill: 'Not supported',
+            title: "This browser's notifications can't be used",
+            detail: 'Reminders come through the push service of Chrome, Edge, Firefox or Safari. Open Kira Makan in one of those.',
+            actions: [ACTIONS.turnOff],
+          };
         case 'noWorker':
           return {
             tone: 'attention',

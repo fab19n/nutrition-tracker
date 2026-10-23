@@ -62,10 +62,15 @@ create policy push_log_select_own on public.push_log
 -- 3. Functions ---------------------------------------------------------------------------------------
 -- A browser push subscription's shape: an https endpoint, a 65-byte P-256 key (p256dh, and the VAPID key
 -- it was made with) and a 16-byte auth secret, in base64url.
+-- The endpoint must be a browser push service (FCM, Mozilla, Windows, Apple), so a signed-in account
+-- can't make send-reminders POST anywhere else: https, port 443 if any, no user or password, and the
+-- host on the list. Keep it in step with supabase/functions/_shared/pushHosts.ts.
 create or replace function public.push_valid_subscription(p_endpoint text, p_p256dh text, p_auth text, p_vapid_key text)
 returns boolean language sql immutable security invoker set search_path = '' as $$
   select coalesce(
     p_endpoint ~ '^https://\S+$' and char_length(p_endpoint) between 18 and 1000
+    and lower(substring(p_endpoint from '^https://([A-Za-z0-9.-]+)(?::443)?(?:[/?#]|$)')) ~
+        '^(fcm\.googleapis\.com|jmt[0-9]+\.google\.com|([a-z0-9-]+\.)*push\.services\.mozilla\.com|[a-z0-9-]+\.notify\.windows\.com|([a-z0-9-]+\.)*push\.apple\.com)$'
     and p_p256dh ~ '^[A-Za-z0-9_-]{86,88}={0,2}$'
     and p_vapid_key ~ '^[A-Za-z0-9_-]{86,88}={0,2}$'
     and p_auth ~ '^[A-Za-z0-9_-]{21,24}={0,2}$', false)
