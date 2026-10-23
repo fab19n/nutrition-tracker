@@ -5,6 +5,7 @@ import { loadDemoData, resetAll } from '@/db/actions';
 import { db } from '@/db/db';
 import { deleteDayRecord, updateProfile } from '@/db/repo';
 import { resetUiState, useUiStore } from '@/state/ui';
+import { setOnline } from '@/test/network';
 import { routes } from './routes';
 
 /*
@@ -262,15 +263,11 @@ describe('AppShell — with the demo world', () => {
     await screen.findByRole('heading', { name: 'Today screen' });
     expect(screen.queryByText(/You're offline/)).toBeNull();
 
-    act(() => {
-      window.dispatchEvent(new Event('offline'));
-    });
+    setOnline(false);
     expect(await screen.findByText(/You're offline/)).toBeInTheDocument();
     expect(screen.getByText(/Logging still works; estimates run when you're back\./)).toBeInTheDocument();
 
-    act(() => {
-      window.dispatchEvent(new Event('online'));
-    });
+    setOnline(true);
     await waitFor(() => expect(screen.queryByText(/You're offline/)).toBeNull());
   });
 

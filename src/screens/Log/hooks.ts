@@ -3,7 +3,7 @@
  * wrapped in useLiveQuery so the screens follow the database.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { db } from '@/db/db';
 import { getPlateHistory, listPlaceOrders, listPlacesByRecent, type LatLng, type OrderOption, type PlateHistory, type RecentPlaces } from '@/db/logging';
 import { getPhoto } from '@/db/repo';
@@ -42,22 +42,8 @@ export function useBlobUrl(blob: Blob | undefined): string | undefined {
   return url;
 }
 
-function subscribeOnline(listener: () => void): () => void {
-  window.addEventListener('online', listener);
-  window.addEventListener('offline', listener);
-  return () => {
-    window.removeEventListener('online', listener);
-    window.removeEventListener('offline', listener);
-  };
-}
-
-export function useOnline(): boolean {
-  return useSyncExternalStore(
-    subscribeOnline,
-    () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
-    () => true,
-  );
-}
+/** The app's one connection hook (src/app/network.ts), kept here for the logging screens' imports. */
+export { useOnline } from '@/app/network';
 
 export function geolocationAvailable(): boolean {
   return typeof navigator !== 'undefined' && 'geolocation' in navigator && navigator.geolocation !== undefined;

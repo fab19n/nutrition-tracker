@@ -8,6 +8,7 @@ import { db } from '@/db/db';
 import type { PushEngineState, TestOutcome, TurnOnResult } from '@/push';
 import { resetUiState, useUiStore } from '@/state/ui';
 import type { SyncPhase } from '@/sync';
+import { setOnline } from '@/test/network';
 import { NOTIFICATIONS_PRIMER, PRIMER_LINES } from './NotificationsSheet';
 import RemindersScreen from './RemindersScreen';
 
@@ -202,14 +203,10 @@ describe('S38 Reminders › this device', () => {
       renderReminders();
       await user.click(within(await card()).getByRole('button', { name: 'Turn on' }));
       const sheet = await screen.findByRole('dialog', { name: 'Turn on reminders' });
-      act(() => {
-        window.dispatchEvent(new Event('offline'));
-      });
+      setOnline(false);
       expect(within(sheet).getByRole('button', { name: 'Turn on reminders' })).toBeDisabled();
       expect(within(sheet).getByRole('alert')).toHaveTextContent("You're offline. Reminders can be turned on once you're back online.");
-      act(() => {
-        window.dispatchEvent(new Event('online'));
-      });
+      setOnline(true);
       expect(within(sheet).getByRole('button', { name: 'Turn on reminders' })).toBeEnabled();
     });
 

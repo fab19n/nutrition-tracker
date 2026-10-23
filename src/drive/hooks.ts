@@ -13,6 +13,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useOnline } from '@/app/network';
 import { db } from '@/db/db';
 import { useObjectUrl } from '@/db/diary';
 import { uploadJobId } from '@/db/driveQueue';
@@ -39,22 +40,6 @@ function useTick(ms: number): number {
   return tick;
 }
 
-function subscribeOnline(listener: () => void): () => void {
-  window.addEventListener('online', listener);
-  window.addEventListener('offline', listener);
-  return () => {
-    window.removeEventListener('online', listener);
-    window.removeEventListener('offline', listener);
-  };
-}
-
-function useOnline(): boolean {
-  return useSyncExternalStore(
-    subscribeOnline,
-    () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
-    () => true,
-  );
-}
 
 /** The card's view: engine state + phase, re-read on every change and each minute (real clock, like useSyncView). */
 export function useDriveView(): DriveView {
