@@ -56,6 +56,11 @@ describe('ReviewItemRow', () => {
     expect(screen.queryByRole('group')).not.toBeInTheDocument();
   });
 
+  it('shows a fraction of a unit, such as half a glass', () => {
+    render(<ReviewItemRow item={makeItem({ name: 'Kopi ais', quantity: 0.5 })} kcalLabel="~100" />);
+    expect(screen.getByText('Kopi ais ×0.5')).toBeInTheDocument();
+  });
+
   it('shows an uncertain item as a softer range', () => {
     render(<ReviewItemRow item={makeItem({ uncertainty: 0.35 })} kcalLabel="~120" />);
     expect(screen.queryByText('~120')).toBeNull();

@@ -69,7 +69,7 @@ describe('toItems', () => {
             name: 'Durian crepe',
             variantLabel: null,
             quantity: 1,
-            estimate: { kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 },
+            estimate: { grams: 180, kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 },
             confidence: 'low',
             question: null,
           },
@@ -80,7 +80,11 @@ describe('toItems', () => {
     expect(unmatched).toEqual(['Durian crepe']);
     expect(items[0]).toMatchObject({ source: 'aiGuess', selectedVariant: 1, uncertainty: 0.4 });
     expect(items[0]?.variants?.map((v) => v.macros.kcal)).toEqual([294, 420, 588]);
-    expect(questions).toHaveLength(1);
+    // The weight only steers the AI's macros; the item keeps no grams.
+    expect(items[0]?.unitMacros).toEqual({ kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 });
+    // No question of its own: the size chips and the amber ring already cover "how big".
+    expect(items[0]?.question).toBeUndefined();
+    expect(questions).toHaveLength(0);
   });
 
   it('keeps at most two questions', () => {
@@ -88,6 +92,14 @@ describe('toItems', () => {
     const { questions, items } = toItems({ mealName: 'x', items: [q('kuah-campur'), q('teh-o-ais'), q('kuah-campur')] }, CATALOGUE);
     expect(questions).toHaveLength(2);
     expect(items.filter((i) => i.question)).toHaveLength(2);
+  });
+
+  it('keeps a fraction of a unit read from a photo', () => {
+    const { items } = toItems(
+      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: 0.5, estimate: null, confidence: 'medium', question: null }] },
+      CATALOGUE,
+    );
+    expect(items[0]?.quantity).toBe(0.5);
   });
 
   it('ignores nonsense quantities', () => {
@@ -123,6 +135,16 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt([entry])).toContain(
       '[protein]\nayam-goreng-mamak (Ayam goreng) ~ fried chicken, ayam goreng kandar, ayam goreng berempah: 1 piece',
     );
+  });
+
+  it('has photos set portions, with fractions, grams first for guesses, and questions only about what a photo cannot show', () => {
+    const prompt = buildSystemPrompt(CATALOGUE);
+    expect(prompt).toContain('choose the variant that matches what you see');
+    expect(prompt).toContain('a half-full glass = 0.5');
+    expect(prompt).toContain('using things of known size for scale');
+    expect(prompt).toContain('work out the weight in grams first');
+    expect(prompt).toContain('Never ask about what the photo already shows.');
+    expect(prompt).not.toContain('conservatively');
   });
 
   it('leaves recipe-only pot ingredients out of the meal prompt', () => {

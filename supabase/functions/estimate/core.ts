@@ -114,9 +114,12 @@ const ParsedItem = z.object({
     .string()
     .nullable()
     .describe("For catalogue items: one of that item's variant labels, copied exactly. Null to use the default."),
-  quantity: z.number().describe('How many of the unit or chosen variant were eaten, usually 1.'),
+  quantity: z
+    .number()
+    .describe('How many of the unit or chosen variant were eaten: 1 for one standard serving, a fraction such as 0.5 for half, above 1 for several or a bigger serving.'),
+  // grams comes first so the weight is settled before the macros are; only the macros are used.
   estimate: z
-    .object({ kcal: z.number(), proteinG: z.number(), carbsG: z.number(), fatG: z.number() })
+    .object({ grams: z.number(), kcal: z.number(), proteinG: z.number(), carbsG: z.number(), fatG: z.number() })
     .nullable()
     .describe('Only for items with catalogueId null: macros for the whole portion eaten. Null for catalogue items.'),
   confidence: z.enum(['high', 'medium', 'low']),
@@ -148,10 +151,12 @@ You receive a short description typed like a text message (often mixing Malay an
 Your job is identification, not arithmetic:
 - Split the meal into separate items the way a person would order or serve them: rice, each dish, each gravy, each drink.
 - For every item, choose the best matching catalogue id from the CATALOGUE below and copy it exactly. Never invent ids. If nothing fits reasonably, use catalogueId null and give your own macro estimate for the portion eaten.
-- Choose the variant by copying one of that item's variant labels exactly, based on the words used: sikit/sedikit/less = the smallest or "Sikit"; banjir/extra kuah = "Banjir"; kurang/kurang manis/less sugar = "Kurang"; kosong/no sugar = "Kosong"; besar/big/large/mamak portion = the largest; otherwise the default (null).
-- Quantity is how many of that unit were eaten ("2 roti canai" = 2 of a 1-piece variant, or the 2-piece variant if one exists, never both).
+- Choose the variant by copying one of that item's variant labels exactly, based on the words used: sikit/sedikit/less = the smallest or "Sikit"; banjir/extra kuah = "Banjir"; kurang/kurang manis/less sugar = "Kurang"; kosong/no sugar = "Kosong"; besar/big/large/mamak portion = the largest. When the words don't say and there is a photo, choose the variant that matches what you see (bowl or glass size, how much rice, how many pieces); otherwise the default (null). Words win over the photo.
+- Quantity is how many of that unit were eaten ("2 roti canai" = 2 of a 1-piece variant, or the 2-piece variant if one exists, never both). Use fractions when the portion is part of the unit or bigger than it: a half-full glass = 0.5, a tablespoon from a tub = the share of that unit it is, a chain-store glass about one and a half times a kopitiam one = 1.5. Never 0.
 - Apply what the app has learned about the place (e.g. rice is usually big there) unless the text says otherwise.
-- From a photo, judge portions conservatively. You cannot see oil, sugar in drinks or gravy soaked into rice: when that matters by 100 kcal or more, ask about it instead of guessing high.
+- From a photo, estimate each portion from what is visible, using things of known size for scale: the plate, bowl, glass, cup, spoon, fork, hand or packaging. A typical Malaysian plate is about 25 cm across, a tablespoon holds about 15 ml (a heaped one of thick food about 20 g). Aim for the most likely amount, neither generous nor stingy. Take the photo as showing what was eaten, unless the caption says otherwise.
+- For items with catalogueId null, work out the weight in grams first (from the photo or the words), then give the macros for that weight.
+- A photo cannot show oil, sugar or coconut milk in drinks and gravies, gravy under the rice, or whether some was eaten before the photo. When one of those changes an item by 100 kcal or more, ask about it. Never ask about what the photo already shows.
 - Ask at most 2 questions per meal, only where the answer changes that item by 100 kcal or more. Keep questions short and casual ("Is there kuah under the rice?").
 - Confidence: high when the item and portion are clear, medium when the portion is a guess, low when even the item is uncertain.
 - Names: short, sentence case, local words as written. No judgement about whether food is healthy.
@@ -315,7 +320,7 @@ export function toItems(parsed: ParsedMealT, catalogue: readonly CatalogueEntry[
         quantity,
         uncertainty: GUESS_UNCERTAINTY[p.confidence],
         source: 'aiGuess',
-        question: p.question ?? 'Roughly how big was it?',
+        question: p.question ?? undefined,
       });
     }
   }

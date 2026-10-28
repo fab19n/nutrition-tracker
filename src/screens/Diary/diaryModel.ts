@@ -19,7 +19,7 @@ import {
   minutesIntoLogicalDay,
   weekStartOf,
 } from '@/domain/day';
-import { fmtClock, fmtDayLetter, fmtDayRange, fmtDayShort, fmtInt, fmtKg, fmtRange, fmtTime, fmtWeekday } from '@/domain/format';
+import { fmtClock, fmtDayLetter, fmtDayRange, fmtDayShort, fmtInt, fmtKg, fmtQuantity, fmtRange, fmtTime, fmtWeekday } from '@/domain/format';
 import { FINISHED_FACTOR, mealMacros } from '@/domain/meal';
 import type { EatingWindow, TimingTagKind } from '@/domain/timing';
 import type { DayStatusKind, Instant, Intensity, LogicalDay, MealItem, MealLog, WorkoutType } from '@/domain/types';
@@ -331,7 +331,7 @@ export function originalEstimateKcal(meal: Pick<MealLog, 'items' | 'finished'>):
 /** "Normal", "Mamak big · ×2", "×2". */
 export function itemDetail(item: MealItem): string | undefined {
   const variant = item.selectedVariant !== undefined ? item.variants?.[item.selectedVariant]?.label : undefined;
-  const quantity = item.quantity === 1 ? undefined : `×${Number.isInteger(item.quantity) ? fmtInt(item.quantity) : String(Math.round(item.quantity * 10) / 10)}`;
+  const quantity = item.quantity === 1 ? undefined : fmtQuantity(item.quantity);
   const parts = [variant, quantity].filter((p): p is string => p !== undefined);
   return parts.length > 0 ? parts.join(' · ') : undefined;
 }

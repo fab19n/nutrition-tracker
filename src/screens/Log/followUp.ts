@@ -3,6 +3,7 @@
  * text ("How big was the glass?"), so the answer is too: the item is estimated again by the AI
  * from its name, the question and the answer, and the new items take its place.
  */
+import { fmtQuantity } from '@/domain/format';
 import type { MealItem } from '@/domain/types';
 import type { EstimateRequest, EstimateResult } from '@/estimate/types';
 import type { ReviewDraft } from '@/state/ui';
@@ -10,7 +11,7 @@ import type { ReviewDraft } from '@/state/ui';
 /** "Kopi ais (Normal ×2). Asked: How big was the glass? Answer: big Old Town glass, half drunk" */
 export function answerText(item: MealItem, question: string, answer: string): string {
   const label = item.variants?.[item.selectedVariant ?? -1]?.label;
-  const detail = [label, item.quantity !== 1 ? `×${item.quantity}` : undefined].filter(Boolean).join(' ');
+  const detail = [label, item.quantity !== 1 ? fmtQuantity(item.quantity) : undefined].filter(Boolean).join(' ');
   const name = detail ? `${item.name} (${detail})` : item.name;
   return `${name}. Asked: ${question.trim()} Answer: ${answer.trim()}`;
 }

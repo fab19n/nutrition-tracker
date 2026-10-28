@@ -51,6 +51,11 @@ export function fmtSigned(n: number): string {
   return `${signOf(rounded, n)}${groupedInt.format(rounded)}`;
 }
 
+/** An item quantity: 2 → '×2'; 0.5 → '×0.5'; 1.25 → '×1.3'. */
+export function fmtQuantity(n: number): string {
+  return `×${Number.isInteger(n) ? fmtInt(n) : String(Math.round(n * 10) / 10)}`;
+}
+
 export function fmtKcal(n: number): string {
   return `${fmtInt(n)} kcal`;
 }

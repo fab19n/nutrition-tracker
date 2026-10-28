@@ -3,7 +3,7 @@ import { ArrowLeftRight, CloudOff, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { PortionChips } from '@/components/PortionChips/PortionChips';
 import { SourceTag } from '@/components/SourceTag/SourceTag';
-import { fmtRange } from '@/domain/format';
+import { fmtQuantity, fmtRange } from '@/domain/format';
 import { itemRange } from '@/domain/meal';
 import type { MealItem } from '@/domain/types';
 import { ItemMenu, type ItemMenuAction } from './ItemMenu';
@@ -63,7 +63,7 @@ export function ReviewItemRow({
   const [answer, setAnswer] = useState('');
   const questionId = useId();
   const variants = item.variants ?? [];
-  const name = item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name;
+  const name = item.quantity !== 1 ? `${item.name} ${fmtQuantity(item.quantity)}` : item.name;
   const needsAttention = !pending && (!!question || item.source === 'aiGuess');
 
   const actions: ItemMenuAction[] = [];

@@ -13,6 +13,7 @@ import {
   fmtKg,
   fmtKgDelta,
   fmtKgRate,
+  fmtQuantity,
   fmtRange,
   fmtRelativeDay,
   fmtRm,
@@ -27,6 +28,12 @@ const MINUS = '−';
 const EN_DASH = '–';
 
 describe('numbers', () => {
+  it('formats item quantities, fractions to one decimal', () => {
+    expect(fmtQuantity(2)).toBe('×2');
+    expect(fmtQuantity(0.5)).toBe('×0.5');
+    expect(fmtQuantity(1.25)).toBe('×1.3');
+  });
+
   it('formats integers with thousands separators', () => {
     expect(fmtInt(1800)).toBe('1,800');
     expect(fmtInt(12600)).toBe('12,600');
