@@ -61,8 +61,13 @@ export interface EstimatedItem {
   unitMacros: Macros;
   quantity: number;
   uncertainty: number;
-  source: 'catalogue' | 'aiGuess';
+  source: 'catalogue' | 'aiGuess' | 'label';
   question?: string;
+}
+
+export interface ImageInput {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+  base64: string;
 }
 
 /**
@@ -72,7 +77,9 @@ export interface EstimatedItem {
 export interface EstimateInput {
   text?: string;
   caption?: string;
-  image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64: string };
+  image?: ImageInput;
+  /** A photo of the pack's nutrition label: its numbers replace any estimate for that product. */
+  labelImage?: ImageInput;
   place?: { type?: string; oilLevel?: string; defaultVariants?: Record<string, number> };
   /** What the offline estimator already matched; Claude may keep or correct these. */
   candidates?: { catalogueId: string; selectedVariant?: number; quantity: number; source?: string }[];
@@ -104,6 +111,16 @@ export class EstimateError extends Error {
 // Structured output schema
 // ---------------------------------------------------------------------------
 
+const LabelMacros = z.object({ kcal: z.number(), proteinG: z.number(), carbsG: z.number(), fatG: z.number() });
+
+const ParsedLabel = z.object({
+  productName: z.string().describe('The product name from the pack or the caption, e.g. "Gardenia Butterscotch bun".'),
+  unit: z.enum(['g', 'ml']).describe('Whether the label counts in grams or millilitres.'),
+  servingSize: z.number().nullable().describe('The printed serving size in that unit, or null when none is printed.'),
+  per100: LabelMacros.nullable().describe('The per 100 g / 100 ml column exactly as printed, or null when there is none.'),
+  perServing: LabelMacros.nullable().describe('The per serving column exactly as printed, or null when there is none.'),
+});
+
 const ParsedItem = z.object({
   catalogueId: z
     .string()
@@ -122,6 +139,11 @@ const ParsedItem = z.object({
     .object({ grams: z.number(), kcal: z.number(), proteinG: z.number(), carbsG: z.number(), fatG: z.number() })
     .nullable()
     .describe('Only for items with catalogueId null: macros for the whole portion eaten. Null for catalogue items.'),
+  label: ParsedLabel.nullable().describe('Only for the product shown on a nutrition label photo; null for everything else.'),
+  labelAmount: z
+    .object({ servings: z.number().nullable(), amount: z.number().nullable() })
+    .nullable()
+    .describe('With a label: servings eaten when counted in servings or pieces, else amount eaten in the label unit. Null without a label.'),
   confidence: z.enum(['high', 'medium', 'low']),
   question: z
     .string()
@@ -157,6 +179,7 @@ Your job is identification, not arithmetic:
 - From a photo, estimate each portion from what is visible, using things of known size for scale: the plate, bowl, glass, cup, spoon, fork, hand or packaging. A typical Malaysian plate is about 25 cm across, a tablespoon holds about 15 ml (a heaped one of thick food about 20 g). Aim for the most likely amount, neither generous nor stingy. Take the photo as showing what was eaten, unless the caption says otherwise.
 - For items with catalogueId null, work out the weight in grams first (from the photo or the words), then give the macros for that weight.
 - A photo cannot show oil, sugar or coconut milk in drinks and gravies, gravy under the rice, or whether some was eaten before the photo. When one of those changes an item by 100 kcal or more, ask about it. Never ask about what the photo already shows.
+- A photo may be a nutrition label ("Nutrition Information", "Maklumat Pemakanan"). For the product it belongs to, fill label by copying the printed numbers exactly, without arithmetic: kcal (when only kJ is printed, kJ divided by 4.184), protein, carbohydrate and fat, for the per 100 g/ml column and the per serving column (null for a column that isn't printed), the serving size, and the product name. Then fill labelAmount with what was eaten: servings when the words or photo count servings or pieces that match a serving ("1 bun" when a serving is 1 bun), otherwise the amount in g or ml, judged from the words or the food photo (a heaped tablespoon of yogurt is about 20 g). Use catalogueId null and estimate null for that item. Every other item has label and labelAmount null.
 - Ask at most 2 questions per meal, only where the answer changes that item by 100 kcal or more. Keep questions short and casual ("Is there kuah under the rice?").
 - Confidence: high when the item and portion are clear, medium when the portion is a guess, low when even the item is uncertain.
 - Names: short, sentence case, local words as written. No judgement about whether food is healthy.
@@ -249,7 +272,9 @@ function buildUserText(input: EstimateInput, byId: ReadonlyMap<string, Catalogue
   if (input.slot) lines.push(`Meal: ${input.slot}`);
   if (input.text?.trim()) lines.push(`What they ate: ${input.text.trim()}`);
   if (input.caption?.trim()) lines.push(`Photo caption: ${input.caption.trim()}`);
-  if (input.image && !input.caption?.trim() && !input.text?.trim()) lines.push('Identify the meal in the photo.');
+  if (input.image && input.labelImage) lines.push('The first photo shows the food; the second is its nutrition label.');
+  else if (input.labelImage) lines.push('The photo is a nutrition label; the words say how much was eaten (one serving when they say nothing).');
+  else if (input.image && !input.caption?.trim() && !input.text?.trim()) lines.push('Identify the meal in the photo.');
   return lines.join('\n');
 }
 
@@ -259,6 +284,9 @@ function buildUserText(input: EstimateInput, byId: ReadonlyMap<string, Catalogue
 
 const CONFIDENCE_EXTRA: Record<'high' | 'medium' | 'low', number> = { high: 0, medium: 0.05, low: 0.15 };
 const GUESS_UNCERTAINTY: Record<'high' | 'medium' | 'low', number> = { high: 0.2, medium: 0.3, low: 0.4 };
+
+/** A label's numbers are exact; what's left is how much was eaten. */
+const LABEL_UNCERTAINTY: Record<'high' | 'medium' | 'low', number> = { high: 0.05, medium: 0.15, low: 0.25 };
 
 function scale(m: Macros, f: number): Macros {
   return {
@@ -274,6 +302,57 @@ function cleanMacros(m: Macros): Macros {
   return { kcal: n(m.kcal), proteinG: n(m.proteinG), carbsG: n(m.carbsG), fatG: n(m.fatG) };
 }
 
+const positive = (n: number | null | undefined): number | undefined => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined);
+
+/**
+ * An item from a nutrition label: chips for what was eaten (when weighed or judged), one serving
+ * and 100 g/ml, with macros scaled from the printed columns here, never by the model. Undefined
+ * when the label has no usable column.
+ */
+export function labelItem(p: ParsedMealT['items'][number], id: string): EstimatedItem | undefined {
+  const label = p.label;
+  if (!label) return undefined;
+  const serving = positive(label.servingSize);
+  const per100In = label.per100 ? cleanMacros(label.per100) : undefined;
+  const perServingIn = label.perServing ? cleanMacros(label.perServing) : undefined;
+  const per100 = per100In?.kcal ? per100In : perServingIn?.kcal && serving ? scale(perServingIn, 100 / serving) : undefined;
+  const perServing = perServingIn?.kcal ? perServingIn : per100 && serving ? scale(per100, serving / 100) : undefined;
+  if (!per100 && !perServing) return undefined;
+
+  const unit = label.unit;
+  const amount = (n: number) => `${Math.round(n)} ${unit}`;
+  // The first chip is what was eaten: the amount when judged in g/ml, else servings × quantity.
+  const variants: CatalogueVariant[] = [];
+  const servings = positive(p.labelAmount?.servings);
+  const eaten = positive(p.labelAmount?.amount);
+  let quantity = 1;
+  if (eaten && per100 && !(servings && perServing)) {
+    variants.push({ id: 'eaten', label: amount(eaten), grams: Math.round(eaten), macros: scale(per100, eaten / 100) });
+  }
+  if (perServing) {
+    const v: CatalogueVariant = { id: 'serving', label: serving ? `1 serving · ${amount(serving)}` : '1 serving', macros: perServing };
+    if (serving) v.grams = Math.round(serving);
+    if (variants.length === 0) quantity = Math.min(servings ?? 1, 20);
+    variants.push(v);
+  }
+  if (per100 && !variants.some((v) => v.grams === 100)) variants.push({ id: '100', label: amount(100), grams: 100, macros: per100 });
+  const chosen = variants[0];
+  if (!chosen) return undefined;
+
+  const item: EstimatedItem = {
+    id,
+    name: label.productName.trim() || p.name,
+    variants,
+    selectedVariant: 0,
+    unitMacros: chosen.macros,
+    quantity,
+    uncertainty: LABEL_UNCERTAINTY[p.confidence],
+    source: 'label',
+  };
+  if (p.question) item.question = p.question;
+  return item;
+}
+
 export function toItems(parsed: ParsedMealT, catalogue: readonly CatalogueEntry[]): Pick<EstimateOutput, 'items' | 'questions' | 'unmatched'> {
   const byId = new Map(catalogue.map((c) => [c.id, c]));
   const items: EstimatedItem[] = [];
@@ -284,8 +363,11 @@ export function toItems(parsed: ParsedMealT, catalogue: readonly CatalogueEntry[
     const id = crypto.randomUUID();
     const quantity = Number.isFinite(p.quantity) && p.quantity > 0 ? Math.min(p.quantity, 20) : 1;
     const entry = p.catalogueId ? byId.get(p.catalogueId) : undefined;
+    const fromLabel = labelItem(p, id);
 
-    if (entry) {
+    if (fromLabel) {
+      items.push(fromLabel);
+    } else if (entry) {
       const wanted = p.variantLabel?.trim().toLowerCase();
       const found = wanted ? entry.variants.findIndex((v) => v.label.toLowerCase() === wanted) : -1;
       const selected = found >= 0 ? found : entry.defaultVariant;
@@ -346,15 +428,16 @@ export interface EstimateDeps {
 
 export async function estimateMeal(input: EstimateInput, deps: EstimateDeps): Promise<EstimateOutput> {
   const userText = buildUserText(input, new Map(deps.catalogue.map((c) => [c.id, c])));
-  if (!input.image && !input.text?.trim() && !input.caption?.trim()) {
+  if (!input.image && !input.labelImage && !input.text?.trim() && !input.caption?.trim()) {
     throw new EstimateError('Nothing to estimate: send text, a caption or a photo.', 400, 'bad_request');
   }
   const model = deps.model ?? ESTIMATE_MODEL;
   const system = deps.systemPrompt ?? buildSystemPrompt(deps.catalogue);
 
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
-  if (input.image) {
-    content.push({ type: 'image', source: { type: 'base64', media_type: input.image.mediaType, data: input.image.base64 } });
+  // The food first, then its label, as the user text says.
+  for (const image of [input.image, input.labelImage]) {
+    if (image) content.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } });
   }
   content.push({ type: 'text', text: userText });
 
@@ -416,20 +499,30 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+async function readImage(file: File, what: 'Photo' | 'Label photo'): Promise<ImageInput> {
+  if (!IMAGE_TYPES.has(file.type)) throw new EstimateError('Unsupported image type.', 400, 'bad_request');
+  if (file.size > MAX_PHOTO_BYTES) throw new EstimateError(`${what} is too large.`, 413, 'bad_request');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return { mediaType: file.type as ImageInput['mediaType'], base64: bytesToBase64(bytes) };
+}
+
 /**
- * Accepts JSON ({ text, caption, place, slot }) or multipart form data with a "request" JSON field
- * and an optional "photo" file.
+ * Accepts JSON ({ text, caption, place, slot }) or multipart form data with a "request" JSON field,
+ * an optional "photo" file and an optional "label" file (the pack's nutrition label).
  */
 export async function readEstimateRequest(req: Request): Promise<EstimateInput> {
   const type = req.headers.get('content-type') ?? '';
   let body: Record<string, unknown> = {};
   let photo: File | null = null;
+  let label: File | null = null;
   if (type.includes('multipart/form-data')) {
     const form = await req.formData();
     const raw = form.get('request');
     body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : {};
     const file = form.get('photo');
     photo = file instanceof File ? file : null;
+    const labelFile = form.get('label');
+    label = labelFile instanceof File ? labelFile : null;
   } else {
     body = (await req.json()) as Record<string, unknown>;
   }
@@ -461,11 +554,7 @@ export async function readEstimateRequest(req: Request): Promise<EstimateInput> 
     });
   }
 
-  if (photo) {
-    if (!IMAGE_TYPES.has(photo.type)) throw new EstimateError('Unsupported image type.', 400, 'bad_request');
-    if (photo.size > MAX_PHOTO_BYTES) throw new EstimateError('Photo is too large.', 413, 'bad_request');
-    const bytes = new Uint8Array(await photo.arrayBuffer());
-    input.image = { mediaType: photo.type as NonNullable<EstimateInput['image']>['mediaType'], base64: bytesToBase64(bytes) };
-  }
+  if (photo) input.image = await readImage(photo, 'Photo');
+  if (label) input.labelImage = await readImage(label, 'Label photo');
   return input;
 }

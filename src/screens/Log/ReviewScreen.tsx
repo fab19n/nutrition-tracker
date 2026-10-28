@@ -110,6 +110,8 @@ function Review({ draft }: { draft: ReviewDraft }) {
   );
   const [price, setPrice] = useState(() => priceText(meta.priceRm));
   const [alsoUsual, setAlsoUsual] = useState(false);
+  // Products read off a nutrition label are saved to your foods unless switched off here.
+  const [keepLabelOff, setKeepLabelOff] = useState<ReadonlySet<Id>>(() => new Set());
   const [search, setSearch] = useState<Search>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
@@ -209,6 +211,11 @@ function Review({ draft }: { draft: ReviewDraft }) {
     try {
       const { meal, undo } = await saveMeal(toSave);
       const usual = alsoUsual ? await saveUsualFromMeal(db, meal) : undefined;
+      // Next time its name is typed, the label's numbers come straight from your foods.
+      for (const item of toSave.items) {
+        // The meal is saved already: a product that didn't save is only missed next time.
+        if (item.source === 'label' && !keepLabelOff.has(item.id)) await rememberCorrection(item, undefined, 'dish').catch(() => undefined);
+      }
       // S46: offline the save is still local and safe; the toast says it syncs later.
       const message = online ? `Saved · ${fmtApprox(roundTo10(mealMacros(meal).kcal))} kcal` : SAVED_OFFLINE_TOAST;
       const toast = () =>
@@ -338,6 +345,28 @@ function Review({ draft }: { draft: ReviewDraft }) {
             />
           </span>
         </div>
+
+        {items
+          .filter((item) => item.source === 'label')
+          .map((item) => (
+            <div key={`keep-${item.id}`} className={styles.row}>
+              <span className={styles.rowLabel} aria-hidden="true">
+                Save {item.name} to your foods
+              </span>
+              <Toggle
+                checked={!keepLabelOff.has(item.id)}
+                onChange={(on) =>
+                  setKeepLabelOff((off) => {
+                    const next = new Set(off);
+                    if (on) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  })
+                }
+                label={`Save ${item.name} to your foods`}
+              />
+            </div>
+          ))}
 
         {flow !== 'usual' ? (
           <div className={styles.row}>

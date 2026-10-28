@@ -14,7 +14,7 @@ import type { MealItem } from '@/domain/types';
 import { estimateMeal, needsAi } from '@/estimate/service';
 import type { EstimateRequest, EstimateResult } from '@/estimate/types';
 import { useUiStore, type LogResume, type ReviewDraft } from '@/state/ui';
-import { usePhotoUrl } from './hooks';
+import { useBlobUrl, usePhotoUrl } from './hooks';
 import { ItemSearchSheet } from './ItemSearchSheet';
 import { manualItem } from './library';
 import styles from './EstimatingScreen.module.css';
@@ -58,8 +58,9 @@ export default function EstimatingScreen() {
 
 function requestFor(draft: ReviewDraft, photo: Blob | undefined): EstimateRequest {
   const req: EstimateRequest = {};
-  if (photo) {
-    req.photo = photo;
+  if (photo) req.photo = photo;
+  if (draft.labelPhoto) req.label = draft.labelPhoto;
+  if (photo || draft.labelPhoto) {
     if (draft.meta.text) req.caption = draft.meta.text;
   } else if (draft.meta.text) {
     req.text = draft.meta.text;
@@ -76,7 +77,10 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
   const [phase, setPhase] = useState<Phase>('working');
   const [attempt, setAttempt] = useState(0);
   const [fallback, setFallback] = useState<'library' | 'manual' | null>(null);
-  const photoUrl = usePhotoUrl(draft.meta.photoId, 'blob');
+  const mealPhotoUrl = usePhotoUrl(draft.meta.photoId, 'blob');
+  // A label on its own is the only picture there is.
+  const labelUrl = useBlobUrl(draft.meta.photoId ? undefined : draft.labelPhoto);
+  const photoUrl = mealPhotoUrl ?? labelUrl;
   const statusId = useId();
   const text = draft.meta.text ?? '';
   const isPhoto = draft.flow === 'photo';
@@ -148,7 +152,7 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
 
       {isPhoto ? (
         <div className={styles.photoCard}>
-          {photoUrl ? <img className={styles.photo} src={photoUrl} alt="Your meal" /> : <div className={styles.photoPlaceholder} aria-hidden="true" />}
+          {photoUrl ? <img className={styles.photo} src={photoUrl} alt={mealPhotoUrl ? 'Your meal' : 'Nutrition label'} /> : <div className={styles.photoPlaceholder} aria-hidden="true" />}
           {text ? <p className={styles.caption}>“{text}”</p> : null}
         </div>
       ) : (

@@ -42,3 +42,21 @@ export async function compressPhoto(file: Blob): Promise<CompressedPhoto> {
     return { blob: file, thumb: file };
   }
 }
+
+/** Label print is small, so a label photo keeps more pixels than a meal photo; it gets no thumbnail. */
+export const LABEL_MAX_SIDE = 1600;
+
+/** A nutrition label photo, shrunk for the estimate only (it's never kept). */
+export async function compressLabel(file: Blob): Promise<Blob> {
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    try {
+      return (await toJpeg(bitmap, LABEL_MAX_SIDE, PHOTO_QUALITY)) ?? file;
+    } finally {
+      bitmap.close();
+    }
+  } catch {
+    return file;
+  }
+}

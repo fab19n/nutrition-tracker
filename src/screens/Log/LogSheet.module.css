@@ -141,6 +141,54 @@
   object-fit: cover;
 }
 
+/* Under the photo: add a nutrition label, or say the photo is one. */
+.photoTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tool,
+.labelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tool:disabled {
+  opacity: 0.5;
+}
+
+.labelChip {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.labelThumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.toolIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
 .captionLabel {
   display: block;
   margin: 14px 4px 6px;

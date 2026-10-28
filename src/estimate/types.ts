@@ -10,6 +10,8 @@ import type { EstimateUnavailableReason } from './errors';
 export interface EstimateRequest {
   text?: string;
   photo?: Blob;
+  /** A photo of the pack's nutrition label, with or without a photo of the food. */
+  label?: Blob;
   caption?: string;
   placeId?: Id;
   slot?: MealSlot;

@@ -354,6 +354,52 @@ describe('S09 Log sheet', () => {
     expect(await db.photos.get(photoId ?? '')).toBeDefined();
   });
 
+  it('adds a nutrition label next to the food photo, used for the estimate and never kept', async () => {
+    const user = userEvent.setup();
+    renderLogRoutes('/?sheet=log');
+    await placeChip('Kedai near home');
+    await user.upload(screen.getByLabelText('Photo of your meal'), new File(['jpeg'], 'bun.jpg', { type: 'image/jpeg' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add a photo' });
+    const photosBefore = await db.photos.count();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Add nutrition label' }));
+    await user.upload(screen.getByLabelText('Photo of the nutrition label'), new File(['label'], 'label.jpg', { type: 'image/jpeg' }));
+    expect(within(sheet).getByText('Nutrition label')).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: 'Add nutrition label' })).not.toBeInTheDocument();
+    await user.type(within(sheet).getByLabelText('How much did you have? e.g. 1 tbsp, 1 bun'), '1 bun');
+    await user.click(within(sheet).getByRole('button', { name: 'Estimate' }));
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    const draft = useUiStore.getState().reviewDraft;
+    expect(draft?.meta.photoId).toBeDefined();
+    expect(draft?.meta.text).toBe('1 bun');
+    expect(draft?.labelPhoto).toBeInstanceOf(Blob);
+    // Only the food photo is kept.
+    expect(await db.photos.count()).toBe(photosBefore + 1);
+  });
+
+  it('takes a label on its own: no meal photo kept and no Drive token asked for', async () => {
+    const user = userEvent.setup();
+    renderLogRoutes('/?sheet=log');
+    await placeChip('Kedai near home');
+    await user.upload(screen.getByLabelText('Photo of your meal'), new File(['label'], 'label.jpg', { type: 'image/jpeg' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add a photo' });
+    const photosBefore = await db.photos.count();
+
+    await user.click(within(sheet).getByRole('button', { name: 'This photo is a label' }));
+    expect(within(sheet).getByRole('img', { name: 'Nutrition label' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: "It's the food, not a label" })).toBeInTheDocument();
+    await user.type(within(sheet).getByLabelText('How much did you have? e.g. 1 tbsp, 1 bun'), '1 heaped tbsp');
+    await user.click(within(sheet).getByRole('button', { name: 'Estimate' }));
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    const draft = useUiStore.getState().reviewDraft;
+    expect(draft?.meta.photoId).toBeUndefined();
+    expect(draft?.labelPhoto).toBeInstanceOf(Blob);
+    expect(await db.photos.count()).toBe(photosBefore);
+    expect(drive.renewals).toEqual([]);
+  });
+
   it("asks Drive for a token inside the Estimate tap, once, before going on", async () => {
     const user = userEvent.setup();
     renderLogRoutes('/?sheet=log');

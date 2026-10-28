@@ -204,6 +204,22 @@ describe("mode 'auto' (the default)", () => {
     expect(result.items.some((i) => i.pendingEstimate)).toBe(false);
   });
 
+  it('always sends a nutrition label photo, even on its own', async () => {
+    const fetchMock = aiFetch();
+    const result = await getEstimator({ url: URL, fetch: fetchMock, isOnline: () => true }).estimate(
+      { label: new Blob(['jpeg']), caption: '1 tbsp' },
+      { personal: [] },
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.method).toBe('ai');
+  });
+
+  it('holds a label-only meal as one pending item when offline', async () => {
+    const estimator = getEstimator({ url: URL, isOnline: () => false, newId: sequentialIds() });
+    const result = await estimator.estimate({ label: new Blob(['jpeg']) }, { personal: [] });
+    expect(result.items).toMatchObject([{ id: 'id-1', name: 'Meal from photo', pendingEstimate: true }]);
+  });
+
   it('holds a photo-only meal as one pending item when offline', async () => {
     const estimator = getEstimator({ url: URL, isOnline: () => false, newId: sequentialIds() });
     const result = await estimator.estimate({ photo: new Blob(['jpeg']) }, { personal: [] });

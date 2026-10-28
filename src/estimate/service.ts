@@ -34,8 +34,13 @@ function defaultNewId(): string {
   return globalThis.crypto.randomUUID();
 }
 
+/** A photo of the food or of its label: only the AI can read either. */
+function hasPhoto(req: EstimateRequest): boolean {
+  return Boolean(req.photo) || Boolean(req.label);
+}
+
 function hasInput(req: EstimateRequest): boolean {
-  return Boolean(req.photo) || Boolean(req.text?.trim()) || Boolean(req.caption?.trim());
+  return hasPhoto(req) || Boolean(req.text?.trim()) || Boolean(req.caption?.trim());
 }
 
 /**
@@ -43,7 +48,7 @@ function hasInput(req: EstimateRequest): boolean {
  * words, a rough 'aiGuess' item, or nothing recognised at all. Works on a fallback result too.
  */
 export function needsAi(req: EstimateRequest, local: EstimateResult): boolean {
-  if (req.photo) return true;
+  if (hasPhoto(req)) return true;
   if (!hasInput(req)) return false;
   return local.items.length === 0 || local.unmatched.length > 0 || local.items.some((item) => item.source === 'aiGuess');
 }
@@ -74,7 +79,7 @@ export function withPendingEstimates(result: EstimateResult, req: EstimateReques
   if (result.items.length > 0) {
     return { ...result, items: result.items.map((item) => ({ ...item, pendingEstimate: true })) };
   }
-  return req.photo ? { ...result, items: [pendingPhotoItem(newId())] } : result;
+  return hasPhoto(req) ? { ...result, items: [pendingPhotoItem(newId())] } : result;
 }
 
 function skipped(result: EstimateResult, reason: AiSkipReason): EstimateResult {
@@ -90,7 +95,7 @@ function localOnly(reason: AiSkipReason, newId: () => string): Estimator {
     async estimate(req: EstimateRequest, ctx: EstimateContext, opts?: EstimateOptions): Promise<EstimateResult> {
       throwIfAborted(opts?.signal);
       const local = estimateLocally(req, ctx, newId);
-      return skipped(req.photo ? withPendingEstimates(local, req, newId) : local, reason);
+      return skipped(hasPhoto(req) ? withPendingEstimates(local, req, newId) : local, reason);
     },
   };
 }

@@ -36,7 +36,8 @@ export interface KcalRange {
 }
 
 /** Where a nutrition value came from (C24 SourceTag). */
-export type SourceTag = 'yourCorrection' | 'catalogue' | 'myfcd' | 'sgfoodid' | 'usda' | 'aiGuess';
+/** 'label': read off the pack's nutrition label (photo). */
+export type SourceTag = 'yourCorrection' | 'catalogue' | 'label' | 'myfcd' | 'sgfoodid' | 'usda' | 'aiGuess';
 
 export type FoodCategory =
   | 'rice'

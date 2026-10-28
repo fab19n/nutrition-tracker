@@ -39,11 +39,17 @@ export function textDraft(text: string, ctx: MealContext): ReviewDraft {
   };
 }
 
-/** A stored photo and its optional caption, waiting for the estimator. */
-export function photoDraft(photoId: Id, caption: string, ctx: MealContext): ReviewDraft {
-  const meta: ReviewMeta = { ...contextMeta(ctx), method: 'photo', photoId };
+/**
+ * A stored photo, a nutrition label photo, or both, and the optional caption, waiting for the
+ * estimator. A label on its own leaves the meal without a photo.
+ */
+export function photoDraft(photoId: Id | undefined, caption: string, ctx: MealContext, labelPhoto?: Blob): ReviewDraft {
+  const meta: ReviewMeta = { ...contextMeta(ctx), method: 'photo' };
+  if (photoId) meta.photoId = photoId;
   if (caption.trim()) meta.text = caption.trim();
-  return { flow: 'photo', title: REVIEW_TITLE.meal, items: [], meta, backTo: PATHS.today };
+  const draft: ReviewDraft = { flow: 'photo', title: REVIEW_TITLE.meal, items: [], meta, backTo: PATHS.today };
+  if (labelPhoto) draft.labelPhoto = labelPhoto;
+  return draft;
 }
 
 /** Items picked straight from the library (a match under the Log input). */

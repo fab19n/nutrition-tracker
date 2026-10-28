@@ -47,6 +47,11 @@ export interface ReviewDraft {
   meta: ReviewMeta;
   /** Route to return to on Back, e.g. '/log/plate'. */
   backTo?: string;
+  /**
+   * The pack's nutrition label (photo flow), for the estimate only: it lives with the draft and
+   * goes when the draft does, never into Dexie or Drive.
+   */
+  labelPhoto?: Blob;
 }
 
 export interface UiState {

@@ -1,8 +1,10 @@
 // @vitest-environment node
 // Server code (Node dev server / Deno Edge Function): test with the runtime's own fetch classes.
 import { describe, expect, it } from 'vitest';
+import type Anthropic from '@anthropic-ai/sdk';
 import {
   buildSystemPrompt,
+  estimateMeal,
   readEstimateRequest,
   toItems,
   type CatalogueEntry,
@@ -47,8 +49,8 @@ describe('toItems', () => {
       {
         mealName: 'Nasi kandar',
         items: [
-          { catalogueId: 'kuah-campur', name: 'Kuah', variantLabel: 'banjir', quantity: 1, estimate: null, confidence: 'high', question: null },
-          { catalogueId: 'teh-o-ais', name: 'Teh o ais', variantLabel: null, quantity: 2, estimate: null, confidence: 'medium', question: null },
+          { catalogueId: 'kuah-campur', name: 'Kuah', variantLabel: 'banjir', quantity: 1, estimate: null, label: null, labelAmount: null, confidence: 'high', question: null },
+          { catalogueId: 'teh-o-ais', name: 'Teh o ais', variantLabel: null, quantity: 2, estimate: null, label: null, labelAmount: null, confidence: 'medium', question: null },
         ],
       },
       CATALOGUE,
@@ -70,6 +72,8 @@ describe('toItems', () => {
             variantLabel: null,
             quantity: 1,
             estimate: { grams: 180, kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 },
+            label: null,
+            labelAmount: null,
             confidence: 'low',
             question: null,
           },
@@ -88,7 +92,7 @@ describe('toItems', () => {
   });
 
   it('keeps at most two questions', () => {
-    const q = (id: string) => ({ catalogueId: id, name: id, variantLabel: null, quantity: 1, estimate: null, confidence: 'medium' as const, question: 'How much?' });
+    const q = (id: string) => ({ catalogueId: id, name: id, variantLabel: null, quantity: 1, estimate: null, label: null, labelAmount: null, confidence: 'medium' as const, question: 'How much?' });
     const { questions, items } = toItems({ mealName: 'x', items: [q('kuah-campur'), q('teh-o-ais'), q('kuah-campur')] }, CATALOGUE);
     expect(questions).toHaveLength(2);
     expect(items.filter((i) => i.question)).toHaveLength(2);
@@ -96,7 +100,7 @@ describe('toItems', () => {
 
   it('keeps a fraction of a unit read from a photo', () => {
     const { items } = toItems(
-      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: 0.5, estimate: null, confidence: 'medium', question: null }] },
+      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: 0.5, estimate: null, label: null, labelAmount: null, confidence: 'medium', question: null }] },
       CATALOGUE,
     );
     expect(items[0]?.quantity).toBe(0.5);
@@ -104,7 +108,7 @@ describe('toItems', () => {
 
   it('ignores nonsense quantities', () => {
     const { items } = toItems(
-      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: -3, estimate: null, confidence: 'high', question: null }] },
+      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: -3, estimate: null, label: null, labelAmount: null, confidence: 'high', question: null }] },
       CATALOGUE,
     );
     expect(items[0]?.quantity).toBe(1);
@@ -189,10 +193,120 @@ describe('readEstimateRequest', () => {
     expect(input.image).toEqual({ mediaType: 'image/jpeg', base64: 'AQID' });
   });
 
+  it('reads a label photo next to the meal photo, or on its own', async () => {
+    const form = new FormData();
+    form.append('request', JSON.stringify({ caption: '1 tbsp' }));
+    form.append('label', new File([new Uint8Array([4, 5, 6])], 'label.jpg', { type: 'image/jpeg' }));
+    const input = await readEstimateRequest(new Request('http://x', { method: 'POST', body: form }));
+    expect(input.image).toBeUndefined();
+    expect(input.labelImage).toEqual({ mediaType: 'image/jpeg', base64: 'BAUG' });
+  });
+
   it('rejects unsupported image types', async () => {
     const form = new FormData();
     form.append('request', '{}');
     form.append('photo', new File(['x'], 'a.txt', { type: 'text/plain' }));
     await expect(readEstimateRequest(new Request('http://x', { method: 'POST', body: form }))).rejects.toThrow('Unsupported image type');
+  });
+});
+
+const LABEL_MACROS = (kcal: number, proteinG: number, carbsG: number, fatG: number) => ({ kcal, proteinG, carbsG, fatG });
+
+/** A parsed item read off a nutrition label. */
+function fromLabel(label: Record<string, unknown>, labelAmount: { servings: number | null; amount: number | null }, confidence: 'high' | 'medium' | 'low' = 'high') {
+  return {
+    catalogueId: null,
+    name: 'Bun',
+    variantLabel: null,
+    quantity: 1,
+    estimate: null,
+    label: { productName: 'Gardenia Butterscotch bun', unit: 'g' as const, servingSize: null, per100: null, perServing: null, ...label },
+    labelAmount,
+    confidence,
+    question: null,
+  };
+}
+
+describe('toItems from a nutrition label', () => {
+  it('counts servings against the per-serving column', () => {
+    const { items, unmatched } = toItems(
+      {
+        mealName: 'Bun',
+        items: [fromLabel({ servingSize: 70, per100: LABEL_MACROS(314, 7, 50, 9), perServing: LABEL_MACROS(220, 5, 35, 6) }, { servings: 2, amount: null })],
+      },
+      CATALOGUE,
+    );
+    expect(unmatched).toEqual([]);
+    expect(items[0]).toMatchObject({
+      name: 'Gardenia Butterscotch bun',
+      source: 'label',
+      selectedVariant: 0,
+      quantity: 2,
+      uncertainty: 0.05,
+      unitMacros: LABEL_MACROS(220, 5, 35, 6),
+    });
+    expect(items[0]?.variants?.map((v) => v.label)).toEqual(['1 serving · 70 g', '100 g']);
+  });
+
+  it('scales the per-100 g column to the amount eaten: a tablespoon from a tub', () => {
+    const { items } = toItems(
+      { mealName: 'Yogurt', items: [fromLabel({ productName: 'Greek yogurt', per100: LABEL_MACROS(97, 9, 4, 5) }, { servings: null, amount: 20 }, 'medium')] },
+      CATALOGUE,
+    );
+    expect(items[0]).toMatchObject({ name: 'Greek yogurt', source: 'label', quantity: 1, uncertainty: 0.15, unitMacros: { kcal: 19, proteinG: 2, carbsG: 1, fatG: 1 } });
+    expect(items[0]?.variants?.map((v) => [v.label, v.grams, v.macros.kcal])).toEqual([
+      ['20 g', 20, 19],
+      ['100 g', 100, 97],
+    ]);
+  });
+
+  it('works out the missing column from the serving size', () => {
+    const { items } = toItems(
+      { mealName: 'Chips', items: [fromLabel({ unit: 'g', servingSize: 30, perServing: LABEL_MACROS(150, 2, 18, 8) }, { servings: null, amount: 45 })] },
+      CATALOGUE,
+    );
+    expect(items[0]?.variants?.map((v) => [v.label, v.macros.kcal])).toEqual([
+      ['45 g', 225],
+      ['1 serving · 30 g', 150],
+      ['100 g', 500],
+    ]);
+  });
+
+  it('takes one serving when the amount is unknown, and says ml for drinks', () => {
+    const { items } = toItems(
+      { mealName: 'Milk', items: [fromLabel({ productName: 'Dutch Lady milk', unit: 'ml', servingSize: 200, perServing: LABEL_MACROS(130, 6, 10, 7) }, { servings: null, amount: null })] },
+      CATALOGUE,
+    );
+    expect(items[0]).toMatchObject({ quantity: 1, unitMacros: LABEL_MACROS(130, 6, 10, 7) });
+    expect(items[0]?.variants?.map((v) => v.label)).toEqual(['1 serving · 200 ml', '100 ml']);
+  });
+
+  it('falls back to an AI guess when the label has no usable numbers', () => {
+    const unreadable = { ...fromLabel({}, { servings: 1, amount: null }), estimate: { grams: 70, kcal: 230, proteinG: 5, carbsG: 36, fatG: 7 } };
+    const { items } = toItems({ mealName: 'Bun', items: [unreadable] }, CATALOGUE);
+    expect(items[0]).toMatchObject({ source: 'aiGuess', unitMacros: { kcal: 230, proteinG: 5, carbsG: 36, fatG: 7 } });
+  });
+});
+
+describe('estimateMeal with a label photo', () => {
+  it('sends the food photo, then the label, and says which is which', async () => {
+    let sent: { messages: { content: { type: string; text?: string; source?: { data: string } }[] }[] } | undefined;
+    const client = {
+      beta: {
+        messages: {
+          parse: async (args: typeof sent) => {
+            sent = args;
+            return { stop_reason: 'end_turn', parsed_output: { mealName: 'x', items: [] }, model: 'm', usage: { input_tokens: 1, output_tokens: 1 } };
+          },
+        },
+      },
+    } as unknown as Anthropic;
+    await estimateMeal(
+      { caption: '1 bun', image: { mediaType: 'image/jpeg', base64: 'FOOD' }, labelImage: { mediaType: 'image/jpeg', base64: 'LABEL' } },
+      { client, catalogue: CATALOGUE },
+    );
+    const content = sent?.messages[0]?.content ?? [];
+    expect(content.map((c) => c.source?.data ?? c.type)).toEqual(['FOOD', 'LABEL', 'text']);
+    expect(content[2]?.text).toContain('The first photo shows the food; the second is its nutrition label.');
   });
 });

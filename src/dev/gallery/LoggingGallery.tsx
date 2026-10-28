@@ -559,9 +559,9 @@ export function LoggingGallery() {
       </Group>
 
       <Group title="C24 SourceTag">
-        <Specimen caption="C24 SourceTag / Your correction · Catalogue · MyFCD · SG FoodID · USDA · AI guess">
+        <Specimen caption="C24 SourceTag / Your correction · Catalogue · Label · MyFCD · SG FoodID · USDA · AI guess">
           <div style={rowStyle}>
-            {(['yourCorrection', 'catalogue', 'myfcd', 'sgfoodid', 'usda', 'aiGuess'] as const).map((s) => (
+            {(['yourCorrection', 'catalogue', 'label', 'myfcd', 'sgfoodid', 'usda', 'aiGuess'] as const).map((s) => (
               <SourceTag key={s} source={s} />
             ))}
           </div>

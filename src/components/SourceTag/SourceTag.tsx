@@ -4,6 +4,7 @@ import type { SourceTag as SourceTagKind } from '@/domain/types';
 export const SOURCE_LABEL: Record<SourceTagKind, string> = {
   yourCorrection: 'Your correction',
   catalogue: 'Catalogue',
+  label: 'Label',
   myfcd: 'MyFCD',
   sgfoodid: 'SG FoodID',
   usda: 'USDA',

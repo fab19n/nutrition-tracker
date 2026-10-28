@@ -28,12 +28,30 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
 
+/** Printed labels round their columns, so per-serving and per-100 g can differ by a few percent. */
+const LABEL_KCAL_TOLERANCE = 0.05;
+
+/**
+ * A label item's chips are scaled from the printed columns, so they agree on kcal per gram (or ml):
+ * every weighed chip must fit the heaviest one's density.
+ */
+function consistentLabel(variants: readonly Variant[]): boolean {
+  if (variants.length === 0) return false;
+  const weighed = variants.filter((v): v is Variant & { grams: number } => v.grams !== undefined && v.grams > 0);
+  const heaviest = weighed.reduce<(typeof weighed)[number] | undefined>((max, v) => (!max || v.grams > max.grams ? v : max), undefined);
+  if (!heaviest) return true;
+  const perGram = heaviest.macros.kcal / heaviest.grams;
+  return weighed.every((v) => Math.abs(v.macros.kcal - perGram * v.grams) <= 1 + v.macros.kcal * LABEL_KCAL_TOLERANCE);
+}
+
 /**
  * What the item may be labelled as. The server's estimate is an AI guess unless it is our own
- * catalogue entry with one of its chips' values: it can never claim "Your correction" (only the
- * user's saved corrections are) or a database source like MyFCD that nothing here can check.
+ * catalogue entry with one of its chips' values, or a label read whose chips agree with each
+ * other: it can never claim "Your correction" (only the user's saved corrections are) or a
+ * database source like MyFCD that nothing here can check.
  */
-function trustedSource(claimed: unknown, catalogueId: string | undefined, unitMacros: Macros): SourceTag {
+function trustedSource(claimed: unknown, catalogueId: string | undefined, unitMacros: Macros, variants: readonly Variant[]): SourceTag {
+  if (claimed === 'label') return consistentLabel(variants) ? 'label' : 'aiGuess';
   if (claimed !== 'catalogue' || catalogueId === undefined) return 'aiGuess';
   const entry = byId(catalogueId);
   const matches = entry?.variants.some((v) => Math.abs(v.macros.kcal - unitMacros.kcal) <= CATALOGUE_KCAL_TOLERANCE);
@@ -71,17 +89,17 @@ function parseItem(value: unknown, newId: () => string): MealItem | undefined {
   const quantity = nonNegative(value.quantity);
   const uncertainty = nonNegative(value.uncertainty);
   const catalogueId = text(value.catalogueId);
+  const variants = Array.isArray(value.variants) ? value.variants.flatMap((v) => parseVariant(v) ?? []) : [];
   const item: MealItem = {
     id: text(value.id) ?? newId(),
     name,
     unitMacros,
     quantity: quantity !== undefined && quantity > 0 ? quantity : 1,
     uncertainty: uncertainty !== undefined && uncertainty <= 1 ? uncertainty : AI_DEFAULT_UNCERTAINTY,
-    source: trustedSource(value.source, catalogueId, unitMacros),
+    source: trustedSource(value.source, catalogueId, unitMacros, variants),
   };
   if (catalogueId) item.catalogueId = catalogueId;
 
-  const variants = Array.isArray(value.variants) ? value.variants.flatMap((v) => parseVariant(v) ?? []) : [];
   const selected = value.selectedVariant;
   if (variants.length > 0) {
     item.variants = variants;

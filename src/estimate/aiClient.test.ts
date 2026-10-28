@@ -144,6 +144,36 @@ describe('postEstimate', () => {
     expect(new Headers(init?.headers).has('Content-Type')).toBe(false);
   });
 
+  it('posts a nutrition label as its own multipart file, with or without the food photo', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY));
+    const label = new Blob(['label bytes'], { type: 'image/jpeg' });
+    await postEstimate({ label, caption: '1 tbsp' }, options(fetchMock));
+    const form = fetchMock.mock.calls[0]?.[1]?.body as FormData;
+    expect(form.get('label')).toBeInstanceOf(Blob);
+    expect(form.get('photo')).toBeNull();
+    expect(JSON.parse(String(form.get('request')))).toEqual({ caption: '1 tbsp' });
+
+    await postEstimate({ photo: new Blob(['jpeg']), label }, options(fetchMock));
+    const both = fetchMock.mock.calls[1]?.[1]?.body as FormData;
+    expect(both.get('photo')).toBeInstanceOf(Blob);
+    expect(both.get('label')).toBeInstanceOf(Blob);
+  });
+
+  it('trusts a label read only when its chips agree on kcal per gram', async () => {
+    const chip = (label: string, grams: number, kcal: number) => ({ id: label, label, grams, macros: { kcal } });
+    const body = {
+      items: [
+        // Rounded print: 220 per 70 g against 314 per 100 g is 0.3 kcal apart.
+        { name: 'Gardenia bun', unitMacros: { kcal: 220 }, variants: [chip('1 serving · 70 g', 70, 220), chip('100 g', 100, 314)], selectedVariant: 0, source: 'label' },
+        { name: 'Greek yogurt', unitMacros: { kcal: 19 }, variants: [chip('20 g', 20, 19), chip('100 g', 100, 97)], selectedVariant: 0, source: 'label' },
+        { name: 'Made up', unitMacros: { kcal: 400 }, variants: [chip('20 g', 20, 400), chip('100 g', 100, 97)], selectedVariant: 0, source: 'label' },
+        { name: 'No chips', unitMacros: { kcal: 100 }, source: 'label' },
+      ],
+    };
+    const result = await postEstimate({ text: 'x' }, options(vi.fn<typeof fetch>(async () => jsonResponse(body))));
+    expect(result.items.map((i) => i.source)).toEqual(['label', 'label', 'aiGuess', 'aiGuess']);
+  });
+
   it('returns the parsed items marked as an AI estimate', async () => {
     const result = await postEstimate({ text: 'durian crepe' }, options(vi.fn<typeof fetch>(async () => jsonResponse(AI_BODY))));
 

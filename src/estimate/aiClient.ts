@@ -122,14 +122,18 @@ function payloadOf(req: EstimateRequest, hints: EstimateHints | undefined): Reco
   return payload;
 }
 
-/** JSON for text; multipart with the photo and a JSON "request" field for photos. */
+function fileName(blob: Blob, fallback: string): string {
+  return typeof File !== 'undefined' && blob instanceof File ? blob.name : fallback;
+}
+
+/** JSON for text; multipart with the photo and/or label photo and a JSON "request" field for photos. */
 function requestBody(req: EstimateRequest, hints: EstimateHints | undefined): { body: BodyInit; headers: Record<string, string> } {
   const payload = JSON.stringify(payloadOf(req, hints));
-  if (!req.photo) return { body: payload, headers: { Accept: 'application/json', 'Content-Type': 'application/json' } };
+  if (!req.photo && !req.label) return { body: payload, headers: { Accept: 'application/json', 'Content-Type': 'application/json' } };
   const form = new FormData();
   form.append('request', payload);
-  const name = typeof File !== 'undefined' && req.photo instanceof File ? req.photo.name : 'meal-photo';
-  form.append('photo', req.photo, name);
+  if (req.photo) form.append('photo', req.photo, fileName(req.photo, 'meal-photo'));
+  if (req.label) form.append('label', req.label, fileName(req.label, 'label-photo'));
   // No Content-Type: the browser adds the multipart boundary.
   return { body: form, headers: { Accept: 'application/json' } };
 }
