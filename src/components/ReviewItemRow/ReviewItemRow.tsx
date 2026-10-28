@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { ArrowLeftRight, CloudOff, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { PortionChips } from '@/components/PortionChips/PortionChips';
@@ -31,6 +31,12 @@ export interface ReviewItemRowProps {
   pendingReason?: 'offline' | 'unavailable';
   /** Wide range: shows "~300–420" in a softer style. Defaults to uncertainty ≥ 0.3 (not for AI guesses, which have their own ring). */
   uncertain?: boolean;
+  /** Answers the open question in words (the item is estimated again); no field without it. */
+  onAnswer?: (answer: string) => void;
+  /** Closes the open question without an answer. */
+  onSkip?: () => void;
+  /** An answer is being estimated: the field and its buttons wait. */
+  answering?: boolean;
 }
 
 /**
@@ -49,8 +55,13 @@ export function ReviewItemRow({
   pending = item.pendingEstimate ?? false,
   pendingReason = 'offline',
   uncertain = item.source !== 'aiGuess' && item.uncertainty >= UNCERTAIN_AT,
+  onAnswer,
+  onSkip,
+  answering = false,
 }: ReviewItemRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const questionId = useId();
   const variants = item.variants ?? [];
   const name = item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name;
   const needsAttention = !pending && (!!question || item.source === 'aiGuess');
@@ -97,7 +108,44 @@ export function ReviewItemRow({
         </p>
       ) : null}
 
-      {question ? <p className={styles.note}>{question}</p> : null}
+      {question ? (
+        <p id={questionId} className={styles.note}>
+          {question}
+        </p>
+      ) : null}
+
+      {question && !pending && (onAnswer || onSkip) ? (
+        <form
+          className={styles.answer}
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (answer.trim() && !answering) onAnswer?.(answer.trim());
+          }}
+        >
+          {onAnswer ? (
+            <>
+              <input
+                className={styles.answerInput}
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="Your answer"
+                aria-labelledby={questionId}
+                autoComplete="off"
+                enterKeyHint="done"
+                disabled={answering}
+              />
+              <button type="submit" className={styles.update} disabled={answering || !answer.trim()}>
+                {answering ? 'Updating…' : 'Update'}
+              </button>
+            </>
+          ) : null}
+          {onSkip ? (
+            <button type="button" className={styles.skip} onClick={onSkip} disabled={answering}>
+              Skip
+            </button>
+          ) : null}
+        </form>
+      ) : null}
 
       {variants.length > 1 ? (
         <div className={styles.chips}>

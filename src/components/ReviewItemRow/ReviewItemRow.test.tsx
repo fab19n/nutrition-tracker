@@ -140,4 +140,32 @@ describe('ReviewItemRow', () => {
       expect(screen.queryByRole('menuitem', { name: 'Swap item' })).not.toBeInTheDocument();
     });
   });
+
+  describe('follow-up answer', () => {
+    const question = 'How big was the glass?';
+
+    it('sends the trimmed answer, and Skip closes', async () => {
+      const onAnswer = vi.fn();
+      const onSkip = vi.fn();
+      render(<ReviewItemRow item={makeItem({ question })} kcalLabel="~120" onAnswer={onAnswer} onSkip={onSkip} />);
+      expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled();
+      await userEvent.type(screen.getByRole('textbox', { name: question }), '  large one {Enter}');
+      expect(onAnswer).toHaveBeenCalledWith('large one');
+      await userEvent.click(screen.getByRole('button', { name: 'Skip' }));
+      expect(onSkip).toHaveBeenCalled();
+    });
+
+    it('waits while the answer is estimated', () => {
+      render(<ReviewItemRow item={makeItem({ question })} kcalLabel="~120" onAnswer={vi.fn()} onSkip={vi.fn()} answering />);
+      expect(screen.getByRole('textbox', { name: question })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled();
+    });
+
+    it('has no answer row without a question or while pending', () => {
+      const { rerender } = render(<ReviewItemRow item={makeItem()} kcalLabel="~120" onAnswer={vi.fn()} onSkip={vi.fn()} />);
+      expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+      rerender(<ReviewItemRow item={makeItem({ question, pendingEstimate: true })} kcalLabel="~120" onAnswer={vi.fn()} onSkip={vi.fn()} />);
+      expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+    });
+  });
 });

@@ -16,13 +16,16 @@ import { deleteMeal, rememberCorrection, saveMeal } from '@/db/actions';
 import { db } from '@/db/db';
 import { useMealThumbUrl } from '@/db/diary';
 import { useMeal, useNow, usePersonalItems, useProfile, useToday, useUsuals, useWeekBudget } from '@/db/hooks';
-import { discardPhoto, findRepeatedCorrection, saveUsualFromMeal, type RepeatedCorrection } from '@/db/logging';
+import { discardPhoto, findRepeatedCorrection, loadEstimateContext, saveUsualFromMeal, type RepeatedCorrection } from '@/db/logging';
 import { now } from '@/domain/clock';
 import { fmtApprox, fmtInt, fmtKcal, fmtRange, roundTo10 } from '@/domain/format';
 import { itemMacros, itemsRange, mealMacros, selectVariant } from '@/domain/meal';
-import type { LogicalDay, MealItem } from '@/domain/types';
+import type { Id, LogicalDay, MealItem } from '@/domain/types';
+import { readEstimateUrl } from '@/estimate/aiClient';
+import { estimateMeal } from '@/estimate/service';
 import { useUiStore, type ReviewDraft } from '@/state/ui';
 import type { LogNavState } from './drafts';
+import { answeredItems, answerRequest } from './followUp';
 import { useOnline, useRecentPlaces } from './hooks';
 import { ItemSearchSheet } from './ItemSearchSheet';
 import { MealContextChips } from './MealContextChips';
@@ -58,7 +61,10 @@ export function correctionMessage(c: RepeatedCorrection): string {
   return `You've changed ${lowerFirst(c.item.name)} to ${chip} here ${times}. Make ${chip} the default here?`;
 }
 
-/** An answered chip closes the item's open question (the amber ring goes). */
+/** An answer the estimator couldn't use: the question stays open. */
+export const ANSWER_FAILED_TOAST = "Couldn't update it with that answer. Try again, or swap the item.";
+
+/** An answered chip (or Skip) closes the item's open question (the amber ring goes). */
 function answered(item: MealItem): MealItem {
   if (item.question === undefined) return item;
   const { question: _question, ...rest } = item;
@@ -108,6 +114,9 @@ function Review({ draft }: { draft: ReviewDraft }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [saving, setSaving] = useState(false);
+  const [answeringId, setAnsweringId] = useState<Id | null>(null);
+  // A typed answer needs the AI: online, an endpoint, and AI estimates not turned off.
+  const canAnswer = online && profile?.aiEstimates !== 'off' && readEstimateUrl() !== undefined;
 
   // Leaving after a save (or Back) drops the draft, so a direct visit later lands on Today.
   const dropDraft = useRef(false);
@@ -236,6 +245,30 @@ function Review({ draft }: { draft: ReviewDraft }) {
     navigate(`${PATHS.diary}?day=${day}`, { replace: true });
   };
 
+  /** The item is estimated again from its question and the answer; the result takes its place. */
+  const answerQuestion = async (item: MealItem, answer: string) => {
+    if (!item.question || answeringId) return;
+    setAnsweringId(item.id);
+    try {
+      const { meta: latestMeta } = useUiStore.getState().reviewDraft ?? draft;
+      const ctx = await loadEstimateContext(db, latestMeta.placeId);
+      const result = await estimateMeal(answerRequest(item, item.question, answer, latestMeta), ctx, { mode: 'always' });
+      const next = answeredItems(result);
+      if (!next) {
+        showToast(ANSWER_FAILED_TOAST);
+        return;
+      }
+      const latest = useUiStore.getState().reviewDraft;
+      const at = latest?.items.findIndex((i) => i.id === item.id) ?? -1;
+      if (!latest || at < 0) return; // removed while it was estimating
+      setReviewDraft({ ...latest, items: [...latest.items.slice(0, at), ...next, ...latest.items.slice(at + 1)] });
+    } catch {
+      showToast(ANSWER_FAILED_TOAST);
+    } finally {
+      setAnsweringId(null);
+    }
+  };
+
   const onPicked = (picked: MealItem[]) => {
     if (search?.mode === 'swap') {
       const latest = useUiStore.getState().reviewDraft ?? draft;
@@ -276,6 +309,9 @@ function Review({ draft }: { draft: ReviewDraft }) {
             onRemove={() => removeDraftItem(index)}
             onSwap={() => setSearch({ mode: 'swap', index })}
             pendingReason={online ? 'unavailable' : 'offline'}
+            onSkip={() => updateDraftItem(index, answered(item))}
+            {...(canAnswer ? { onAnswer: (answer: string) => void answerQuestion(item, answer) } : {})}
+            answering={answeringId === item.id}
           />
         ))}
         <AddItemRow

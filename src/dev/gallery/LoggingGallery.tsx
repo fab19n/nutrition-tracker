@@ -255,6 +255,8 @@ function LiveRow({ initial }: { initial: MealItem }) {
       onSelectVariant={(i) => setIt((cur) => selectVariant(cur, i))}
       onSwap={noop}
       onRemove={noop}
+      onAnswer={() => setIt(({ question: _q, ...rest }) => rest)}
+      onSkip={() => setIt(({ question: _q, ...rest }) => rest)}
     />
   );
 }

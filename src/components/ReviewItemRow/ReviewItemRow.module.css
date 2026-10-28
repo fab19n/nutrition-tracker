@@ -68,3 +68,63 @@
 .chips {
   margin-top: 8px;
 }
+
+/* C25 in the row: a free-text answer to the estimator's question, or Skip. */
+.answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.answerInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--card2);
+  font-size: 16px;
+}
+
+.answerInput::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.answerInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.update {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.update:disabled {
+  opacity: 0.5;
+}
+
+.skip {
+  position: relative;
+  flex: none;
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.skip::after {
+  content: '';
+  position: absolute;
+  inset: -7px -6px;
+}
