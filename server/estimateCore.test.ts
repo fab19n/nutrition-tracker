@@ -43,14 +43,33 @@ const CATALOGUE: CatalogueEntry[] = [
   },
 ];
 
+type Parsed = Parameters<typeof toItems>[0]['items'][number];
+
+/** One item as the model returns it: what it saw, a name, the grams, then the catalogue match (or null). */
+function parsed(item: Partial<Parsed> & Pick<Parsed, 'name'>): Parsed {
+  return {
+    seen: item.name,
+    grams: 100,
+    catalogueId: null,
+    variantLabel: null,
+    quantity: 1,
+    estimate: null,
+    label: null,
+    labelAmount: null,
+    confidence: 'high',
+    question: null,
+    ...item,
+  };
+}
+
 describe('toItems', () => {
   it('takes catalogue macros for matched items and picks the variant by label', () => {
     const { items, unmatched } = toItems(
       {
         mealName: 'Nasi kandar',
         items: [
-          { catalogueId: 'kuah-campur', name: 'Kuah', variantLabel: 'banjir', quantity: 1, estimate: null, label: null, labelAmount: null, confidence: 'high', question: null },
-          { catalogueId: 'teh-o-ais', name: 'Teh o ais', variantLabel: null, quantity: 2, estimate: null, label: null, labelAmount: null, confidence: 'medium', question: null },
+          parsed({ catalogueId: 'kuah-campur', name: 'Kuah', variantLabel: 'banjir' }),
+          parsed({ catalogueId: 'teh-o-ais', name: 'Teh o ais', quantity: 2, confidence: 'medium' }),
         ],
       },
       CATALOGUE,
@@ -61,22 +80,31 @@ describe('toItems', () => {
     expect(items[1]?.uncertainty).toBeCloseTo(0.2);
   });
 
+  it('names a catalogue item by what the model saw but prices it from the catalogue', () => {
+    const { items } = toItems(
+      { mealName: 'Tea', items: [parsed({ catalogueId: 'teh-o-ais', name: 'Teh o limau panas', grams: 250, variantLabel: 'Kosong' })] },
+      CATALOGUE,
+    );
+    expect(items[0]).toMatchObject({ name: 'Teh o limau panas', catalogueId: 'teh-o-ais', unitMacros: m(5), source: 'catalogue', portionGrams: 250 });
+  });
+
+  it('falls back to the catalogue name when the model gives none', () => {
+    const { items } = toItems({ mealName: 'Tea', items: [parsed({ catalogueId: 'teh-o-ais', name: '  ' })] }, CATALOGUE);
+    expect(items[0]?.name).toBe('Teh o ais');
+  });
+
   it('turns unknown or invented ids into AI guesses with size chips', () => {
     const { items, unmatched, questions } = toItems(
       {
         mealName: 'Durian crepe',
         items: [
-          {
+          parsed({
             catalogueId: 'made-up-id',
             name: 'Durian crepe',
-            variantLabel: null,
-            quantity: 1,
-            estimate: { grams: 180, kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 },
-            label: null,
-            labelAmount: null,
+            grams: 180,
+            estimate: { kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 },
             confidence: 'low',
-            question: null,
-          },
+          }),
         ],
       },
       CATALOGUE,
@@ -84,33 +112,46 @@ describe('toItems', () => {
     expect(unmatched).toEqual(['Durian crepe']);
     expect(items[0]).toMatchObject({ source: 'aiGuess', selectedVariant: 1, uncertainty: 0.4 });
     expect(items[0]?.variants?.map((v) => v.macros.kcal)).toEqual([294, 420, 588]);
-    // The weight only steers the AI's macros; the item keeps no grams.
     expect(items[0]?.unitMacros).toEqual({ kcal: 420, proteinG: 6, carbsG: 50, fatG: 22 });
     // No question of its own: the size chips and the amber ring already cover "how big".
     expect(items[0]?.question).toBeUndefined();
     expect(questions).toHaveLength(0);
   });
 
+  it('keeps what the model took the portion to weigh, for a dish the catalogue does not have', () => {
+    const { items, unmatched } = toItems(
+      {
+        mealName: 'Plate',
+        items: [parsed({ name: 'Mutton varuval', grams: 140, estimate: { kcal: 330, proteinG: 26, carbsG: 6, fatG: 22 }, confidence: 'medium' })],
+      },
+      CATALOGUE,
+    );
+    expect(unmatched).toEqual(['Mutton varuval']);
+    expect(items[0]).toMatchObject({ name: 'Mutton varuval', source: 'aiGuess', portionGrams: 140, uncertainty: 0.3 });
+  });
+
+  it('keeps no portion when the weight is missing or nonsense', () => {
+    const { items } = toItems(
+      { mealName: 'x', items: [parsed({ catalogueId: 'teh-o-ais', name: 'Teh', grams: 0 }), parsed({ catalogueId: 'teh-o-ais', name: 'Teh', grams: -5 })] },
+      CATALOGUE,
+    );
+    expect(items.map((i) => i.portionGrams)).toEqual([undefined, undefined]);
+  });
+
   it('keeps at most two questions', () => {
-    const q = (id: string) => ({ catalogueId: id, name: id, variantLabel: null, quantity: 1, estimate: null, label: null, labelAmount: null, confidence: 'medium' as const, question: 'How much?' });
+    const q = (id: string) => parsed({ catalogueId: id, name: id, confidence: 'medium', question: 'How much?' });
     const { questions, items } = toItems({ mealName: 'x', items: [q('kuah-campur'), q('teh-o-ais'), q('kuah-campur')] }, CATALOGUE);
     expect(questions).toHaveLength(2);
     expect(items.filter((i) => i.question)).toHaveLength(2);
   });
 
   it('keeps a fraction of a unit read from a photo', () => {
-    const { items } = toItems(
-      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: 0.5, estimate: null, label: null, labelAmount: null, confidence: 'medium', question: null }] },
-      CATALOGUE,
-    );
+    const { items } = toItems({ mealName: 'x', items: [parsed({ catalogueId: 'teh-o-ais', name: 'Teh', quantity: 0.5, confidence: 'medium' })] }, CATALOGUE);
     expect(items[0]?.quantity).toBe(0.5);
   });
 
   it('ignores nonsense quantities', () => {
-    const { items } = toItems(
-      { mealName: 'x', items: [{ catalogueId: 'teh-o-ais', name: 'Teh', variantLabel: null, quantity: -3, estimate: null, label: null, labelAmount: null, confidence: 'high', question: null }] },
-      CATALOGUE,
-    );
+    const { items } = toItems({ mealName: 'x', items: [parsed({ catalogueId: 'teh-o-ais', name: 'Teh', quantity: -3 })] }, CATALOGUE);
     expect(items[0]?.quantity).toBe(1);
   });
 });
@@ -141,14 +182,32 @@ describe('buildSystemPrompt', () => {
     );
   });
 
-  it('has photos set portions, with fractions, grams first for guesses, and questions only about what a photo cannot show', () => {
+  it('has photos set portions, with fractions, grams for every item, and questions only about what a photo cannot show', () => {
     const prompt = buildSystemPrompt(CATALOGUE);
     expect(prompt).toContain('choose the variant that matches what you see');
     expect(prompt).toContain('a half-full glass = 0.5');
     expect(prompt).toContain('using things of known size for scale');
+    expect(prompt).toContain('For every item give grams');
     expect(prompt).toContain('work out the weight in grams first');
     expect(prompt).toContain('Never ask about what the photo already shows.');
     expect(prompt).not.toContain('conservatively');
+  });
+
+  it('has the model say what is there before it looks at the catalogue, and use it only for dishes it really holds', () => {
+    const prompt = buildSystemPrompt(CATALOGUE);
+    expect(prompt).toContain('Look first, then label.');
+    expect(prompt).toContain('not your vocabulary and not a list of answers');
+    expect(prompt).toContain('only when the item IS that dish');
+    expect(prompt).toContain('A wrong match is worse than none.');
+    expect(prompt).toContain('List each food once');
+    // Plain names: a stir-fried vegetable is never renamed in the plate's regional style.
+    expect(prompt).toContain('"Stir-fried cabbage"');
+    expect(prompt).toContain('never "cabbage poriyal"');
+    expect(prompt).toContain('The cuisine of the rest of the plate never changes how a vegetable is named.');
+    // The home plates and drinks that used to land on the nearest catalogue dish.
+    expect(prompt).toContain('varuval');
+    expect(prompt).toContain('dhal (often with bayam or other greens)');
+    expect(prompt).toContain('a clear amber or yellow drink with a slice of lemon or ginger is tea, not coffee');
   });
 
   it('leaves recipe-only pot ingredients out of the meal prompt', () => {
@@ -214,17 +273,12 @@ const LABEL_MACROS = (kcal: number, proteinG: number, carbsG: number, fatG: numb
 
 /** A parsed item read off a nutrition label. */
 function fromLabel(label: Record<string, unknown>, labelAmount: { servings: number | null; amount: number | null }, confidence: 'high' | 'medium' | 'low' = 'high') {
-  return {
-    catalogueId: null,
+  return parsed({
     name: 'Bun',
-    variantLabel: null,
-    quantity: 1,
-    estimate: null,
     label: { productName: 'Gardenia Butterscotch bun', unit: 'g' as const, servingSize: null, per100: null, perServing: null, ...label },
     labelAmount,
     confidence,
-    question: null,
-  };
+  });
 }
 
 describe('toItems from a nutrition label', () => {
@@ -282,31 +336,52 @@ describe('toItems from a nutrition label', () => {
   });
 
   it('falls back to an AI guess when the label has no usable numbers', () => {
-    const unreadable = { ...fromLabel({}, { servings: 1, amount: null }), estimate: { grams: 70, kcal: 230, proteinG: 5, carbsG: 36, fatG: 7 } };
+    const unreadable = { ...fromLabel({}, { servings: 1, amount: null }), grams: 70, estimate: { kcal: 230, proteinG: 5, carbsG: 36, fatG: 7 } };
     const { items } = toItems({ mealName: 'Bun', items: [unreadable] }, CATALOGUE);
     expect(items[0]).toMatchObject({ source: 'aiGuess', unitMacros: { kcal: 230, proteinG: 5, carbsG: 36, fatG: 7 } });
   });
 });
 
-describe('estimateMeal with a label photo', () => {
-  it('sends the food photo, then the label, and says which is which', async () => {
-    let sent: { messages: { content: { type: string; text?: string; source?: { data: string } }[] }[] } | undefined;
-    const client = {
-      beta: {
-        messages: {
-          parse: async (args: typeof sent) => {
-            sent = args;
-            return { stop_reason: 'end_turn', parsed_output: { mealName: 'x', items: [] }, model: 'm', usage: { input_tokens: 1, output_tokens: 1 } };
-          },
+/** A client whose parse() records what it was sent and answers with an empty meal. */
+function recordingClient() {
+  const calls: { output_config: { effort: string }; messages: { content: { type: string; text?: string; source?: { data: string } }[] }[] }[] = [];
+  const client = {
+    beta: {
+      messages: {
+        parse: async (args: (typeof calls)[number]) => {
+          calls.push(args);
+          return { stop_reason: 'end_turn', parsed_output: { mealName: 'x', items: [] }, model: 'm', usage: { input_tokens: 1, output_tokens: 1 } };
         },
       },
-    } as unknown as Anthropic;
+    },
+  } as unknown as Anthropic;
+  return { client, calls };
+}
+
+describe('estimateMeal with a label photo', () => {
+  it('sends the food photo, then the label, and says which is which', async () => {
+    const { client, calls } = recordingClient();
     await estimateMeal(
       { caption: '1 bun', image: { mediaType: 'image/jpeg', base64: 'FOOD' }, labelImage: { mediaType: 'image/jpeg', base64: 'LABEL' } },
       { client, catalogue: CATALOGUE },
     );
-    const content = sent?.messages[0]?.content ?? [];
+    const content = calls[0]?.messages[0]?.content ?? [];
     expect(content.map((c) => c.source?.data ?? c.type)).toEqual(['FOOD', 'LABEL', 'text']);
     expect(content[2]?.text).toContain('The first photo shows the food; the second is its nutrition label.');
+  });
+});
+
+describe('estimateMeal effort', () => {
+  it('thinks at medium effort when it has to read a plate, and at low effort for words alone', async () => {
+    const { client, calls } = recordingClient();
+    await estimateMeal({ image: { mediaType: 'image/jpeg', base64: 'PLATE' } }, { client, catalogue: CATALOGUE });
+    await estimateMeal({ text: 'teh o ais' }, { client, catalogue: CATALOGUE });
+    expect(calls.map((c) => c.output_config.effort)).toEqual(['medium', 'low']);
+  });
+
+  it('lets the caller choose', async () => {
+    const { client, calls } = recordingClient();
+    await estimateMeal({ image: { mediaType: 'image/jpeg', base64: 'PLATE' } }, { client, catalogue: CATALOGUE, effort: 'high' });
+    expect(calls[0]?.output_config.effort).toBe('high');
   });
 });

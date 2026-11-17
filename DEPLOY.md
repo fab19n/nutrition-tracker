@@ -398,8 +398,8 @@ Where the app says "estimates stay offline", it fell back to the catalogue and n
 
 **Claude API** (`claude-sonnet-5-5`: US$2 per million input tokens, US$10 per million output tokens — about half of Opus 5.5):
 
-- Each estimate sends a compact listing of the food catalogue (about 20,000 characters) plus your meal, about **12,000 input tokens** in all, and gets back a small structured answer (about 170 tokens) at low effort.
-- Measured on a real call (`nasi goreng kampung, teh o ais limau`): **about US$0.026 per estimate**. A photo adds well under a cent.
+- Each estimate sends a compact listing of the food catalogue (about 20,000 characters) plus your meal, about **13,000 input tokens** in all (about 16,000 with a photo). Typed meals are read at low effort and get back a small structured answer. Photos are read at medium effort: the model first writes what each item on the plate is, then its weight, so the answer is about 600 tokens.
+- Measured on real calls: **about US$0.03 for a typed meal** (`nasi goreng kampung, teh o ais limau`) and **about US$0.04 for a plate photo** (nine home-cooked plates and snacks, 2–9 seconds each).
 - The prompt is deliberately not cached: a cache write costs 25% more and only pays off if the next estimate comes within 5 minutes, which rarely happens with meals hours apart. (With caching, the same call measured about US$0.043.)
 - With **When needed**, the AI runs only for meals the offline catalogue can't fully match, so a typical day is 0–3 calls: roughly US$0–2.50 a month. **Always** with 4 meals a day is about 120 calls, roughly US$3 a month.
 - The model is set in one place, `ESTIMATE_MODEL` in `supabase/functions/estimate/core.ts`. Change it there and redeploy the function (step 31) if you ever want a different one.

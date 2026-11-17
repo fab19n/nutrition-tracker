@@ -3,7 +3,7 @@ import { ArrowLeftRight, CloudOff, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { PortionChips } from '@/components/PortionChips/PortionChips';
 import { SourceTag } from '@/components/SourceTag/SourceTag';
-import { fmtQuantity, fmtRange } from '@/domain/format';
+import { fmtInt, fmtQuantity, fmtRange } from '@/domain/format';
 import { itemRange } from '@/domain/meal';
 import type { MealItem } from '@/domain/types';
 import { ItemMenu, type ItemMenuAction } from './ItemMenu';
@@ -100,6 +100,8 @@ export function ReviewItemRow({
           {actions.length > 0 ? <ItemMenu label={`More for ${item.name}`} actions={actions} onOpenChange={setMenuOpen} /> : null}
         </span>
       </div>
+
+      {item.portionGrams && !pending ? <p className={styles.portion}>Looks like about {fmtInt(item.portionGrams)} g</p> : null}
 
       {pending ? (
         <p className={styles.note}>

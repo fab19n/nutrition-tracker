@@ -107,6 +107,8 @@ function parseItem(value: unknown, newId: () => string): MealItem | undefined {
   }
   const question = text(value.question);
   if (question) item.question = question;
+  const portionGrams = nonNegative(value.portionGrams);
+  if (portionGrams) item.portionGrams = Math.round(portionGrams);
   return item;
 }
 

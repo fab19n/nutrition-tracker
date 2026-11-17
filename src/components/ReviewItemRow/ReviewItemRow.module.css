@@ -51,6 +51,14 @@
   color: var(--muted);
 }
 
+/* What the estimator took the portion to weigh, so a wrong guess is easy to spot. */
+.portion {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .note {
   display: flex;
   align-items: center;

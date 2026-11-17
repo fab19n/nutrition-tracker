@@ -327,6 +327,8 @@ export interface MealItem {
   edited?: boolean;
   /** Offline: the AI estimate hasn't run yet. */
   pendingEstimate?: boolean;
+  /** The portion's weight in grams (ml for a drink) as the AI judged it from the photo or the words. */
+  portionGrams?: number;
 }
 
 export type SyncState = 'local' | 'pending' | 'synced';
