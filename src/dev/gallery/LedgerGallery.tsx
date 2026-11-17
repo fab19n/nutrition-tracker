@@ -660,7 +660,7 @@ function EmptyAndLoadingStates() {
       <Group title="C57 SkeletonLoader">
         <State label="C57 SkeletonList / 4 rows, 150ms stagger (S10 Estimating)">
           <SkeletonList count={4} label="Estimating your meal" />
-          <div style={css.statusLine}>Estimating… matching to your library and MyFCD</div>
+          <div style={css.statusLine}>Estimating… this takes a few seconds</div>
         </State>
       </Group>
     </>

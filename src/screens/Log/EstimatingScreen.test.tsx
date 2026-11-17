@@ -127,7 +127,7 @@ describe('S10 Estimating', () => {
 
     expect(await screen.findByRole('heading', { name: 'Reading your meal' })).toBeInTheDocument();
     expect(screen.getByText('“mee goreng mamak”')).toBeInTheDocument();
-    expect(screen.getByText('Estimating… matching to your library and MyFCD')).toBeInTheDocument();
+    expect(screen.getByText('Estimating… this takes a few seconds')).toBeInTheDocument();
     expect(screen.getByText('Estimating your meal')).toBeInTheDocument();
     await act(async () => {
       vi.advanceTimersByTime(SLOW_AFTER_MS + 100);
@@ -194,7 +194,79 @@ describe('S10 Estimating', () => {
   });
 });
 
+/** What the service returns when the AI was asked and the call didn't come back: a pending placeholder. */
+function failedCall(reason: 'timeout' | 'network' | 'http' | 'badResponse' | 'offline', name = 'Meal from photo'): EstimateResult {
+  return {
+    items: [{ id: 'p1', name, unitMacros: { kcal: 500, proteinG: 20, carbsG: 60, fatG: 18 }, quantity: 1, uncertainty: 0.4, source: 'aiGuess', pendingEstimate: true }],
+    questions: [],
+    unmatched: [],
+    method: 'local',
+    aiSkipped: reason,
+  };
+}
+
+const WHY = {
+  timeout: 'The estimate took too long to come back.',
+  network: "Couldn't reach the estimator.",
+  http: 'The estimator had a problem.',
+  badResponse: "The estimator's answer couldn't be read.",
+} as const;
+
 describe('S47 estimate failed', () => {
+  it.each(['timeout', 'network', 'http', 'badResponse'] as const)(
+    'offers try again, not a "Meal from photo", when the AI call for a photo failed (%s)',
+    async (reason) => {
+      const user = userEvent.setup();
+      // The stored test photo isn't a real Blob after fake-indexeddb's clone, so object URLs are stubbed.
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+      let calls = 0;
+      override.estimate = async () => {
+        calls += 1;
+        if (calls === 1) return failedCall(reason);
+        const [guess] = failedCall('timeout', 'Mutton varuval').items;
+        return { items: [{ ...guess!, pendingEstimate: false }], questions: [], unmatched: [], method: 'ai' };
+      };
+      const photoId = await storePhoto(db, new Blob(['jpeg'], { type: 'image/jpeg' }), new Blob(['jpg'], { type: 'image/jpeg' }));
+      useUiStore.getState().setReviewDraft(photoDraft(photoId, '', context()));
+      renderLogRoutes(PATHS.estimating);
+
+      const alert = await screen.findByRole('alert');
+      expect(within(alert).getByRole('heading', { name: "Couldn't estimate this right now." })).toBeInTheDocument();
+      // It says why, so a failed call never looks like the AI not recognising the food.
+      expect(within(alert).getByText(WHY[reason])).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'More for Meal from photo' })).toBeNull();
+      // The photo stays on screen and in the draft for the retry.
+      expect(useUiStore.getState().reviewDraft?.meta.photoId).toBe(photoId);
+
+      await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+      expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'More for Mutton varuval' })).toBeInTheDocument();
+      expect(calls).toBe(2);
+    },
+  );
+
+  it('still keeps a pending placeholder for a photo taken offline, where trying again cannot help', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    override.estimate = async () => failedCall('offline');
+    const photoId = await storePhoto(db, new Blob(['jpeg'], { type: 'image/jpeg' }), new Blob(['jpg'], { type: 'image/jpeg' }));
+    useUiStore.getState().setReviewDraft(photoDraft(photoId, '', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More for Meal from photo' })).toBeInTheDocument();
+  });
+
+  it('keeps a typed meal the AI could not reach as a rough guess on Review, as before', async () => {
+    override.estimate = async () => failedCall('timeout', 'Nasi goreng pattaya');
+    useUiStore.getState().setReviewDraft(textDraft('nasi goreng pattaya', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More for Nasi goreng pattaya' })).toBeInTheDocument();
+  });
+
   it('keeps the text and offers try again, your library or your own kcal', async () => {
     const user = userEvent.setup();
     let calls = 0;

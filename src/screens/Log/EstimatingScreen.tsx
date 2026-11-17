@@ -12,7 +12,7 @@ import { getPhoto, getProfile } from '@/db/repo';
 import { clipText } from '@/domain/text';
 import type { MealItem } from '@/domain/types';
 import { estimateMeal, needsAi } from '@/estimate/service';
-import type { EstimateRequest, EstimateResult } from '@/estimate/types';
+import type { AiSkipReason, EstimateRequest, EstimateResult } from '@/estimate/types';
 import { useUiStore, type LogResume, type ReviewDraft } from '@/state/ui';
 import { useBlobUrl, usePhotoUrl } from './hooks';
 import { ItemSearchSheet } from './ItemSearchSheet';
@@ -36,6 +36,26 @@ export function resetSignInHint(): void {
 function wantsSignIn(req: EstimateRequest, result: EstimateResult): boolean {
   return result.aiSkipped === 'notSignedIn' && needsAi(req, result);
 }
+
+/** The AI was there to ask but the call didn't come back, so asking again can work (unlike offline or signed out). */
+const RETRYABLE: ReadonlySet<AiSkipReason> = new Set<AiSkipReason>(['timeout', 'network', 'http', 'badResponse']);
+
+/**
+ * A photo only the AI can read, whose call failed: a "Meal from photo" placeholder would look like
+ * the AI couldn't tell what it was, so the screen offers Try again instead.
+ */
+function photoCallFailed(req: EstimateRequest, result: EstimateResult): boolean {
+  if (!req.photo && !req.label) return false;
+  return result.aiSkipped !== undefined && RETRYABLE.has(result.aiSkipped) && result.items.every((item) => item.pendingEstimate);
+}
+
+/** Why a photo's call failed, in a few words, so "Try again" isn't a mystery. */
+const FAIL_NOTE: Partial<Record<AiSkipReason, string>> = {
+  timeout: 'The estimate took too long to come back.',
+  network: "Couldn't reach the estimator.",
+  http: 'The estimator had a problem.',
+  badResponse: "The estimator's answer couldn't be read.",
+};
 
 function showSignInHint(): void {
   if (signInHintShown) return;
@@ -77,6 +97,7 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
   const [phase, setPhase] = useState<Phase>('working');
   const [attempt, setAttempt] = useState(0);
   const [fallback, setFallback] = useState<'library' | 'manual' | null>(null);
+  const [failNote, setFailNote] = useState<string | undefined>(undefined);
   const mealPhotoUrl = usePhotoUrl(draft.meta.photoId, 'blob');
   // A label on its own is the only picture there is.
   const labelUrl = useBlobUrl(draft.meta.photoId ? undefined : draft.labelPhoto);
@@ -94,6 +115,7 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
   useEffect(() => {
     const controller = new AbortController();
     setPhase('working');
+    setFailNote(undefined);
     const slow = setTimeout(() => setPhase((p) => (p === 'working' ? 'slow' : p)), SLOW_AFTER_MS);
     void (async () => {
       try {
@@ -109,7 +131,8 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
         // A photo the AI can't read yet comes back as a pending "Meal from photo".
         const result = await estimateMeal(req, ctx, { signal: controller.signal, mode: profile?.aiEstimates });
         if (controller.signal.aborted) return;
-        if (result.items.length === 0) {
+        if (result.items.length === 0 || photoCallFailed(req, result)) {
+          setFailNote(result.aiSkipped ? FAIL_NOTE[result.aiSkipped] : undefined);
           setPhase('failed');
           return;
         }
@@ -161,6 +184,7 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
 
       {failed ? (
         <FailedState
+          {...(failNote ? { note: failNote } : {})}
           onRetry={() => setAttempt((n) => n + 1)}
           onLibrary={() => setFallback('library')}
           onManual={() => setFallback('manual')}
@@ -171,7 +195,7 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
             <SkeletonList count={4} label="Estimating your meal" />
           </div>
           <p id={statusId} className={styles.status} aria-live="polite">
-            {phase === 'slow' ? 'Still working…' : 'Estimating… matching to your library and MyFCD'}
+            {phase === 'slow' ? 'Still working…' : 'Estimating… this takes a few seconds'}
           </p>
           <div className={styles.cancelRow}>
             <button type="button" className={styles.cancel} onClick={cancel}>
@@ -187,13 +211,14 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
   );
 }
 
-function FailedState({ onRetry, onLibrary, onManual }: { onRetry: () => void; onLibrary: () => void; onManual: () => void }) {
+function FailedState({ note, onRetry, onLibrary, onManual }: { note?: string; onRetry: () => void; onLibrary: () => void; onManual: () => void }) {
   const titleId = useId();
   return (
     <section className={styles.failed} role="alert" aria-labelledby={titleId}>
       <h2 id={titleId} className={styles.failedTitle}>
         Couldn't estimate this right now.
       </h2>
+      {note ? <p className={styles.failedBody}>{note}</p> : null}
       <p className={styles.failedBody}>Try again, or pick from your library. What you typed is kept.</p>
       <div className={styles.failedActions}>
         <Button onClick={onRetry}>Try again</Button>

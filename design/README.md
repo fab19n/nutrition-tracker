@@ -192,7 +192,7 @@ Sheet content: "Good morning" 13px `--muted`; "Yesterday · 2 meals · 1,240 kca
 Card radius 24px, centred: "This morning" 12px `--muted`; value 64px/800 −0.04em with " kg" 20px `--muted`; 3-column numpad of 44px-tall `--card2` keys radius 12px, 18px/600 (1–9, ".", 0, ⌫); **Save weigh-in** `--accent` pill 48px → label becomes "Saved · trend 77.9 kg".
 
 ### C56 EmptyState / C57 SkeletonLoader
-Skeleton row: `--card`, radius 20px, padding 14px; grey blocks in `--card2` (14px title bar of varying width, two 26px chip pills, 40×16 kcal block); pulse animation staggered. Under rows: "Estimating… matching to your library and MyFCD" 14px `--muted` centred, then "Cancel" text button.
+Skeleton row: `--card`, radius 20px, padding 14px; grey blocks in `--card2` (14px title bar of varying width, two 26px chip pills, 40×16 kcal block); pulse animation staggered. Under rows: "Estimating… this takes a few seconds" 14px `--muted` centred, then "Cancel" text button.
 
 ---
 

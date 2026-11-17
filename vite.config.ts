@@ -51,8 +51,10 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts'],
       // Tests run without Supabase, Google Drive or reminders whatever .env.local says, as in CI: no
-      // sign-in, no sync capture, no Drive card, no push. A test that needs one stubs it with vi.stubEnv.
-      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_KEY: '', VITE_GOOGLE_CLIENT_ID: '', VITE_VAPID_PUBLIC_KEY: '' },
+      // sign-in, no sync capture, no Drive card, no push, and no AI endpoint (the local dev setup
+      // points VITE_ESTIMATE_URL at /api/estimate, which would turn every photo test into a failed call).
+      // A test that needs one stubs it with vi.stubEnv.
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_KEY: '', VITE_GOOGLE_CLIENT_ID: '', VITE_VAPID_PUBLIC_KEY: '', VITE_ESTIMATE_URL: '' },
       // Budgets that add up under a full parallel run (one worker per core, each with its own jsdom
       // and IndexedDB): a screen test may wait up to 4 s at a time (its SLOW findBy), so a whole test
       // gets 15 s, not the default 5 s. Waits without their own timeout get 3 s (src/test/setup.ts).

@@ -16,7 +16,14 @@ import type { EstimateOptions, EstimateRequest, EstimateResult, Estimator } from
 
 export { EstimateUnavailableError, type EstimateUnavailableReason } from './errors';
 
-export const ESTIMATE_TIMEOUT_MS = 12_000;
+/** Words alone: the model writes what it sees for each item, which takes a few seconds. */
+export const ESTIMATE_TIMEOUT_MS = 20_000;
+
+/**
+ * A photo is read at medium effort and described item by item, which on a crowded plate takes
+ * well over the 12 s this once allowed: a call that gave up showed a "Meal from photo" placeholder.
+ */
+export const ESTIMATE_PHOTO_TIMEOUT_MS = 45_000;
 
 /** The Edge Function's path under the Supabase project URL. */
 export const SUPABASE_ESTIMATE_PATH = '/functions/v1/estimate';
@@ -182,7 +189,7 @@ function httpReason(status: number): EstimateUnavailableReason {
  * Posts a meal to the estimate endpoint and returns its items (method 'ai'). Throws
  * EstimateUnavailableError when no endpoint is configured, the device is offline, sign-in is
  * configured but there's no session ('notSignedIn', before anything is sent), the server refuses
- * the user (401 'notSignedIn', 403 'forbidden'), the request fails or times out (12 s), or the
+ * the user (401 'notSignedIn', 403 'forbidden'), the request fails or times out (20 s, 45 s with a photo), or the
  * response can't be read. Cancelling through `signal` rejects with the abort reason instead, so
  * callers don't fall back after a Cancel.
  */
@@ -199,7 +206,7 @@ export async function postEstimate(req: EstimateRequest, opts: PostEstimateOptio
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, opts.timeoutMs ?? ESTIMATE_TIMEOUT_MS);
+  }, opts.timeoutMs ?? (req.photo || req.label ? ESTIMATE_PHOTO_TIMEOUT_MS : ESTIMATE_TIMEOUT_MS));
   const external = opts.signal;
   const cancel = (): void => controller.abort();
   external?.addEventListener('abort', cancel, { once: true });
