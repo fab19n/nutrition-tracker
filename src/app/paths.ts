@@ -16,6 +16,8 @@ export const PATHS = {
   dishes: '/insights/dishes',
   /** S35 Timing detail: one day's timing and the week's grid (?day=YYYY-MM-DD, default today). */
   timing: '/insights/timing',
+  /** Your plan: weight against the plan, calories against the budget, what workouts added, logs against weight. */
+  plan: '/insights/plan',
   more: '/more',
   weight: '/more/weight',
   settings: '/more/settings',

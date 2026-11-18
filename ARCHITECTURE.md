@@ -284,6 +284,25 @@ last meal 1–4 h before sleep, grazing 3–8 occasions, `PAUSE_UNTIL_MAX_DAYS 6
 `src/domain/insights/groups.ts`: `INSIGHT_GROUPS` (food · protein · timing · weight) and `rulesOffFor(goal)`; `evaluateInsights` leaves
 an off group's rules out of `ranked`/`top` (and so the weekly focus options), `all` still holds them; the maintenance estimate is in no group.
 
+### 5.13 `plan.ts` — where you stand against the goal (Insights › Your plan)
+```ts
+export function planProgress({ today, start, paceKgPerWeek, fallbackStartKg?, goal, days: PlanDay[], trend: TrendPoint[] }): PlanProgress;
+//   start = the goal period in force (or the app's first day, if later); days = start … yesterday, each with its target (null = paused),
+//   eaten, workout and bonus kcal, status, the pace and the maintenance in force that day; trend = the whole weight trend
+// PlanProgress = { start, today, daysIn, weight, energy, workouts, check }
+//   weight: verdict (noData · early · ahead · onTrack · behind · drifting), startKg, nowKg, changeKg, expectedChangeKg (each day's pace ÷ 7, summed up
+//     to the last weigh-in), behindKg (in the plan's direction, negative = ahead), actualPaceKgPerWeek (28-day slope, positive = losing),
+//     actual / plan series for the chart, and `end` for an end weight (kg to go, the date at the plan's pace and at yours)
+//   energy: counted days (complete or guess, not paused), days within budget, budget / eaten / under-or-over kcal (÷ 7,700 = kg), newest 8 weeks
+//   workouts: net kcal added, workout days, share of all budgets, the result with workouts counted and with none
+//   check: logged deficit (maintenance + workouts − eaten) against the weight trend's deficit (slope × 7,700) over the last 28 days of complete days;
+//     locked below 14 complete days, an early read below 21; read = agree (< 150 kcal a day) · logsAhead · weightAhead; the gap with half of each workout counted
+```
+Constants: `PLAN_MIN_TREND_DAYS 14`, `PLAN_MIN_WEIGH_INS 3`, `PLAN_TOLERANCE_KG 0.3` (or 15% of what the plan expects), `CHECK_MIN_DAYS 14`,
+`CHECK_FULL_DAYS 21`, `CHECK_WINDOW_DAYS 28`, `CHECK_AGREE_KCAL 150`, `PLAN_WEEKS_SHOWN 8`. Reads only: it never changes a target (the target check does, and the
+user approves it). `src/db/planProgress.ts` gathers the rows (`getPlanView`, `usePlanView`); `src/screens/Insights/planModel.ts` holds the copy, `PlanScreen.tsx` the screen, and
+a "Your plan" card sits first on Insights. Wording stays neutral: being behind is never amber.
+
 ## 6. Data layer contracts (`src/db`)
 
 - `db.ts`: Dexie database `kira-makan`, version 3.
@@ -505,6 +524,7 @@ export interface Estimator { estimate(req: EstimateRequest, ctx: { place?: Place
 | `/insights/target` | S37 Target suggestion (and the target history) |
 | `/insights/dishes` | S34 Top dishes check |
 | `/insights/timing` (`?day=`) | S35 Timing detail |
+| `/insights/plan` | Your plan: weight against the plan, calories against the budget, what workouts added, logs against weight |
 | `/more` | S48 More |
 | `/more/weight` | S16 Weight |
 | `/more/settings` | S19 Settings |

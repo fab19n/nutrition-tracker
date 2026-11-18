@@ -1,0 +1,183 @@
+/* Your plan. Tokens only. */
+
+.screen {
+  padding-bottom: calc(var(--content-pad-nav) + env(safe-area-inset-bottom, 0px));
+}
+
+.loading {
+  padding: 14px var(--pad-card-x) 0;
+}
+
+.card {
+  margin: 14px var(--pad-card-x) 0;
+}
+
+.tiles {
+  padding: 8px var(--pad-card-x) 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.since {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.facts {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.headline {
+  margin: 0;
+}
+
+/* Good news reads in the accent, never amber for the rest: a reading isn't a verdict. */
+.good {
+  color: var(--accent-text);
+}
+
+.body {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.cardLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.listLabel {
+  padding-top: 12px;
+}
+
+.line {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.intro {
+  margin: 0;
+  padding: 0 var(--pad-text-x) 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* A note that follows a card rather than a heading. */
+.introAfter {
+  padding-top: 10px;
+}
+
+.quiet {
+  margin: 0;
+  padding: 4px var(--pad-text-x) 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.caption {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* A list of label / number rows (week by week, workouts, the logs-against-weight check). */
+.rows {
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.rowText {
+  min-width: 0;
+}
+
+.rowLabel {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rowSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.rowValue {
+  flex: none;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowValue.good {
+  color: var(--accent-text);
+}
+
+.rowValue.over {
+  color: var(--amber-text);
+}
+
+.rowValue.muted {
+  color: var(--muted);
+}
+
+/* The badge sits above the question so the question keeps the whole width. */
+.checkHead {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--card2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.meter {
+  height: 6px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: var(--card2);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}

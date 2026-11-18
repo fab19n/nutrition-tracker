@@ -1,0 +1,91 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.svg {
+  display: block;
+  margin-top: 8px;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* The plan: a dashed line, a step quieter than your own trend. */
+.plan {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.actual {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.end {
+  fill: var(--accent);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatchActual,
+.swatchPlan {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 3px solid var(--accent);
+  border-radius: 2px;
+}
+
+.swatchPlan {
+  border-top: 2px dashed var(--muted);
+}
+
+.empty {
+  height: 110px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  border-radius: var(--r-inset);
+  background: var(--card2);
+}

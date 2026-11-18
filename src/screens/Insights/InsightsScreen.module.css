@@ -45,6 +45,48 @@
   color: var(--accent-text);
 }
 
+/* "Your plan": where you stand against the goal, one line, opens the whole read. */
+.plan {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 2 * var(--pad-card-x));
+  min-height: 44px;
+  margin: 14px var(--pad-card-x) 0;
+  padding: 12px var(--pad-card-x);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: left;
+  color: var(--text);
+}
+
+.planText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.planLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.planTitle {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.planSub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* "Your weekly review is ready": the dark --nav card. */
 .review {
   display: flex;

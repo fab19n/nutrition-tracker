@@ -21,6 +21,7 @@ function renderInsights() {
       { path: PATHS.target, element: <p>Target suggestion route</p> },
       { path: PATHS.dishes, element: <p>Top dishes route</p> },
       { path: PATHS.timing, element: <p>Timing detail route</p> },
+      { path: PATHS.plan, element: <p>Your plan route</p> },
     ],
     { initialEntries: [PATHS.insights] },
   );
@@ -49,6 +50,17 @@ describe('S31 InsightsScreen on the demo world', () => {
     expect(screen.getByText('6 of 7')).toBeInTheDocument();
     expect(screen.getByText('78.0 kg now')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Your weekly review is ready/ })).toBeInTheDocument();
+  });
+
+  it('shows where you stand against your plan, and opens it', async () => {
+    const user = userEvent.setup();
+    const router = renderInsights();
+    const card = await screen.findByRole('button', { name: /0\.7 kg behind plan/ }, SLOW);
+    expect(card).toHaveTextContent('Your plan');
+    expect(card).toHaveTextContent('Trend −0.6 kg · plan −1.3 kg');
+    await user.click(card);
+    expect(await screen.findByText('Your plan route')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(PATHS.plan);
   });
 
   it('lists the top 3 with evidence, where it came from, recurring calories and timing', async () => {

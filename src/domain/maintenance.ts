@@ -50,7 +50,7 @@ function mean(values: number[]): number {
 }
 
 /** Least-squares slope of the trend in kg/day, or null without enough spread in days. */
-function trendSlopePerDay(points: { day: LogicalDay; trendKg: number }[], start: LogicalDay): number | null {
+export function trendSlopePerDay(points: { day: LogicalDay; trendKg: number }[], start: LogicalDay): number | null {
   if (points.length < 2) return null;
   const xs = points.map((p) => daysBetween(start, p.day));
   const span = Math.max(...xs) - Math.min(...xs);

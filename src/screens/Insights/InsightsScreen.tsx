@@ -15,11 +15,13 @@ import { UnlockList } from '@/components/UnlockProgress/UnlockProgress';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { useNow } from '@/db/hooks';
 import { clearFeedback, recordFeedback, useInsights, type InsightsView, type Undo } from '@/db/insightsData';
+import { usePlanView } from '@/db/planProgress';
 import { useTargetView, type TargetView } from '@/db/targetSuggestion';
 import { fmtClock, fmtInt, fmtKg, fmtKgDelta, fmtRm, fmtSigned, roundTo10 } from '@/domain/format';
 import { fmtHours, type RankedInsight } from '@/domain/insights';
 import { DishCheckCard } from './DishCheckCard';
 import { unlockListModel } from './dishCheckModel';
+import { planCardModel } from './planModel';
 import { targetCardModel } from './targetModel';
 import { useTargetDecisions } from './useTargetDecisions';
 import styles from './InsightsScreen.module.css';
@@ -186,6 +188,24 @@ function TargetCard({ target }: { target: TargetView }) {
   );
 }
 
+/** Where you stand against the goal you picked: one line here, the whole read on Your plan. */
+function PlanCard() {
+  const navigate = useNavigate();
+  const plan = usePlanView();
+  if (!plan) return null;
+  const card = planCardModel(plan);
+  return (
+    <button type="button" className={styles.plan} onClick={() => navigate(PATHS.plan)}>
+      <span className={styles.planText}>
+        <span className={styles.planLabel}>{card.label}</span>
+        <span className={styles.planTitle}>{card.title}</span>
+        <span className={styles.planSub}>{card.sub}</span>
+      </span>
+      <ChevronRight size={20} strokeWidth={2} aria-hidden="true" />
+    </button>
+  );
+}
+
 /** @design S31 Insights — this week's numbers, top 3, where calories came from, timing, unlocks. */
 export default function InsightsScreen() {
   const navigate = useNavigate();
@@ -213,6 +233,8 @@ export default function InsightsScreen() {
       <TopBar title="Insights" right={<span className={styles.caption}>{view.headerLabel}</span>} />
 
       {target ? <TargetCard target={target} /> : null}
+
+      <PlanCard />
 
       <MetricRow className={styles.tiles}>
         <MetricTile label={budget.label} value={budget.value} tone={budget.tone} sub={budget.sub} />
