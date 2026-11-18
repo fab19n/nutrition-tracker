@@ -49,6 +49,15 @@ function photoCallFailed(req: EstimateRequest, result: EstimateResult): boolean 
   return result.aiSkipped !== undefined && RETRYABLE.has(result.aiSkipped) && result.items.every((item) => item.pendingEstimate);
 }
 
+/**
+ * A photo only the AI can read, and nobody is signed in (or the session ran out): nothing was
+ * sent. A "Meal from photo" at a fixed 600 kcal looked like the AI couldn't tell what it was, so
+ * the screen says what's missing and where to fix it.
+ */
+function photoNeedsSignIn(req: EstimateRequest, result: EstimateResult): boolean {
+  return Boolean(req.photo || req.label) && result.aiSkipped === 'notSignedIn';
+}
+
 /** Why a photo's call failed, in a few words, so "Try again" isn't a mystery. */
 const FAIL_NOTE: Partial<Record<AiSkipReason, string>> = {
   timeout: 'The estimate took too long to come back.',
@@ -65,7 +74,7 @@ function showSignInHint(): void {
   useUiStore.getState().showToast(SIGN_IN_HINT);
 }
 
-type Phase = 'working' | 'slow' | 'failed';
+type Phase = 'working' | 'slow' | 'failed' | 'signIn';
 
 /** S10 Estimating: the typed text (or photo) while the estimator reads it; S47 in place when it can't. */
 export default function EstimatingScreen() {
@@ -131,6 +140,10 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
         // A photo the AI can't read yet comes back as a pending "Meal from photo".
         const result = await estimateMeal(req, ctx, { signal: controller.signal, mode: profile?.aiEstimates });
         if (controller.signal.aborted) return;
+        if (photoNeedsSignIn(req, result)) {
+          setPhase('signIn');
+          return;
+        }
         if (result.items.length === 0 || photoCallFailed(req, result)) {
           setFailNote(result.aiSkipped ? FAIL_NOTE[result.aiSkipped] : undefined);
           setPhase('failed');
@@ -182,7 +195,10 @@ function Estimating({ draft }: { draft: ReviewDraft }) {
         <blockquote className={styles.quote}>“{text}”</blockquote>
       )}
 
-      {failed ? (
+      {phase === 'signIn' ? (
+        // Settings is a screen of its own: coming back here reads the photo again with the new session.
+        <SignInState onSettings={() => navigate(PATHS.settings)} onLibrary={() => setFallback('library')} onManual={() => setFallback('manual')} />
+      ) : failed ? (
         <FailedState
           {...(failNote ? { note: failNote } : {})}
           onRetry={() => setAttempt((n) => n + 1)}
@@ -222,6 +238,29 @@ function FailedState({ note, onRetry, onLibrary, onManual }: { note?: string; on
       <p className={styles.failedBody}>Try again, or pick from your library. What you typed is kept.</p>
       <div className={styles.failedActions}>
         <Button onClick={onRetry}>Try again</Button>
+        <Button variant="secondary" size="md" onClick={onLibrary}>
+          Pick from your library
+        </Button>
+        <Button variant="ghost" size="md" onClick={onManual}>
+          Enter kcal yourself
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function SignInState({ onSettings, onLibrary, onManual }: { onSettings: () => void; onLibrary: () => void; onManual: () => void }) {
+  const titleId = useId();
+  return (
+    <section className={styles.failed} role="alert" aria-labelledby={titleId}>
+      <h2 id={titleId} className={styles.failedTitle}>
+        Sign in to read your photo
+      </h2>
+      <p className={styles.failedBody}>
+        Photos are read by the AI, which needs you signed in. Sign in under Settings, then come back here and it reads this photo. Your photo is kept.
+      </p>
+      <div className={styles.failedActions}>
+        <Button onClick={onSettings}>Open Settings</Button>
         <Button variant="secondary" size="md" onClick={onLibrary}>
           Pick from your library
         </Button>

@@ -195,7 +195,7 @@ describe('S10 Estimating', () => {
 });
 
 /** What the service returns when the AI was asked and the call didn't come back: a pending placeholder. */
-function failedCall(reason: 'timeout' | 'network' | 'http' | 'badResponse' | 'offline', name = 'Meal from photo'): EstimateResult {
+function failedCall(reason: 'timeout' | 'network' | 'http' | 'badResponse' | 'offline' | 'notSignedIn', name = 'Meal from photo'): EstimateResult {
   return {
     items: [{ id: 'p1', name, unitMacros: { kcal: 500, proteinG: 20, carbsG: 60, fatG: 18 }, quantity: 1, uncertainty: 0.4, source: 'aiGuess', pendingEstimate: true }],
     questions: [],
@@ -407,7 +407,7 @@ describe('S10 AI estimates setting and sign-in', () => {
     expect(useUiStore.getState().toast).toBeNull();
   });
 
-  it('keeps a photo as a pending "Meal from photo" and hints at signing in', async () => {
+  it('asks a signed-out photo to sign in on screen, not a 600 kcal "Meal from photo"', async () => {
     // The session lookup can keep S10 up long enough to show the photo, and the stored test
     // photo isn't a real Blob after fake-indexeddb's clone, so object URLs are stubbed.
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
@@ -419,10 +419,64 @@ describe('S10 AI estimates setting and sign-in', () => {
     useUiStore.getState().setReviewDraft(photoDraft(photoId, '', context()));
     renderLogRoutes(PATHS.estimating);
 
-    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More for Meal from photo' })).toBeInTheDocument();
-    expect(await screen.findByText(SIGN_IN_HINT)).toBeInTheDocument();
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByRole('heading', { name: 'Sign in to read your photo' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Check your meal' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More for Meal from photo' })).toBeNull();
+    // The screen says it, so there's no one-off toast to miss.
+    expect(screen.queryByText(SIGN_IN_HINT)).toBeNull();
+    expect(useUiStore.getState().toast).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(useUiStore.getState().reviewDraft?.items[0]?.pendingEstimate).toBe(true);
+    // The photo is kept in the draft for when you're back.
+    expect(useUiStore.getState().reviewDraft?.meta.photoId).toBe(photoId);
+  });
+
+  it('opens Settings from there, and reads the photo when you come back signed in', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    let calls = 0;
+    override.estimate = async () => {
+      calls += 1;
+      if (calls === 1) return failedCall('notSignedIn');
+      const [guess] = failedCall('timeout', 'Hot lemon ginger tea').items;
+      return { items: [{ ...guess!, pendingEstimate: false }], questions: [], unmatched: [], method: 'ai' };
+    };
+    const photoId = await storePhoto(db, new Blob(['jpeg'], { type: 'image/jpeg' }), new Blob(['jpg'], { type: 'image/jpeg' }));
+    useUiStore.getState().setReviewDraft(photoDraft(photoId, '', context()));
+    const { router } = renderLogRoutes(PATHS.estimating);
+
+    const alert = await screen.findByRole('alert');
+    await user.click(within(alert).getByRole('button', { name: 'Open Settings' }));
+    expect(router.state.location.pathname).toBe(PATHS.settings);
+    expect(await screen.findByRole('heading', { name: /Settings screen/ })).toBeInTheDocument();
+    expect(useUiStore.getState().reviewDraft?.meta.photoId).toBe(photoId);
+
+    // Signed in under Settings, then Back: the photo is read again, nothing re-taken.
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More for Hot lemon ginger tea' })).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
+
+  it('still lets a signed-out photo be logged from your library or by kcal', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:meal-photo');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    override.estimate = async () => failedCall('notSignedIn');
+    const photoId = await storePhoto(db, new Blob(['jpeg'], { type: 'image/jpeg' }), new Blob(['jpg'], { type: 'image/jpeg' }));
+    useUiStore.getState().setReviewDraft(photoDraft(photoId, 'teh halia', context()));
+    renderLogRoutes(PATHS.estimating);
+
+    const alert = await screen.findByRole('alert');
+    await user.click(within(alert).getByRole('button', { name: 'Enter kcal yourself' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Enter kcal yourself' });
+    await user.type(within(sheet).getByLabelText('kcal'), '40');
+    await user.click(within(sheet).getByRole('button', { name: 'Add to review' }));
+
+    expect(await screen.findByRole('heading', { name: 'Check your meal' })).toBeInTheDocument();
+    expect(screen.getByText('40 kcal')).toBeInTheDocument();
   });
 });

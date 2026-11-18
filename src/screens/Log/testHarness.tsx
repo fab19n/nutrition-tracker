@@ -58,6 +58,7 @@ export function renderLogRoutes(initial: InitialEntry) {
           { path: PATHS.usuals, element: <Stub name="Usuals" /> },
           { path: PATHS.pots, element: <Stub name="Pots" /> },
           { path: PATHS.potNew, element: <Stub name="New pot" /> },
+          { path: PATHS.settings, element: <Stub name="Settings" /> },
         ],
       },
     ],
